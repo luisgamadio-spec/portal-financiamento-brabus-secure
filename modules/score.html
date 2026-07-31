@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Score Vendedores · Portal F&I</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+:root{--bg:#070707;--panel:#101010;--panel2:#181818;--text:#f7f7f7;--muted:#a8a8a8;--line:#2b2b2b;--red:#e30613;--red2:#9b0009;--green:#48e0a4;--yellow:#f5c542;--blue:#3b82f6;--shadow:0 18px 50px rgba(0,0,0,.42);--radius:18px}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 15% 0%,rgba(227,6,19,.16),transparent 32%),radial-gradient(circle at 85% 10%,rgba(255,255,255,.06),transparent 28%),linear-gradient(180deg,#050505 0%,#090909 48%,#0d0d0d 100%);font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;color:var(--text)}header{position:sticky;top:0;z-index:10;padding:24px 32px 20px;background:rgba(5,5,5,.92);backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.08);box-shadow:0 10px 35px rgba(0,0,0,.38)}header:before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg,var(--red),#780008)}.title{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}h1{margin:0;font-size:34px;font-weight:950;letter-spacing:-1px}h1:after{content:"";display:block;width:84px;height:4px;margin-top:12px;border-radius:999px;background:linear-gradient(90deg,var(--red),transparent)}.subtitle{margin-top:10px;color:#c8c8c8;font-size:15px;font-weight:600}.badge{background:linear-gradient(180deg,#151515,#0b0b0b);border:1px solid rgba(227,6,19,.45);color:#fff;padding:11px 16px;border-radius:999px;font-weight:850;box-shadow:0 0 0 3px rgba(227,6,19,.08)}main{max-width:1600px;margin:auto;padding:28px 30px 44px}.upload{display:grid;grid-template-columns:repeat(5,minmax(180px,1fr));gap:18px;margin-bottom:18px}.drop{background:linear-gradient(180deg,rgba(22,22,22,.97),rgba(11,11,11,.98));border:1px solid rgba(255,255,255,.09);border-radius:22px;padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden}.drop:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--red),transparent)}.drop label{display:block;font-size:15px;font-weight:950;margin-bottom:8px}.drop small{display:block;color:#b8b8b8;font-size:12px;line-height:1.35;min-height:34px}input[type=file],input[type=date],select{width:100%;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:#060606;color:#f5f5f5;font-weight:800}input[type=file]::file-selector-button{border:0;margin-right:10px;padding:9px 13px;border-radius:10px;background:#fff;color:#101010;font-weight:850;cursor:pointer}.actions,.filters{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:20px 0 24px;padding:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);border-radius:20px}.field{display:flex;flex-direction:column;gap:6px;min-width:170px}.field label{color:#b7b7b7;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.7px}button{border:0;border-radius:14px;padding:14px 20px;background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;font-size:14px;font-weight:950;cursor:pointer;box-shadow:0 14px 34px rgba(227,6,19,.26);transition:.18s ease}button:hover{transform:translateY(-2px);box-shadow:0 18px 42px rgba(227,6,19,.34)}button.secondary{background:linear-gradient(180deg,#222,#111);border:1px solid rgba(255,255,255,.11);box-shadow:none}.status{color:#c9c9c9;font-size:13px;font-weight:750}.tabs{display:flex;gap:8px;padding:8px;margin:0 0 24px;background:#101010;border:1px solid rgba(255,255,255,.09);border-radius:18px;width:max-content;max-width:100%;flex-wrap:wrap}.tab{background:transparent;color:#b7b7b7;border:1px solid transparent;box-shadow:none;border-radius:13px;padding:11px 18px;font-size:13px;font-weight:950;cursor:pointer}.tab.active{background:#fff;color:#111;border-color:#fff;box-shadow:0 12px 28px rgba(255,255,255,.08)}section{display:none}section.active{display:block}.panel{background:linear-gradient(180deg,#151515,#0d0d0d);border:1px solid rgba(255,255,255,.09);border-radius:22px;padding:22px;margin-bottom:18px;box-shadow:var(--shadow);position:relative;overflow:hidden}.panel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--red),transparent)}h2{margin:0 0 16px;font-size:20px;font-weight:950}.tableWrap{overflow:auto;border-radius:16px;border:1px solid rgba(255,255,255,.08);background:#090909}table{width:100%;min-width:980px;border-collapse:collapse;background:#090909}th{position:sticky;top:0;z-index:1;background:#181818;color:#fff;border-bottom:1px solid rgba(227,6,19,.38);padding:13px 14px;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.55px;white-space:nowrap;text-align:right}td{padding:12px 14px;color:#f2f2f2;border-bottom:1px solid rgba(255,255,255,.065);font-size:13px;font-weight:680;white-space:nowrap;text-align:right}th:first-child,td:first-child{text-align:left}tr:hover td{background:rgba(227,6,19,.075)}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:18px}.summaryItem{background:#0b0b0b;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px}.summaryItem .k{color:#a9a9a9;font-size:11px;font-weight:950;letter-spacing:.8px;text-transform:uppercase}.summaryItem .v{font-size:24px;font-weight:950;margin-top:7px}.pill,.scoreBadge,.planoBadge{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:7px 11px;font-weight:950;font-size:12px;border:1px solid rgba(255,255,255,.18);color:#fff}.scoreBadge{min-width:70px}.excelencia{background:#136f46}.alto{background:#1661a8}.bom{background:#6b5f00}.desenv{background:#7a3d00}.baixo{background:#8a1010}.planoLinear{background:linear-gradient(135deg,#d9b35b,#806018)}.planoBalao{background:linear-gradient(135deg,#1e6fff,#07306f)}.planoReversao{background:linear-gradient(135deg,#e30613,#6d0009)}.planoSubsidiado{background:linear-gradient(135deg,#18a76b,#075231)}.planoCoparticipado{background:linear-gradient(135deg,#8d4dff,#3d167f)}.muted{color:#a8a8a8}.ok{color:#48e0a4}.bad{color:#ff6a6a}.warn{color:#f5c542}.footer{color:#8f8f8f;border-top:1px solid rgba(255,255,255,.08);margin-top:28px;padding-top:18px;font-size:12px}.modal{position:fixed;inset:0;background:linear-gradient(180deg,#050505 0%,#090909 52%,#0d0d0d 100%);display:none;align-items:stretch;justify-content:stretch;padding:0;z-index:100}.modal.open{display:flex}.modalBox{width:100vw;height:100vh;max-height:none;overflow:auto;background:radial-gradient(circle at 15% 0%,rgba(227,6,19,.16),transparent 32%),linear-gradient(180deg,#050505 0%,#0b0b0b 100%);border:0;border-radius:0;padding:28px 30px 44px;box-shadow:none}.modalHead{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;gap:12px;align-items:center;margin:-28px -30px 22px;padding:24px 30px 18px;background:rgba(5,5,5,.94);backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.10)}.modalHead h2{margin:0!important}.detailHero{display:grid;grid-template-columns:150px 1fr;gap:22px;align-items:center;margin-bottom:22px}.detailHeaderInfo{display:flex;flex-direction:column;gap:8px}.detailHeaderInfo .sellerNameBig{font-size:28px;font-weight:1000;letter-spacing:-.7px}.detailHeaderInfo .sellerSub{color:#aaa;font-size:14px;font-weight:850}.detailSection{margin-top:22px}.detailSectionTitle{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 14px}.detailSectionTitle h3{margin:0;font-size:18px}.modal .tableWrap{max-width:100%;overflow:auto}.modal table{min-width:1500px}.sellerScoreCard.minimal{grid-template-columns:128px 1fr}.sellerScoreCard.minimal .sellerScoreActions{margin-top:18px}.scoreDetails{display:none!important}.scoreQuickStats{display:none!important}@media(max-width:760px){.modalBox{padding:22px 16px 34px}.modalHead{margin:-22px -16px 18px;padding:18px 16px}.detailHero{grid-template-columns:1fr}.detailHeaderInfo .sellerNameBig{font-size:23px}}.diag{white-space:pre-wrap;word-break:break-word;margin:0;padding:14px;border-radius:14px;background:#070707;color:#d9f7d9;border:1px solid rgba(255,255,255,.08);max-height:420px;overflow:auto;font-size:13px;line-height:1.45}@media(max-width:1100px){.upload{grid-template-columns:1fr 1fr}.filters,.actions{align-items:stretch}.field{min-width:100%}.tabs{width:100%}.tab{flex:1;text-align:center}}@media(max-width:640px){header{padding:22px 18px 18px}main{padding:18px}h1{font-size:28px}.upload{grid-template-columns:1fr}.tab{min-width:130px}.tabs{overflow-x:auto;flex-wrap:nowrap}.summary{grid-template-columns:1fr 1fr}.summaryItem .v{font-size:19px}}
+
+/* V1.05 — Visual premium Score dos Vendedores */
+.scoreIntro{display:flex;justify-content:space-between;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
+.scoreIntro h2{margin:0 0 6px!important}.scoreIntro p{margin:0;color:#aaa;font-size:13px;font-weight:700}
+.sellerScoreGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:18px}
+.sellerScoreCard{position:relative;display:grid;grid-template-columns:128px 1fr;gap:18px;align-items:center;padding:20px;border-radius:24px;background:radial-gradient(circle at 18% 18%,rgba(227,6,19,.16),transparent 34%),linear-gradient(145deg,#1a1a1a 0%,#111 52%,#090909 100%);border:1px solid rgba(255,255,255,.10);box-shadow:0 18px 50px rgba(0,0,0,.34);overflow:hidden;transition:.22s ease}
+.sellerScoreCard:hover{transform:translateY(-3px);border-color:rgba(227,6,19,.35);box-shadow:0 24px 65px rgba(0,0,0,.46)}
+.sellerScoreCard:before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#e30613,#f59e0b,#f5c542,#48e0a4);opacity:.85}
+.scoreCircle{--p:0;--c:#e30613;width:118px;height:118px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--c) calc(var(--p)*1%),rgba(255,255,255,.09) 0);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 16px 34px rgba(0,0,0,.35);position:relative;animation:scorePop .55s ease both}
+.scoreCircle:after{content:'';position:absolute;inset:12px;border-radius:50%;background:linear-gradient(180deg,#171717,#070707);border:1px solid rgba(255,255,255,.08)}
+.scoreCircle .scoreNumber{position:relative;z-index:1;font-size:27px;font-weight:1000;color:#fff;letter-spacing:-1px;line-height:1}
+.scoreCircle .scoreMax{position:relative;z-index:1;color:#858585;font-size:10px;font-weight:900;margin-top:4px;display:block;text-align:center;letter-spacing:.4px}
+@keyframes scorePop{from{transform:scale(.92);filter:brightness(.85)}to{transform:scale(1);filter:brightness(1)}}
+.sellerScoreBody{min-width:0}.sellerScoreTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+.sellerName{font-size:16px;font-weight:1000;color:#fff;line-height:1.18;letter-spacing:-.25px}.sellerMeta{margin-top:7px;color:#a8a8a8;font-size:12px;font-weight:850}.sellerRank{color:rgba(255,255,255,.28);font-size:20px;font-weight:1000;white-space:nowrap}
+.sellerScoreActions{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:15px;flex-wrap:wrap}.scoreQuickStats{display:grid;grid-template-columns:repeat(5,minmax(86px,1fr));gap:8px;margin-top:14px;padding:12px;border-radius:16px;background:rgba(255,255,255,.026);border:1px solid rgba(255,255,255,.06)}.scoreQuickItem{min-width:0}.scoreQuickItem .mk{display:block;color:#888;font-size:9px;font-weight:950;text-transform:uppercase;letter-spacing:.45px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.scoreQuickItem .mv{display:block;margin-top:5px;color:#fff;font-size:13px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detailsBtn{padding:10px 14px!important;border-radius:999px!important;font-size:12px!important;box-shadow:none!important;background:linear-gradient(180deg,#242424,#111)!important;border:1px solid rgba(255,255,255,.13)!important}.scoreDetails{grid-column:1/-1;display:none;margin-top:4px;padding:18px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.022));border:1px solid rgba(255,255,255,.10);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.scoreDetails.open{display:block;animation:detailOpen .22s ease both}.scoreDetailsTitle{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap}.scoreDetailsTitle h3{margin:0;font-size:16px;font-weight:1000}.scoreDetailsTitle span{color:#aaa;font-size:12px;font-weight:850}.scoreDetailGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}.scoreCriterion{padding:14px;border-radius:16px;background:#0b0b0b;border:1px solid rgba(255,255,255,.075)}.scoreCriterionTop{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px}.criterionName{font-size:13px;font-weight:1000;color:#fff}.criterionPoints{font-size:12px;font-weight:950;color:#dcdcdc;white-space:nowrap}.criterionMeta{display:flex;justify-content:space-between;gap:10px;color:#8f8f8f;font-size:11px;font-weight:850;margin-bottom:8px}.criterionBar{height:9px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}.criterionBar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#e30613,#f59e0b,#f5c542,#78e08f,#48e0a4);width:0;transition:width .45s ease}.rangeBadge{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-size:11px;font-weight:1000;letter-spacing:.35px;text-transform:uppercase;white-space:nowrap}.rangeBadge.baixo{background:rgba(227,6,19,.14);color:#ffd0d0;border-color:rgba(227,6,19,.35)}.rangeBadge.desenv{background:rgba(245,124,0,.15);color:#ffd9b0;border-color:rgba(245,124,0,.35)}.rangeBadge.bom{background:rgba(245,197,66,.14);color:#fff1b6;border-color:rgba(245,197,66,.38)}.rangeBadge.alto{background:rgba(72,224,164,.12);color:#c8ffe6;border-color:rgba(72,224,164,.34)}.rangeBadge.excelencia{background:linear-gradient(135deg,rgba(72,224,164,.18),rgba(245,197,66,.14));color:#fff7ce;border-color:rgba(245,197,66,.45);box-shadow:0 0 0 3px rgba(245,197,66,.05)}@keyframes detailOpen{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media(max-width:760px){.sellerScoreGrid{grid-template-columns:1fr}.sellerScoreCard{grid-template-columns:1fr;text-align:center}.scoreCircle{margin:auto}.sellerScoreTop{align-items:center}.scoreQuickStats{grid-template-columns:repeat(2,minmax(0,1fr));text-align:left}.sellerScoreActions{justify-content:center}.scoreDetails{text-align:left}}
+
+
+/* V1.08 — Tela ampla de detalhes e cards principais minimalistas */
+.scoreQuickStats.compact{grid-template-columns:repeat(2,minmax(0,1fr))}
+.scoreDetailSummary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 18px}
+.scoreDetailSummary div{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px}
+.scoreDetailSummary span{display:block;color:#9f9f9f;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.65px;margin-bottom:6px}
+.scoreDetailSummary strong{display:block;color:#fff;font-size:18px;font-weight:1000;letter-spacing:-.3px}
+.sellerFinBlock{margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.10)}
+.sellerFinTable table{min-width:1500px}
+.sellerFinTable th,.sellerFinTable td{font-size:12px}
+@media(max-width:640px){.scoreQuickStats.compact,.scoreDetailSummary{grid-template-columns:1fr!important}}
+
+.vendorAlertPanel{background:linear-gradient(180deg,#22100f,#100808);border:1px solid rgba(227,6,19,.45);border-radius:20px;padding:18px 20px;margin:0 0 22px;box-shadow:0 18px 50px rgba(0,0,0,.32)}
+.vendorAlertPanel h2{margin:0 0 10px!important;color:#fff}.vendorAlertPanel p{margin:0 0 14px;color:#ddd}.vendorAlertList{overflow:auto;border-radius:14px;border:1px solid rgba(255,255,255,.08)}.vendorAlertList table{min-width:760px}
+.vendorOkPanel{background:linear-gradient(180deg,#102117,#07100b);border:1px solid rgba(72,224,164,.25);border-radius:16px;padding:12px 14px;margin:0 0 18px;color:#bdf8df;font-weight:850}
+</style>
+</head>
+<body>
+<header><div class="title"><div><h1>PORTAL F&I</h1><div class="subtitle">Análise de Score Vendedores · Grupo Brabus Mitsubishi</div></div><div class="badge">Versão: 1.23 | Build: 07/07/2026 12:44 (BRT)</div></div></header>
+<main>
+  <div class="actions" id="autoLoadWrap"><button class="secondary" onclick="voltarAoPortalScore()">⬅ Voltar ao Portal</button><button class="secondary" onclick="processar()">Recarregar bases</button><span id="status" class="status">Carregando bases automaticamente...</span></div>
+  <div id="vendorAlerts"></div>
+  <div id="filters" class="filters" style="display:none">
+    <div class="field"><label>Data inicial</label><input id="dateStart" type="date" value="2026-06-01" onchange="autoRenderFromFilter()" oninput="autoRenderFromFilter()"></div>
+    <div class="field"><label>Data final</label><input id="dateEnd" type="date" onchange="autoRenderFromFilter()" oninput="autoRenderFromFilter()"></div>
+    <div class="field"><label>Loja</label><select id="storeFilter" onchange="autoRenderFromFilter()"><option value="">Todas as lojas</option></select></div>
+    <div class="field"><label>Departamento</label><select id="deptFilter" onchange="autoRenderFromFilter()"><option value="Grupo">Grupo</option><option value="Novos">Novos</option><option value="Seminovos">Seminovos</option></select></div>
+    <button class="secondary" onclick="setQuickPeriod('currentMonth')">Mês atual</button>
+    <button class="secondary" onclick="setQuickPeriod('lastMonth')">Mês anterior</button>
+    <button class="secondary" onclick="setQuickPeriod('last6')">Últimos 6 meses</button>
+    <button class="secondary" onclick="setQuickPeriod('lastYear')">Último ano</button>
+    <button class="secondary" onclick="clearPeriodFilter()">Limpar período</button>
+  </div>
+  <div class="tabs" id="tabs" style="display:none"><div class="tab active" onclick="showTab('score',this)">Score dos Vendedores</div><div class="tab" onclick="showTab('diagnostico',this)">Diagnóstico</div></div>
+  <section id="score" class="active"></section>
+  <section id="novos"></section>
+  <section id="diagnostico"></section>
+  <div class="footer">Regras da v1.23 GitHub modular: carregamento automático das bases em ../data/ incluindo BASE CORRETA VENDAS ATUALIZADA.xlsx; visual premium da seção Score; módulo Coparticipado removido desta versão e migrado para o Portal F&I; Base 01/02/03 com cabeçalho real na linha 3; Base 02 consolidada por proposta e descrição de serviço; vendedor/loja/departamento validados pela base mestre de vendedores, considerando apenas TIPO = VENDEDOR, com alertas de não cadastrados.</div>
+</main>
+<div class="modal" id="modal"><div class="modalBox"><div class="modalHead"><h2 id="modalTitle">Detalhes</h2><button class="secondary" onclick="closeModal()">Voltar ao ranking</button></div><div id="modalBody"></div></div></div>
+<script>
+
+function voltarAoPortalScore(){
+  try{
+    if(window.parent && window.parent !== window){ window.parent.postMessage('portal:back','*'); return; }
+  }catch(e){}
+  if(document.referrer){ history.back(); return; }
+  window.location.href='../index.html';
+}
+
+const EXCLUDED_SELLERS=new Set(['LUIS FERNANDO BUENO DE SOUZA','RICARDO SILVA COSTA','SANDRO SEVERO LEROIS','JOAO FONTOLAN','FELIPE ALEXANDRE VITORINO','JEFFERSON CLEMENTE','MARIO ALBERTO DE SOUZA VAZ','FABIANO OKUBO','SERGIO AUGUSTO SEGURA']);
+const STATIC_VENDOR_MAP = {
+  "ALEXANDRE DE SA CORREA": "ABC",
+  "ERICA CAETANO CENZI": "ABC",
+  "GILBERTO FRANCISCO DA ROCHA": "ABC",
+  "LEANDRO JOAO DA SILVA": "ABC",
+  "LEONARDO DA SILVA EGIDIO": "ABC",
+  "LILIAN APARECIDA QUIRINO ZICA": "ABC",
+  "PEDRO HENRIQUE MACHADO KODAMA": "ABC",
+  "REINALDO GARCIA DOS SANTOS": "ABC",
+  "RICHARD WAGNER": "ABC",
+  "RODRIGO MONTANARI MINGUINI": "ABC",
+  "RONNY EMERSON BIN": "ABC",
+  "ROSANGELA FREIRE AIALA": "BANDEIRANTES",
+  "ANDREA NUNES": "ALPHAVILLE",
+  "CAROLINA VASCONCELOS DOS SANTOS": "ALPHAVILLE",
+  "EDUARDO BEN HUR SANTOS DA SILVA": "ALPHAVILLE",
+  "ERIC TAVARES DOS SANTOS": "ALPHAVILLE",
+  "JOAO FONTOLAN": "ALPHAVILLE",
+  "LUCIANA ZEMLICSKI": "ALPHAVILLE",
+  "MARIA CAROLINA OYADOMARI DE OLIVEIRA": "ALPHAVILLE",
+  "RAFAEL SANTOS TEODORO": "ALPHAVILLE",
+  "RAPHAEL ALVES FERREIRA": "ALPHAVILLE",
+  "RAQUEL CARIELO FERNANDES": "ALPHAVILLE",
+  "ROGLECIA SILVA DO NASCIMENTO": "ALPHAVILLE",
+  "VICTOR YUJI UNE SUGUIURA DE SOUZA": "ALPHAVILLE",
+  "AGATHA RODRIGUES": "ANALIA FRANCO",
+  "ANA MARIA DIAS MARQUES": "ANALIA FRANCO",
+  "ANDERSON ALVES BISPO": "ANALIA FRANCO",
+  "EDUARDO FERNANDO DA SILVA": "ANALIA FRANCO",
+  "HELEN REGINA DA SILVA PRACIANO MELGACO": "ANALIA FRANCO",
+  "JOAO PAULO PEREIRA JUNIOR": "ANALIA FRANCO",
+  "MAIRA KAROLINA SANTOS VANNUCI": "ANALIA FRANCO",
+  "MARCIO EDUARDO HERNANDEZ JUNIOR": "ANALIA FRANCO",
+  "MARCOS RIBEIRO": "ANALIA FRANCO",
+  "NADSON PIRES DOS SANTOS": "ANALIA FRANCO",
+  "RENATO RICHTER": "ANALIA FRANCO",
+  "THIAGO CABRAL LAURENTINO": "ANALIA FRANCO",
+  "ANDRESSA CAROLINA AZEVEDO": "BANDEIRANTES",
+  "BRUNNO RODRIGUES DE MEDEIROS": "BANDEIRANTES",
+  "CARLOS HENRIQUE BATISTA PAULO BAETA": "BANDEIRANTES",
+  "CLAUDIA RENATA H ANDRE DE MENDONCA": "BANDEIRANTES",
+  "ERNANDES JOSE DE ALMEIDA": "BANDEIRANTES",
+  "FLAVIO DA SILVA MALVEIRA": "BANDEIRANTES",
+  "GUSTAVO HENRIQUE DE SOUSA MORAES": "BANDEIRANTES",
+  "HENRIQUE SANTOS DUARTE": "BANDEIRANTES",
+  "HERBERT MARTINS NASCIMENTO": "BANDEIRANTES",
+  "LEANDRO BITENCOURT FELIPE": "BANDEIRANTES",
+  "LUCIANO TARZIA DA SILVA": "BANDEIRANTES",
+  "LUIS FERNANDO BUENO DE SOUZA": "BANDEIRANTES",
+  "LUIZ AUGUSTO MAISTRO": "BANDEIRANTES",
+  "MARCIO ALVES TOLENTINO": "BANDEIRANTES",
+  "RENAN GUEDES DE PAIVA": "BANDEIRANTES",
+  "ROBERTA KELLY MONTEIRO DOS SANTOS": "BANDEIRANTES",
+  "RONALDO RIBEIRO BELLINATTO": "BANDEIRANTES",
+  "SIDNEI DA SILVA LOZADO": "BANDEIRANTES",
+  "WAGNER LEANDRO FERNANDES AZEVEDO": "BANDEIRANTES",
+  "ALESSANDRO MAGNO BARBOSA COSTA": "BARRA FUNDA",
+  "ALEXANDRE GOLDONI": "BARRA FUNDA",
+  "ALINE CRISTINA LUCIO": "BARRA FUNDA",
+  "CARLA CRISTINA CRESCENZO": "BARRA FUNDA",
+  "FABIO DONIZETE DE OLIVEIRA FRANCA": "BARRA FUNDA",
+  "GESSE PERRE DOS SANTOS FILHO": "BARRA FUNDA",
+  "GIOVANNI BERTINI CHAVES": "BARRA FUNDA",
+  "GISELE AUGUSTA VENTEPANI TORRES": "BARRA FUNDA",
+  "GISLENE REIS GOULART": "BARRA FUNDA",
+  "JOSE CARLOS MARQUES PIZA": "BARRA FUNDA",
+  "LUIS ANTONIO COSTA BRITO": "BARRA FUNDA",
+  "MAIKO RODRIGUES DOS SANTOS": "BARRA FUNDA",
+  "MARCELO CONCEICAO SOUZA": "BARRA FUNDA",
+  "ROGERIO ANDRE GAIGUER": "BARRA FUNDA",
+  "SERGIO AUGUSTO SEGURA": "BARRA FUNDA",
+  "ALUISIO CASTRO FERREIRA JUNIOR": "EUROPA",
+  "ANDRE DE MATHIA": "EUROPA",
+  "BRUNO SALES PERES AMORIM": "EUROPA",
+  "BRUNO VENANCIO CAVALHEIRO": "EUROPA",
+  "CRISTINA JANE DOS SANTOS": "EUROPA",
+  "FELIPE ALEXANDRE VITORINO": "EUROPA",
+  "FELLIPE DE LIMA LUIZ": "EUROPA",
+  "JOSE CARLOS AMANCIO FILHO": "EUROPA",
+  "OSWALDO SIMOES JUNIOR": "EUROPA",
+  "ROBERTO WAGNER LEITE DE LIMA": "EUROPA",
+  "RODOLFO DIOGO PINTO": "EUROPA",
+  "VIVIANE DUTRA ROCHA": "EUROPA",
+  "WILLIAM SYADE": "EUROPA",
+  "DAIANA DA SILVA OLIVEIRA": "GASTAO",
+  "DANIEL ARRUDA RIBEIRO": "GASTAO",
+  "DAVID PORTNOI": "GASTAO",
+  "FRANCIS D CARLO RIBAS": "GASTAO",
+  "HERIVELTO ARUUDA BRAZ": "GASTAO",
+  "RALPHO DE SOUZA HORIKAWA": "GASTAO",
+  "RODRIGO CORADI": "GASTAO",
+  "STEFAN KIS ALONCO": "GASTAO",
+  "WANDERLEY CARLOS DA SILVA": "GASTAO",
+  "ADEMIR DANTAS TOLENTINO JOAQUIM": "NACOES UNIDAS",
+  "ALBERTO PLACIDO DOS SANTOS": "NACOES UNIDAS",
+  "ALESSANDRA ANA DA SILVA": "NACOES UNIDAS",
+  "ANA PAULA DA SILVA DOS SANTOS": "NACOES UNIDAS",
+  "CAMILA FERNANDES FIGUEIREDO": "NACOES UNIDAS",
+  "CLAUDIO BUTIE DA SILVA": "NACOES UNIDAS",
+  "CLAUDIO GUEDES": "NACOES UNIDAS",
+  "HELISON CORDEIRO BATALHA": "NACOES UNIDAS",
+  "HYGOR THADEU MONTESANO RODRIGUES": "NACOES UNIDAS",
+  "LUIZ ALBERTO CAMPOS FERREIRA": "NACOES UNIDAS",
+  "PAULO ROBERTO SANTOS DA SILVA": "NACOES UNIDAS",
+  "SANDRO SEVERO LEROIS": "NACOES UNIDAS",
+  "VALMIR BARBOZA": "NACOES UNIDAS",
+  "WESLEY APARECIDO DA SILVA": "NACOES UNIDAS",
+  "CYBELLE MARIA MACHADO CARDOSO": "REVENDA",
+  "FABIANO OKUBO": "REVENDA",
+  "GEORGE HARLLYSSON VIANA DOS SANTOS": "REVENDA",
+  "JAIR BARBOSA": "REVENDA",
+  "JANSEN QUEIROZ": "REVENDA",
+  "JEFFERSON CLEMENTE": "REVENDA",
+  "LUCAS OLIVEIRA DE FREITAS": "REVENDA",
+  "MARIO ALBERTO DE SOUZA VAZ": "REVENDA",
+  "RICARDO SILVA COSTA": "REVENDA",
+  "ROSIBETE PAULOCI MATIAS": "REVENDA",
+  "VINICIUS BUTOLO": "REVENDA",
+  "ALEXANDRE DE SÁ CORREA": "ABC"
+};
+const SCORE_WEIGHTS={Novos:{volume:150,share:250,familias:150,planos:200,spf:100,retorno:150},Seminovos:{volume:200,share:300,spf:200,retorno:300}};
+const PLAN_WEIGHT={'LINEAR':1,'BALÃO':1,'REVERSÃO':0.9,'SUBSIDIADO':0.6,'COPARTICIPADO':0.5};
+let DATA={sales:[],fins:[],vendors:{byNbs:{},byName:{},allByName:{}},b3:[],taxasCopart:{},diagnostics:{}};
+function normalizeText(v){return (v??'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/�/g,'A').replace(/\s+/g,' ').trim()}
+function onlyDigits(v){if(v===null||v===undefined)return '';let s=String(v).trim();if(/[eE]\+/.test(s)){const n=Number(s);if(Number.isFinite(n))s=Math.trunc(n).toString()}return s.replace(/\.0+$/,'').replace(/\D/g,'')}
+function asNumber(v){if(v===null||v===undefined||v==='')return 0;if(typeof v==='number')return isFinite(v)?v:0;let s=String(v).trim().replace(/[R$\s]/g,'');if(!s)return 0;if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');else if(s.includes(','))s=s.replace(',','.');const n=parseFloat(s);return isNaN(n)?0:n}
+function asRate(v){if(v===null||v===undefined||v==='')return 0;if(typeof v==='number')return isFinite(v)?(v>1?v/100:v):0;let raw=String(v).trim();const hasPct=raw.includes('%');let n=asNumber(raw.replace('%',''));if(!isFinite(n))return 0;return hasPct||n>1?n/100:n}
+function taxaKey(modelo){return normalizeText(modelo).replace(/[^A-Z0-9]+/g,' ').replace(/\b(MMC|MITSUBISHI|MOTORS|AUT|AUTO|CVT|AT|DIESEL|GASOLINA|FLEX|4X4|4X2|AWD)\b/g,' ').replace(/\s+/g,' ').trim()}
+
+function brDateToday(){
+  const now = new Date();
+  // Usa o calendário local do navegador. No uso real do portal, o navegador estará em BRT/Brasil.
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+function isoDateInput(d){
+  if(!d || isNaN(d.getTime())) return '';
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function firstDayOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+function lastDayOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+function addMonthsSafe(d, months){ return new Date(d.getFullYear(), d.getMonth()+months, d.getDate()); }
+function hasProcessedData(){
+  return !!(DATA && ((DATA.sales&&DATA.sales.length) || (DATA.fins&&DATA.fins.length)));
+}
+let filterRenderTimer=null;
+function renderFromFiltersNow(){
+  if(!hasProcessedData()) return;
+  render();
+}
+function scheduleFilterRender(){
+  if(filterRenderTimer) clearTimeout(filterRenderTimer);
+  filterRenderTimer=setTimeout(renderFromFiltersNow, 80);
+}
+function setDateInputs(start,end,doRender=true){
+  const ds=document.getElementById('dateStart'), de=document.getElementById('dateEnd');
+  if(ds) ds.value = start ? isoDateInput(start) : '';
+  if(de) de.value = end ? isoDateInput(end) : '';
+  if(doRender) renderFromFiltersNow();
+}
+function bindFilterEvents(){
+  ['dateStart','dateEnd','storeFilter','deptFilter'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el || el.dataset.filterBound==='1') return;
+    el.dataset.filterBound='1';
+    ['input','change','blur'].forEach(evt=>el.addEventListener(evt, scheduleFilterRender));
+  });
+}
+function setDefaultPeriod(){
+  setDateInputs(new Date(2026,5,1), brDateToday(), false);
+}
+function setQuickPeriod(mode){
+  const today=brDateToday();
+  let start=null,end=today;
+  if(mode==='currentMonth'){
+    start=firstDayOfMonth(today); end=today;
+  }else if(mode==='lastMonth'){
+    const last=new Date(today.getFullYear(), today.getMonth()-1, 1);
+    start=firstDayOfMonth(last); end=lastDayOfMonth(last);
+  }else if(mode==='last6'){
+    start=new Date(today.getFullYear(), today.getMonth()-5, 1); end=today;
+  }else if(mode==='lastYear'){
+    start=new Date(today.getFullYear()-1, today.getMonth(), today.getDate()); end=today;
+  }else{
+    start=new Date(2026,5,1); end=today;
+  }
+  setDateInputs(start,end,true);
+}
+function clearPeriodFilter(){
+  setDefaultPeriod();
+  render();
+}
+document.addEventListener('DOMContentLoaded', ()=>{setDefaultPeriod();bindFilterEvents();processar();});
+
+function parseDate(v){if(!v)return null;if(v instanceof Date&&!isNaN(v))return v;if(typeof v==='number'){const d=new Date(Date.UTC(1899,11,30));d.setUTCDate(d.getUTCDate()+Math.floor(v));return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())}const s=String(v).trim();let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);if(m){let y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0))}m=s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);if(m)return new Date(+m[1],+m[2]-1,+m[3]);const d=new Date(s);return isNaN(d)?null:d}
+function iso(d){return d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:''}
+function dateIn(r,start,end){if(!r.data)return true;const t=new Date(r.data.getFullYear(),r.data.getMonth(),r.data.getDate()).getTime();return (!start||t>=start.getTime())&&(!end||t<=end.getTime())}
+function money(v){return (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0})}
+function num(v,d=0){return (v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})}
+function pct(v){return isFinite(v)?(v*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%':'0,0%'}
+function getCol(row,names){const keys=Object.keys(row||{});for(const n of names){const nn=normalizeText(n);const k=keys.find(x=>normalizeText(x)===nn);if(k!==undefined)return row[k]}for(const n of names){const nn=normalizeText(n);const k=keys.find(x=>normalizeText(x).includes(nn));if(k!==undefined)return row[k]}return ''}
+async function readRows(file, required){if(!file)throw new Error('Arquivo obrigatório não selecionado.');const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];const matrix=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});let idx=0;if(required){const needle=normalizeText(required);const found=matrix.findIndex(r=>(r||[]).some(c=>normalizeText(c).includes(needle)));idx=found>=0?found:0}const headers=(matrix[idx]||[]).map(h=>(h||'').toString().trim());return matrix.slice(idx+1).filter(r=>(r||[]).some(c=>c!==''&&c!==null&&c!==undefined)).map((r,ri)=>{const o={__row:idx+ri+2};headers.forEach((h,i)=>{if(h)o[h]=r[i]??''});o.__COL_E=r[4]??'';o.__COL_F=r[5]??'';o.__HEADER_E=headers[4]||'';o.__HEADER_F=headers[5]||'';return o})}
+
+async function readTaxaCopart(file){
+  const taxas={};
+  if(!file)return taxas;
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array',cellDates:true});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const matrix=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+  // Regra oficial: Modelo coluna G, Rebate Total coluna I, Rebate Parte Brabus coluna K, a partir da linha 10.
+  matrix.slice(9).forEach((r,idx)=>{
+    const modelo=(r[6]??'').toString().trim();
+    if(!modelo)return;
+    const rebateTotal=asRate(r[8]);
+    const parteBrabus=asRate(r[10]);
+    const key=taxaKey(modelo);
+    if(key&&rebateTotal>0){taxas[key]={modeloTabela:modelo,rebateTotal,parteBrabus,linha:idx+10}}
+  });
+  return taxas;
+}
+function findTaxaCopart(modelo){
+  const key=taxaKey(modelo);
+  if(!key)return null;
+  if(DATA.taxasCopart[key])return DATA.taxasCopart[key];
+  const entries=Object.entries(DATA.taxasCopart||{});
+  let best=null;
+  for(const [k,v] of entries){
+    if(k===key||k.includes(key)||key.includes(k)){
+      const score=Math.min(k.length,key.length)/Math.max(k.length,key.length);
+      if(!best||score>best.score)best={score,val:v};
+    }
+  }
+  return best?best.val:null;
+}
+function calcCoparticipacaoDetalhe(r){
+  const taxa=findTaxaCopart(r.modelo);
+  if(!taxa)return {ok:false,msg:'Modelo não encontrado na tabela de taxa',modeloTabela:'',rebateTotal:0,parteBrabus:0,valorRebateTotal:0,coparticipacao:0};
+  const valorRebateTotal=(r.valorFinanciado||0)*(taxa.rebateTotal||0);
+  const coparticipacao=valorRebateTotal*(taxa.parteBrabus||0);
+  return {ok:true,msg:'',modeloTabela:taxa.modeloTabela,rebateTotal:taxa.rebateTotal||0,parteBrabus:taxa.parteBrabus||0,valorRebateTotal,coparticipacao};
+}
+
+function buildVendors(rows){
+  const byNbs={},byName={},allByName={};
+  (rows||[]).forEach(r=>{
+    const tipo=normalizeText(getCol(r,['TIPO','Tipo']));
+    const nbs=normalizeText(getCol(r,['NBS','Login NBS','Vendedor']));
+    const nome=normalizeText(getCol(r,['Nome','Nome Vendedor','Vendedor']));
+    const loja=normalizeText(getCol(r,['Loja','Unidade'])).replace('NACOES','NAÇÕES').replace('ANALIA','ANÁLIA').replace('GASTAO','GASTÃO');
+    const status=normalizeText(getCol(r,['STATUS','Status']));
+    const cpf=onlyDigits(getCol(r,['CPF']));
+    const obj={nbs,nome,loja,tipo,status,cpf};
+    // Mantém todos os nomes cadastrados para auditoria.
+    // Se for GERENTE/ANALISTA/REVENDA/MASTER, o nome é reconhecido e ignorado no alerta.
+    if(nome)allByName[nome]=obj;
+    // Para cálculo do Score, somente TIPO = VENDEDOR é cadastro válido.
+    if(tipo!=='VENDEDOR')return;
+    if(nbs)byNbs[nbs]=obj;
+    if(nome)byName[nome]=obj;
+  });
+  return {byNbs,byName,allByName};
+}
+function buildVendorsFromStaticMap(){
+  const byNbs={},byName={};
+  Object.entries(STATIC_VENDOR_MAP||{}).forEach(([nome,loja])=>{
+    const n=normalizeText(nome);
+    byName[n]={nbs:'',nome:n,loja:normalizeText(loja).replace('NACOES','NAÇÕES').replace('ANALIA','ANÁLIA').replace('GASTAO','GASTÃO'),tipo:'VENDEDOR',status:''};
+  });
+  return {byNbs,byName,allByName:{...byName}};
+}
+function isVendorRegisteredName(nome){return !!DATA.vendors.byName[normalizeText(nome)];}
+function isVendorKnownAnyType(nome){return !!(DATA.vendors.allByName||{})[normalizeText(nome)];}
+function isScoreSellerEligible(r){
+  const nome=normalizeText(r&&r.vendedor);
+  if(!nome||nome==='NÃO LOCALIZADO'||EXCLUDED_SELLERS.has(nome))return false;
+  const cad=(DATA.vendors.byName||{})[nome];
+  return !!(cad&&normalizeText(cad.tipo)==='VENDEDOR');
+}
+function collectUnknownVendors(salesList=null,finsList=null){
+  const acc={};
+  function add(r,origem){
+    const nome=normalizeText(r.vendedor||'');
+    if(!nome||nome==='NÃO LOCALIZADO'||EXCLUDED_SELLERS.has(nome))return;
+    // Se está cadastrado como VENDEDOR, está OK.
+    if(isVendorRegisteredName(nome))return;
+    // Se está cadastrado em qualquer outro TIPO (GERENTE, ANALISTA, REVENDA, MASTER etc.), deve ser ignorado e não alertado.
+    if(isVendorKnownAnyType(nome))return;
+    const key=`${origem}|${nome}|${r.loja||''}|${r.dept||''}`;
+    if(!acc[key])acc[key]={origem,nome,loja:r.loja||'NÃO LOCALIZADO',dept:r.dept||'NÃO LOCALIZADO',qtd:0};
+    acc[key].qtd++;
+  }
+  (salesList||DATA.sales).forEach(r=>add(r,'Base 01'));
+  (finsList||DATA.fins).forEach(r=>add(r,'Base 02'));
+  return Object.values(acc).sort((a,b)=>a.origem.localeCompare(b.origem)||a.nome.localeCompare(b.nome));
+}
+function renderVendorAlerts(rowsOverride=null){
+  const el=document.getElementById('vendorAlerts');
+  if(!el)return;
+  const rows=rowsOverride||DATA.diagnostics.vendedoresNaoCadastradosLista||collectUnknownVendors();
+  if(!rows.length){el.innerHTML='<div class="vendorOkPanel">✓ Nenhum vendedor não cadastrado identificado nas bases processadas.</div>';return;}
+  el.innerHTML=`<div class="vendorAlertPanel"><h2>⚠ Vendedores não cadastrados</h2><p>Foram encontrados nomes nas bases que não constam na BASE CORRETA VENDAS ATUALIZADA.xlsx. Nomes cadastrados como GERENTE, ANALISTA, REVENDA ou MASTER são ignorados automaticamente.</p><div class="vendorAlertList"><table><thead><tr><th>Vendedor</th><th>Loja encontrada</th><th>Departamento</th><th>Origem</th><th>Ocorrências</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.nome}</td><td>${r.loja||'—'}</td><td>${r.dept||'—'}</td><td>${r.origem}</td><td>${r.qtd}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+const MODULE_DATA_PATH='../data/';
+async function fetchWorkbookFile(fileName){
+  const encoded=encodeURI(fileName);
+  const candidates=['../data/'+encoded, '../data/'+fileName, fileName, encoded, './'+encoded];
+  let lastErr=null;
+  for(const url of candidates){
+    try{
+      const res=await fetch(url,{cache:'no-store'});
+      if(res.ok)return await res.blob();
+      lastErr=new Error(`${url}: HTTP ${res.status}`);
+    }catch(e){lastErr=e;}
+  }
+  throw new Error(`Não foi possível carregar automaticamente o arquivo ${fileName}. Confirme se ele está em ../data/ ou na mesma pasta do HTML.`);
+}
+
+function rowHasExcluded(row){const joined=Object.values(row||{}).map(normalizeText).join(' | ');return [...EXCLUDED_SELLERS].some(n=>joined.includes(n))}
+function vendorFromRow(row){const nbs=normalizeText(getCol(row,['Vendedor','VENDEDOR','Apelido','NBS']));const nomeRaw=getCol(row,['Nome Vendedor Completo','Nome completo vendedor','Nome Vendedor','Nome','Vendedor']);const nome=normalizeText(nomeRaw);const byN=DATA.vendors.byNbs[nbs];const byName=DATA.vendors.byName[nome];return byN||byName||{nbs,nome:nome||nbs,loja:'NÃO LOCALIZADO',tipo:'',status:''}}
+function deptVenda(row,vendor){const nu=normalizeText(getCol(row,['Novo','Novo/Usado','N/U','Tipo']));if(nu==='U'||nu.includes('USADO')||nu.includes('SEMI'))return 'Seminovos';if(nu==='N'||nu.includes('NOVO'))return 'Novos';if((vendor.status||'').includes('SEMI'))return 'Seminovos';return 'Novos'}
+function deptFin(row,vendor){const nu=normalizeText(getCol(row,['Novo/Usado','Tipo Veículo','Tipo Veiculo','Novo','N/U']));if(nu==='U'||nu.includes('USADO')||nu.includes('SEMI'))return 'Seminovos';if(nu==='N'||nu.includes('NOVO'))return 'Novos';if((vendor.status||'').includes('SEMI'))return 'Seminovos';return 'Novos'}
+function familiaModelo(modelo){const m=normalizeText(modelo);if(m.includes('OUTLANDER'))return 'Outlander';if(m.includes('TRITON')||m.includes('L200'))return 'Triton';if(m.includes('ECLIPSE'))return 'Eclipse Cross';return 'Outros'}
+function modeloPadrao(raw){const m=normalizeText(raw);if(!m)return 'NÃO INFORMADO';if(m.includes('OUTLANDER'))return m.includes('SIGNATURE')?'OUTLANDER SIGNATURE':(m.includes('HPE')?'OUTLANDER HPE-S':'OUTLANDER');if(m.includes('TRITON')||m.includes('L200')){if(m.includes('KATANA'))return 'TRITON KATANA';if(m.includes('SAVANA'))return 'TRITON SAVANA';if(m.includes('TARMAC'))return 'TRITON TARMAC';if(m.includes('HPE-S')||m.includes('HPE S'))return 'TRITON HPE-S';if(m.includes('HPE'))return 'TRITON HPE';if(m.includes('GLS'))return 'TRITON GLS';if(m.includes('GL'))return 'TRITON GL';return 'TRITON'}if(m.includes('ECLIPSE')){if(m.includes('RUSH'))return 'ECLIPSE CROSS RUSH';if(m.includes('TARMAC'))return 'ECLIPSE CROSS TARMAC';if(m.includes('BLACK'))return 'ECLIPSE CROSS HPE-S BLACK';if(m.includes('HPE-S')||m.includes('HPE S'))return 'ECLIPSE CROSS HPE-S';if(m.includes('HPE'))return 'ECLIPSE CROSS HPE';return 'ECLIPSE CROSS'}return m}
+function normalizeClient(v){let s=normalizeText(v);return s.replace(/\b(LTDA|EIRELI|ME|EPP|S A|SA)\b/g,'').replace(/[^\w\s]/g,' ').replace(/\s+/g,' ').trim()}
+function buildB3Index(rows){const valid=rows.filter(r=>normalizeText(getCol(r,['Op - Modalidade','Modalidade']))==='FANDI');const byName={},byClean={},byCpf={};function push(o,k,r){if(!k)return;(o[k]||(o[k]=[])).push(r)}valid.forEach(r=>{const nome=normalizeText(getCol(r,['Cli - Nome','Cliente','Nome Cliente']));const clean=normalizeClient(nome);const cpf=onlyDigits(getCol(r,['Cli - CPF/CNPJ','CPF','CPF/CNPJ','Documento']));push(byName,nome,r);push(byClean,clean,r);push(byCpf,cpf,r)});DATA.b3=valid;return{byName,byClean,byCpf}}
+function getTC(row){const v=getCol(row,['Tabela - TC Devolvida (R$)','Tabela - TC Devolvida','TC Devolvida']);if(v!==''&&v!==undefined&&v!==null)return v;return row.__COL_E||''}
+function getIF(row){const v=getCol(row,['Tabela - Código IF','Tabela - Codigo IF','Código IF','Codigo IF']);if(v!==''&&v!==undefined&&v!==null)return v;return row.__COL_F||''}
+function planText(v){return normalizeText(v).replace(/[^\w\s]/g,' ').replace(/\s+/g,' ').trim()}
+function getSituacaoB3(row){return normalizeText(getCol(row,['Op - Situação','Op - Situacao','Situação','Situacao','Op Situação','Op Situacao']))}
+function isSituacaoCoparticipadoValida(row){const s=getSituacaoB3(row);return s==='PAGA'||s==='FATURADA'}
+function isTCcoparticipado(row){const tc=getTC(row),tcN=asNumber(tc);return planText(tc).includes('COPARTICIPADO')||tcN===1}
+function isCoparticipadoValido(row){return !!row&&isTCcoparticipado(row)&&isSituacaoCoparticipadoValida(row)}
+function scoreB3(r){if(!r)return -1;const cod=getIF(r),ifN=asNumber(cod),ifT=planText(cod),balao=asNumber(getCol(r,['Op Fin - Balão PMT (R$)','Balão PMT','Balao PMT']));if(ifT.includes('SUBSIDIADO')||ifN===999)return 100;if(ifT.includes('REVERSAO')||ifN===777)return 95;if(isCoparticipadoValido(r))return 90;if(balao>0)return 80;if(isTCcoparticipado(r))return 5;return (asNumber(getCol(r,['Op Fin - PMT (R$)']))>0?20:0)+(asNumber(getCol(r,['Op Fin - Quantidade Parcelas']))>0?10:0)}
+function valorFinB3(row){return asNumber(getCol(row,['Op Fin - Financiado (R$)','Financiado','Valor Financiado']))}
+function situacaoScoreB3(row){const s=getSituacaoB3(row);if(s==='PAGA'||s==='FATURADA')return 100;if(s==='ASSINADO')return 70;if(s==='ENCERRADA')return 20;if(s.includes('CANCEL'))return -40;if(s.includes('RECUS'))return -60;return 0}
+function closenessScoreB3(row,targetValor){const v=valorFinB3(row);if(!targetValor||!v)return 0;const diff=Math.abs(v-targetValor);if(diff<1)return 80;const rel=diff/Math.max(targetValor,v,1);if(rel<=0.005)return 60;if(rel<=0.02)return 35;if(rel<=0.05)return 15;return -25}
+function chooseB3(cands,targetValor=0){const arr=[...new Set((cands||[]).filter(Boolean))];return arr.sort((a,b)=>{
+  const sa=scoreB3(a)+situacaoScoreB3(a)+closenessScoreB3(a,targetValor);
+  const sb=scoreB3(b)+situacaoScoreB3(b)+closenessScoreB3(b,targetValor);
+  if(sb!==sa)return sb-sa;
+  const da=parseDate(getCol(a,['Op - Data Contrato','Op - Data Inclusão','Op - Data Inclusao']));
+  const db=parseDate(getCol(b,['Op - Data Contrato','Op - Data Inclusão','Op - Data Inclusao']));
+  return (db?db.getTime():0)-(da?da.getTime():0);
+})[0]||null}
+function matchB3(row,b3idx,targetValor=0){const cliente=getCol(row,['Cliente','Nome Cliente','Cli - Nome','Nome Cliente Destino']);const nome=normalizeText(cliente),clean=normalizeClient(cliente);const cpf=onlyDigits(getCol(row,['CPF','CPF/CNPJ','Cód. Cliente','Cod Cliente']));return chooseB3([...(b3idx.byCpf[cpf]||[]),...(b3idx.byName[nome]||[]),...(b3idx.byClean[clean]||[])],targetValor)}
+function classifyPlan(b3row){if(!b3row)return 'LINEAR';const cod=getIF(b3row),ifN=asNumber(cod),ifT=planText(cod),balao=asNumber(getCol(b3row,['Op Fin - Balão PMT (R$)','Balão PMT','Balao PMT']));if(ifT.includes('SUBSIDIADO')||ifN===999)return 'SUBSIDIADO';if(ifT.includes('REVERSAO')||ifN===777)return 'REVERSÃO';if(isCoparticipadoValido(b3row))return 'COPARTICIPADO';if(balao>0)return 'BALÃO';return 'LINEAR'}
+function processSales(rows){const byChassi={};rows.forEach((r,i)=>{if(rowHasExcluded(r))return;const vt=normalizeText(getCol(r,['Veic. Tipo','Tipo Veículo','Tipo Veiculo']));if(vt.includes('REVENDA'))return;const vendor=vendorFromRow(r);const chassi=normalizeText(getCol(r,['Chassi Completo','Chassi','Chassi Resumido']));if(!chassi)return;const data=parseDate(getCol(r,['Data venda','Dt.Venda','Data Venda','Data Faturamento']));const dept=deptVenda(r,vendor);const rec={origem:r,chassi,chassiResumido:normalizeText(getCol(r,['Chassi','Chassi Resumido'])),data,dept,vendedor:vendor.nome||normalizeText(getCol(r,['Nome Vendedor Completo','Vendedor'])),nbs:vendor.nbs,loja:vendor.loja||'NÃO LOCALIZADO',status:vendor.status,modelo:modeloPadrao(getCol(r,['Modelo','Descrição Modelo','Desc. Modelo'])),familia:familiaModelo(getCol(r,['Modelo','Descrição Modelo','Desc. Modelo'])),valorVenda:asNumber(getCol(r,['Valor Venda','Preço venda','Valor Faturamento']))};const old=byChassi[chassi];if(!old||(data&&old.data&&data>old.data)||(!old.data&&data))byChassi[chassi]=rec});return Object.values(byChassi)}
+function processFins(rows,b3idx,sales){const byProp={};rows.forEach(r=>{if(rowHasExcluded(r))return;const prop=normalizeText(getCol(r,['Cód. Proposta','Cod Proposta','Proposta']));if(!prop)return;const desc=normalizeText(getCol(r,['Descrição Serviço','DESCRICAO','Descrição','Tipo']));const isFin=desc.includes('POR PLANO-FINANCIAMENTO')||desc.includes('LANCAMENTO RETORNO POSTERIOR');const isSpf=desc.includes('SPF EXTRA');if(!isFin&&!isSpf)return;const g=byProp[prop]||(byProp[prop]={finRows:[],spfRows:[]});if(isFin)g.finRows.push(r);if(isSpf)g.spfRows.push(r)});const saleByShort={},saleByFull={};sales.forEach(s=>{if(s.chassiResumido)saleByShort[s.chassiResumido]=s;if(s.chassi)saleByFull[s.chassi]=s});const out=[];for(const [prop,g] of Object.entries(byProp)){const finRows=g.finRows.filter(r=>asNumber(getCol(r,['Valor Serviço','Valor Financiado','VALOR_FINANCIADO','PRODUCAO']))>0||asNumber(getCol(r,['Retorno Bruto','Retorno','RETORNO_PLANO']))>0);if(!finRows.length)continue;let main=finRows.find(r=>normalizeText(getCol(r,['Descrição Serviço','DESCRICAO'])).includes('POR PLANO-FINANCIAMENTO'))||finRows[0];const vendor=vendorFromRow(main);const chassiShort=normalizeText(getCol(main,['Chassi Resumido']));const chassiFull=normalizeText(getCol(main,['Chassi Completo']));const sale=saleByFull[chassiFull]||saleByShort[chassiShort]||null;const valorFin=asNumber(getCol(main,['Valor Serviço','Valor Financiado','VALOR_FINANCIADO','PRODUCAO']));const b3=matchB3(main,b3idx,valorFin);const plano=classifyPlan(b3);const receitaFin=finRows.reduce((s,r)=>s+asNumber(getCol(r,['Retorno Bruto','Retorno  Liquido','Retorno','RETORNO_PLANO'])),0);const receitaSPF=g.spfRows.reduce((s,r)=>s+asNumber(getCol(r,['Valor Serviço','Retorno Bruto','Retorno  Liquido'])),0);const dept=sale?sale.dept:deptFin(main,vendor);const modelo=sale?sale.modelo:modeloPadrao(getCol(main,['Desc. Modelo','Modelo']));const rec={origem:main,proposta:prop,chassi:chassiFull||chassiShort,chassiResumido:chassiShort,data:parseDate(getCol(main,['Data Venda','Data Emissão Nota','Data venda'])),dept,vendedor:(sale&&sale.vendedor)||vendor.nome||normalizeText(getCol(main,['Nome completo vendedor','Vendedor'])),nbs:(sale&&sale.nbs)||vendor.nbs,loja:(sale&&sale.loja)||vendor.loja||'NÃO LOCALIZADO',cliente:normalizeText(getCol(main,['Cliente','Nome Cliente','Nome Cliente Destino'])),modelo,familia:familiaModelo(modelo),valorVenda:sale?sale.valorVenda:0,valorFinanciado:valorFin,retorno:receitaFin,receitaSPF,parcelas:asNumber(getCol(main,['Qtde Parcelas']))||(b3?asNumber(getCol(b3,['Op Fin - Quantidade Parcelas','Quantidade Parcelas','Parcelas'])):0),pmt:b3?asNumber(getCol(b3,['Op Fin - PMT (R$)','PMT','Valor Parcela'])):0,balaoValor:(plano==='BALÃO'&&b3)?asNumber(getCol(b3,['Op Fin - Balão PMT (R$)','Balão PMT','Balao PMT'])):0,balaoValorOriginal:b3?asNumber(getCol(b3,['Op Fin - Balão PMT (R$)','Balão PMT','Balao PMT'])):0,plano,situacaoB3:b3?getSituacaoB3(b3):'',matchedB3:!!b3,spfQtd:g.spfRows.length};out.push(rec)}return out}
+async function processar(){
+  try{
+    document.getElementById('status').textContent='Carregando bases automáticas do repositório...';
+    const [f1,f2,f3,ft,fv]=await Promise.all([
+      fetchWorkbookFile('Base 01.xlsx'),
+      fetchWorkbookFile('Base 02.xlsx'),
+      fetchWorkbookFile('Base 03.xlsx'),
+      fetchWorkbookFile('taxa coparticipado.xlsx'),
+      fetchWorkbookFile('BASE CORRETA VENDAS ATUALIZADA.xlsx')
+    ]);
+    const [b1,b2,b3,taxas,vendedoresRows]=await Promise.all([
+      readRows(f1,'Chassi'),
+      readRows(f2,'Cód. Proposta'),
+      readRows(f3,'Op - Código'),
+      readTaxaCopart(ft),
+      readRows(fv,'TIPO')
+    ]);
+    DATA.vendors=buildVendors(vendedoresRows);
+    DATA.taxasCopart=taxas;
+    const b3idx=buildB3Index(b3);
+    DATA.sales=processSales(b1);
+    DATA.fins=processFins(b2,b3idx,DATA.sales);
+    const vendedoresNaoCadastradosLista=collectUnknownVendors();
+    DATA.diagnostics={
+      b1Rows:b1.length,b2Rows:b2.length,b3Rows:b3.length,b3Fandi:DATA.b3.length,
+      vendorBaseRows:vendedoresRows.length,
+      vendors:Object.keys(DATA.vendors.byName||{}).length,
+      vendedoresNaoCadastrados:vendedoresNaoCadastradosLista.length,
+      vendedoresNaoCadastradosLista,
+      taxasCopart:Object.keys(DATA.taxasCopart||{}).length,
+      sales:DATA.sales.length,fins:DATA.fins.length,
+      cop:DATA.fins.filter(x=>x.plano==='COPARTICIPADO').length,
+      copSemTaxa:DATA.fins.filter(x=>x.plano==='COPARTICIPADO'&&!calcCoparticipacaoDetalhe(x).ok).length,
+      matchedB3:DATA.fins.filter(x=>x.matchedB3).length
+    };
+    populateStores();
+    document.getElementById('filters').style.display='flex';
+    document.getElementById('tabs').style.display='flex';
+    document.getElementById('status').innerHTML=`<span class="ok">Bases carregadas automaticamente:</span> Base 01.xlsx, Base 02.xlsx, Base 03.xlsx, taxa coparticipado.xlsx e BASE CORRETA VENDAS ATUALIZADA.xlsx · ${DATA.sales.length} vendas, ${DATA.fins.length} financiamentos · ${Object.keys(DATA.vendors.byName||{}).length} vendedores válidos TIPO=VENDEDOR.`;
+    bindFilterEvents();
+    renderVendorAlerts();
+    render();
+  }catch(e){
+    console.error(e);
+    document.getElementById('status').innerHTML=`<span class="bad">Erro no carregamento automático:</span> ${e.message}`;
+  }
+}
+function populateStores(){const sel=document.getElementById('storeFilter');const stores=[...new Set([...DATA.sales,...DATA.fins].map(x=>x.loja).filter(Boolean))].sort((a,b)=>a.localeCompare(b));sel.innerHTML='<option value="">Todas as lojas</option>'+stores.map(s=>`<option>${s}</option>`).join('')}
+function currentFiltered(){const start=parseDate(document.getElementById('dateStart').value),end=parseDate(document.getElementById('dateEnd').value),store=document.getElementById('storeFilter').value,dept=document.getElementById('deptFilter').value;let sales=DATA.sales.filter(r=>dateIn(r,start,end));let fins=DATA.fins.filter(r=>dateIn(r,start,end));if(store){sales=sales.filter(r=>r.loja===store);fins=fins.filter(r=>r.loja===store)}if(dept!=='Grupo'){sales=sales.filter(r=>r.dept===dept);fins=fins.filter(r=>r.dept===dept)}return{sales,fins,start,end,store,dept}}
+function showTab(id,el){document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active')}
+function scoreClass(s){if(s>=900)return'excelencia';if(s>=800)return'alto';if(s>=650)return'bom';if(s>=400)return'desenv';return'baixo'}
+function scoreLabel(s){if(s>=900)return'Excelência';if(s>=800)return'Alto';if(s>=650)return'Bom';if(s>=400)return'Em desenvolvimento';return'Baixo'}
+function calcScores(sales,fins){sales=(sales||[]).filter(isScoreSellerEligible);fins=(fins||[]).filter(isScoreSellerEligible);const by={};function get(v,d){const k=`${v.vendedor}|${v.loja}|${v.dept}`;return by[k]||(by[k]={vendedor:v.vendedor,loja:v.loja,dept:v.dept,vendas:0,fin:0,producao:0,retorno:0,spf:0,spfQtd:0,familias:new Set(),planScoreSum:0,plans:{}})}sales.forEach(s=>{const o=get(s);o.vendas++;if(s.dept==='Novos')o.familias.add(s.familia)});fins.forEach(f=>{const o=get(f);o.fin++;o.producao+=f.valorFinanciado;o.retorno+=f.retorno+f.receitaSPF;o.spf+=f.receitaSPF;o.spfQtd+=f.spfQtd||0;o.planScoreSum+=PLAN_WEIGHT[f.plano]??0.5;o.plans[f.plano]=(o.plans[f.plano]||0)+1;if(f.dept==='Novos')o.familias.add(f.familia)});const maxVenda={Novos:Math.max(1,...Object.values(by).filter(x=>x.dept==='Novos').map(x=>x.vendas)),Seminovos:Math.max(1,...Object.values(by).filter(x=>x.dept==='Seminovos').map(x=>x.vendas))};return Object.values(by).map(o=>{const w=SCORE_WEIGHTS[o.dept]||SCORE_WEIGHTS.Seminovos;const share=o.vendas?o.fin/o.vendas:0;const ret=o.producao?o.retorno/o.producao:0;const volume=Math.min(1,o.vendas/(maxVenda[o.dept]||1));const spfRate=o.fin?o.spfQtd/o.fin:0;const breakdown=[];let score=0;function addBreak(label,points,max,detail){breakdown.push({label,points,max,pct:max?points/max:0,detail});score+=points}if(o.dept==='Novos'){addBreak('Volume de vendas',w.volume*volume,w.volume,`${num(o.vendas)} venda(s) · referência ${num(maxVenda[o.dept]||1)}`);addBreak('Penetração de financiamento',w.share*Math.min(1,share/0.6),w.share,`${num(o.fin)} financiado(s) / ${num(o.vendas)} venda(s)`);addBreak('Mix de famílias vendidas',w.familias*Math.min(1,o.familias.size/3),w.familias,`${num(o.familias.size)} de 3 famílias`);addBreak('Mix de planos vendidos',w.planos*(o.fin?o.planScoreSum/o.fin:0),w.planos,`${num(o.fin)} plano(s) analisado(s)`);addBreak('SPF EXTRA',w.spf*Math.min(1,spfRate),w.spf,`${num(o.spfQtd)} SPF / ${num(o.fin)} financiamento(s)`);addBreak('Retorno médio',w.retorno*Math.min(1,ret/0.08),w.retorno,pct(ret))}else{addBreak('Volume de vendas',w.volume*volume,w.volume,`${num(o.vendas)} venda(s) · referência ${num(maxVenda[o.dept]||1)}`);addBreak('Penetração de financiamento',w.share*Math.min(1,share/0.6),w.share,`${num(o.fin)} financiado(s) / ${num(o.vendas)} venda(s)`);addBreak('SPF EXTRA',w.spf*Math.min(1,spfRate),w.spf,`${num(o.spfQtd)} SPF / ${num(o.fin)} financiamento(s)`);addBreak('Retorno médio',w.retorno*Math.min(1,ret/0.08),w.retorno,pct(ret))}o.score=Math.round(Math.max(0,Math.min(1000,score)));o.scoreBreakdown=breakdown.map(x=>({...x,points:Math.round(x.points)}));o.share=share;o.retornoMed=ret;o.planoMais=Object.entries(o.plans).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';return o}).sort((a,b)=>b.score-a.score||b.fin-a.fin)}
+function autoRenderFromFilter(){
+  scheduleFilterRender();
+}
+function render(){
+  const f=currentFiltered();
+  renderVendorAlerts(collectUnknownVendors(f.sales,f.fins));
+  renderScore(f.sales,f.fins,f);
+  renderDiag(f);
+}
+function summaryHtml(f){const prod=f.fins.reduce((s,r)=>s+r.valorFinanciado,0),ret=f.fins.reduce((s,r)=>s+r.retorno+r.receitaSPF,0),cop=f.fins.filter(x=>x.plano==='COPARTICIPADO').length;return `<div class="summary"><div class="summaryItem"><div class="k">Vendas filtradas</div><div class="v">${num(f.sales.length)}</div></div><div class="summaryItem"><div class="k">Financiados filtrados</div><div class="v">${num(f.fins.length)}</div></div><div class="summaryItem"><div class="k">Share</div><div class="v">${pct(f.sales.length?f.fins.length/f.sales.length:0)}</div></div><div class="summaryItem"><div class="k">Coparticipados</div><div class="v">${num(cop)}</div></div><div class="summaryItem"><div class="k">Produção</div><div class="v">${money(prod)}</div></div><div class="summaryItem"><div class="k">Retorno médio</div><div class="v">${pct(prod?ret/prod:0)}</div></div></div>`}
+function scoreColor(score){if(score>=900)return'#48e0a4';if(score>=800)return'#78e08f';if(score>=650)return'#f5c542';if(score>=400)return'#f59e0b';return'#e30613'}
+function scoreIcon(score){if(score>=900)return'🏆';if(score>=800)return'🟢';if(score>=650)return'🟡';if(score>=400)return'🟠';return'🔴'}
+function financiamentoCellBalao(r){return r.plano==='BALÃO'&&r.balaoValor>0?money(r.balaoValor):'<span class="muted">—</span>'}
+function financiamentoCellParcela(r){return r.pmt>0?money(r.pmt):'<span class="muted">—</span>'}
+function financRowsForSeller(r,fctx=currentFiltered()){return (fctx.fins||[]).filter(x=>x.dept==='Novos'&&x.vendedor===r.vendedor&&x.loja===r.loja)}
+function financingDetailsHtml(r,fctx=currentFiltered()){
+  if(r.dept!=='Novos')return '';
+  const rows=financRowsForSeller(r,fctx);
+  return `<div class="sellerFinBlock"><div class="detailSection"><div class="detailSectionTitle"><div><h3>Planos Efetuados / Financiamentos Realizados</h3><span class="muted">Detalhamento dos financiamentos de Novos do vendedor no período filtrado.</span></div><span class="pill">${rows.length} registro(s)</span></div><div class="tableWrap sellerFinTable"><table><thead><tr><th>Cliente</th><th>Loja</th><th>Modelo</th><th>Família</th><th>Valor Venda</th><th>Entrada</th><th>% Entrada</th><th>Valor Financiado</th><th>Plano</th><th>Prazo</th><th>Parcela</th><th>Balão</th><th>Retorno</th><th>SPF Extra</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${x.cliente}</td><td>${x.loja}</td><td>${x.modelo}</td><td>${x.familia}</td><td>${money(x.valorVenda)}</td><td>${money(Math.max(0,x.valorVenda-x.valorFinanciado))}</td><td>${pct(x.valorVenda?Math.max(0,x.valorVenda-x.valorFinanciado)/x.valorVenda:0)}</td><td>${money(x.valorFinanciado)}</td><td>${planBadge(x.plano)}</td><td>${num(x.parcelas)}</td><td>${financiamentoCellParcela(x)}</td><td>${financiamentoCellBalao(x)}</td><td>${money(x.retorno)}</td><td>${money(x.receitaSPF)}</td><td>${iso(x.data)}</td><td>${x.chassi}</td></tr>`).join('')||'<tr><td colspan="16" class="muted">Sem financiamentos de Novos para este vendedor no filtro atual.</td></tr>'}</tbody></table></div></div></div>`
+}
+function scoreDetailHtml(r,fctx=currentFiltered()){
+  const title=r.dept==='Novos'?'Score Novos':'Score Seminovos';
+  const stats=`<div class="scoreDetailSummary"><div><span>Vendas</span><strong>${num(r.vendas)}</strong></div><div><span>Financiados</span><strong>${num(r.fin)}</strong></div><div><span>Share</span><strong>${pct(r.share)}</strong></div><div><span>SPF Extra</span><strong>${money(r.spf)}</strong></div><div><span>Retorno Médio</span><strong>${pct(r.retornoMed)}</strong></div></div>`;
+  return `<div class="scoreDetailsTitle"><div><h3>${title}</h3><span>Composição detalhada dos critérios do score</span></div><span class="pill">Total: ${r.score} / 1000</span></div>${stats}<div class="scoreDetailGrid">${(r.scoreBreakdown||[]).map(c=>`<div class="scoreCriterion"><div class="scoreCriterionTop"><div class="criterionName">${c.label}</div><div class="criterionPoints">${num(c.points)} / ${num(c.max)} pts</div></div><div class="criterionMeta"><span>${c.detail||''}</span><span>${pct(c.pct)}</span></div><div class="criterionBar"><span style="width:${Math.max(0,Math.min(100,(c.pct||0)*100))}%"></span></div></div>`).join('')}</div>${financingDetailsHtml(r,fctx)}`
+}
+let SCORE_ROWS_CACHE=[];
+function openScoreDetails(index){
+  const r=SCORE_ROWS_CACHE[index];
+  if(!r)return;
+  const fctx=currentFiltered();
+  document.getElementById('modalTitle').textContent='Detalhes do Vendedor';
+  document.getElementById('modalBody').innerHTML=`<div class="detailHero"><div class="scoreCircle" style="--p:${Math.max(0,Math.min(100,r.score/10))};--c:${scoreColor(r.score)}"><div><span class="scoreNumber">${r.score}</span><span class="scoreMax">/ 1000</span></div></div><div class="detailHeaderInfo"><div class="sellerNameBig">${r.vendedor}</div><div class="sellerSub">${r.loja} · ${r.dept}</div><div><span class="rangeBadge ${scoreClass(r.score)}">${scoreIcon(r.score)} ${scoreLabel(r.score)}</span></div></div></div>${scoreDetailHtml(r,fctx)}`;
+  document.getElementById('modal').classList.add('open');
+}
+function toggleScoreDetails(id,btn){return openScoreDetails(Number(String(id).replace('scoreDetail_',''))||0)}
+function renderScore(sales,fins,fctx=currentFiltered()){
+  const rows=calcScores(sales,fins);
+  SCORE_ROWS_CACHE=rows;
+  document.getElementById('score').innerHTML=`<div class="panel"><div class="scoreIntro"><div><h2>Score dos Vendedores</h2><p>Ranking visual por desempenho F&I no período filtrado.</p></div><span class="pill">${rows.length} vendedores</span></div><div class="sellerScoreGrid">${rows.map((r,i)=>`<article class="sellerScoreCard minimal"><div class="scoreCircle" style="--p:${Math.max(0,Math.min(100,r.score/10))};--c:${scoreColor(r.score)}"><div><span class="scoreNumber">${r.score}</span><span class="scoreMax">/ 1000</span></div></div><div class="sellerScoreBody"><div class="sellerScoreTop"><div><div class="sellerName">${r.vendedor}</div><div class="sellerMeta">${r.loja} · ${r.dept}</div></div><div class="sellerRank">#${i+1}</div></div><div class="sellerScoreActions"><span class="rangeBadge ${scoreClass(r.score)}">${scoreIcon(r.score)} ${scoreLabel(r.score)}</span><button class="detailsBtn" onclick="openScoreDetails(${i})">Detalhes</button></div></div></article>`).join('')||'<div class="muted">Sem dados.</div>'}</div></div>`;
+}
+function planBadge(p){const cls={'LINEAR':'planoLinear','BALÃO':'planoBalao','REVERSÃO':'planoReversao','SUBSIDIADO':'planoSubsidiado','COPARTICIPADO':'planoCoparticipado'}[p]||'';return `<span class="planoBadge ${cls}">${p}</span>`}
+function renderNovos(sales,fins){const el=document.getElementById('novos');if(el)el.innerHTML=''}
+function openSellerDetails(vend,loja){vend=decodeURIComponent(vend);loja=decodeURIComponent(loja);const f=currentFiltered();const rows=f.fins.filter(r=>r.dept==='Novos'&&r.vendedor===vend&&r.loja===loja);document.getElementById('modalTitle').textContent=`Detalhes · ${vend}`;document.getElementById('modalBody').innerHTML=`<div class="tableWrap"><table><thead><tr><th>Cliente</th><th>Loja</th><th>Modelo</th><th>Família</th><th>Valor Venda</th><th>Valor Financiado</th><th>% Entrada</th><th>Plano</th><th>Prazo</th><th>Parcela</th><th>Balão</th><th>Retorno</th><th>SPF</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.cliente}</td><td>${r.loja}</td><td>${r.modelo}</td><td>${r.familia}</td><td>${money(r.valorVenda)}</td><td>${money(r.valorFinanciado)}</td><td>${pct(r.valorVenda?Math.max(0,r.valorVenda-r.valorFinanciado)/r.valorVenda:0)}</td><td>${planBadge(r.plano)}</td><td>${num(r.parcelas)}</td><td>${financiamentoCellParcela(r)}</td><td>${financiamentoCellBalao(r)}</td><td>${money(r.retorno)}</td><td>${money(r.receitaSPF)}</td><td>${iso(r.data)}</td><td>${r.chassi}</td></tr>`).join('')||'<tr><td colspan="15" class="muted">Sem financiamentos.</td></tr>'}</tbody></table></div>`;document.getElementById('modal').classList.add('open')}
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+function calcCoparticipacao(r){return calcCoparticipacaoDetalhe(r).coparticipacao||0}
+function renderCopa(fins){const rows=fins.filter(r=>r.plano==='COPARTICIPADO');document.getElementById('copart').innerHTML=`<div class="panel"><h2>Planos Coparticipados</h2><p class="muted">Coparticipação calculada pela tabela <b>taxa coparticipado.xlsx</b>: Modelo × Rebate Total × Rebate Parte Brabus.</p><div class="tableWrap"><table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Loja</th><th>Modelo Base</th><th>Modelo Taxa</th><th>Valor Financiado</th><th>Rebate Total</th><th>Parte Brabus</th><th>Valor Rebate Total</th><th>Coparticipação</th><th>Situação</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(r=>{const c=calcCoparticipacaoDetalhe(r);return `<tr><td>${r.cliente}</td><td>${r.vendedor}</td><td>${r.loja}</td><td>${r.modelo}</td><td>${c.modeloTabela||'<span class="warn">Não encontrado</span>'}</td><td>${money(r.valorFinanciado)}</td><td>${c.ok?pct(c.rebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?pct(c.parteBrabus):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.valorRebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.coparticipacao):'<span class="warn">Modelo não encontrado na tabela de taxa</span>'}</td><td>${r.situacaoB3||''}</td><td>${iso(r.data)}</td><td>${r.chassi}</td></tr>`}).join('')||'<tr><td colspan="13" class="muted">Nenhum coparticipado encontrado no filtro atual.</td></tr>'}</tbody></table></div></div>`}
+function renderDiag(f){const d=DATA.diagnostics;const planCounts=DATA.fins.reduce((a,r)=>(a[r.plano]=(a[r.plano]||0)+1,a),{});const txt=[`Base 01 linhas lidas: ${d.b1Rows||0}`,`Base 02 linhas lidas: ${d.b2Rows||0}`,`Base 03 linhas lidas: ${d.b3Rows||0}`,`Base 03 FANDI: ${d.b3Fandi||0}`,`Base vendedores linhas lidas: ${d.vendorBaseRows||0}`,`Vendedores válidos TIPO=VENDEDOR: ${d.vendors||0}`,`Tabela taxa coparticipado lida: ${d.taxasCopart||0} modelos`, `Vendedores não cadastrados: ${d.vendedoresNaoCadastrados||0}`, `Coparticipados sem modelo na tabela de taxa: ${d.copSemTaxa||0}`,`Vendas válidas antes do filtro: ${d.sales||0}`,`Financiamentos válidos antes do filtro: ${d.fins||0}`,`Financiamentos com Base 03 vinculada: ${d.matchedB3||0}`,`Planos antes do filtro: ${JSON.stringify(planCounts)}`,`Filtro atual: ${f.sales.length} vendas / ${f.fins.length} financiamentos / ${f.fins.filter(x=>x.plano==='COPARTICIPADO').length} coparticipados`].join('\n');document.getElementById('diagnostico').innerHTML=`<div class="panel"><h2>Diagnóstico de Leitura</h2><pre class="diag">${txt}</pre></div>`}
+function excelDateValue(value){
+  if(!value)return '';
+  if(value instanceof Date && !isNaN(value.getTime())) return value;
+  if(typeof value==='number') return new Date(Date.UTC(1899,11,30)+value*86400000);
+  const txt=String(value).trim();
+  let m=txt.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m)return new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+  m=txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(m){let y=Number(m[3]); if(y<100)y+=2000; return new Date(y,Number(m[2])-1,Number(m[1]));}
+  const d=new Date(txt);
+  return isNaN(d.getTime())?'':d;
+}
+function excelFileStamp(){
+  const d=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+}
+function setCellStyle(ws, addr, style){
+  if(!ws[addr])return;
+  ws[addr].s=Object.assign({}, ws[addr].s||{}, style||{});
+}
+function applyProfessionalExcelFormat(ws, headers, rowsCount, options={}){
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  const moneyCols=new Set(['Valor de venda','Valor de entrada','Valor financiado','Valor do Rebate Total','Valor da Coparticipação','Retorno','Parcela','Balão','Produção','SPF EXTRA','SPF Extra']);
+  const pctCols=new Set(['Percentual de entrada','Rebate Total','Rebate Parte Brabus','Share']);
+  const dateCols=new Set(['Data da venda','Data','Data Contrato','Data do Contrato']);
+  const intCols=new Set(['Prazo','Quantidade','Score','Parcelas']);
+  const textCols=new Set(['Nome do cliente','Vendedor','Loja vinculada','Loja','Modelo do carro','Modelo tabela taxa','Família do carro','Família','Plano','Situação','Chassi']);
+  const headerStyle={
+    font:{bold:true,color:{rgb:'FFFFFF'}},
+    fill:{patternType:'solid',fgColor:{rgb:'8A0008'}},
+    alignment:{horizontal:'center',vertical:'center'},
+    border:{top:{style:'thin',color:{rgb:'3A3A3A'}},bottom:{style:'thin',color:{rgb:'3A3A3A'}},left:{style:'thin',color:{rgb:'3A3A3A'}},right:{style:'thin',color:{rgb:'3A3A3A'}}}
+  };
+  const bodyBorder={top:{style:'thin',color:{rgb:'D9D9D9'}},bottom:{style:'thin',color:{rgb:'D9D9D9'}},left:{style:'thin',color:{rgb:'D9D9D9'}},right:{style:'thin',color:{rgb:'D9D9D9'}}};
+  for(let c=0;c<headers.length;c++){
+    const addr=XLSX.utils.encode_cell({r:0,c});
+    setCellStyle(ws,addr,headerStyle);
+  }
+  for(let r=1;r<=rowsCount;r++){
+    for(let c=0;c<headers.length;c++){
+      const h=headers[c];
+      const addr=XLSX.utils.encode_cell({r,c});
+      const cell=ws[addr];
+      if(!cell)continue;
+      let fmtStyle={border:bodyBorder,alignment:{vertical:'center'}};
+      if(moneyCols.has(h)){
+        if(typeof cell.v==='number'){cell.t='n'; cell.z='"R$" #,##0.00';}
+        fmtStyle.alignment.horizontal='right';
+      }else if(pctCols.has(h)){
+        if(typeof cell.v==='number'){cell.t='n'; cell.z='0.00%';}
+        fmtStyle.alignment.horizontal='right';
+      }else if(dateCols.has(h)){
+        if(cell.v){
+          const d=excelDateValue(cell.v);
+          if(d){cell.v=d; cell.t='d'; cell.z='dd/mm/yyyy';}
+        }
+        fmtStyle.alignment.horizontal='center';
+      }else if(intCols.has(h)){
+        if(cell.v!=='' && !isNaN(Number(cell.v))){cell.v=Number(cell.v); cell.t='n'; cell.z='0';}
+        fmtStyle.alignment.horizontal='right';
+      }else if(textCols.has(h)){
+        cell.t='s';
+        fmtStyle.alignment.horizontal='left';
+      }else{
+        fmtStyle.alignment.horizontal=(typeof cell.v==='number')?'right':'left';
+      }
+      setCellStyle(ws,addr,fmtStyle);
+    }
+  }
+  ws['!autofilter']={ref:ws['!ref']};
+  ws['!freeze']={xSplit:0,ySplit:1,topLeftCell:'A2',activePane:'bottomLeft',state:'frozen'};
+  ws['!cols']=headers.map((h,idx)=>{
+    let max=String(h).length;
+    for(let r=1;r<=rowsCount;r++){
+      const cell=ws[XLSX.utils.encode_cell({r,c:idx})];
+      if(cell&&cell.v!==undefined&&cell.v!==null){
+        const v=cell.v instanceof Date ? 'dd/mm/yyyy' : String(cell.v);
+        max=Math.max(max,v.length);
+      }
+    }
+    return {wch:Math.min(Math.max(max+3,12),42)};
+  });
+  ws['!rows']=[{hpt:24}];
+}
+function buildStyledWorksheet(headers, dataRows, sheetName){
+  const aoa=[headers, ...dataRows];
+  const ws=XLSX.utils.aoa_to_sheet(aoa, {cellDates:true});
+  applyProfessionalExcelFormat(ws, headers, dataRows.length, {sheetName});
+  return ws;
+}
+function exportarCoparticipados(){
+  const f=currentFiltered();
+  const fins=f.fins.filter(r=>r.plano==='COPARTICIPADO');
+  if(!fins.length){alert('Nenhum coparticipado encontrado no filtro atual.');return}
+  const headers=['Nome do cliente','Vendedor','Loja vinculada','Modelo do carro','Modelo tabela taxa','Família do carro','Valor de venda','Valor de entrada','Percentual de entrada','Valor financiado','Rebate Total','Rebate Parte Brabus','Valor do Rebate Total','Valor da Coparticipação','Situação','Prazo','Parcela','Data da venda','Chassi'];
+  const rows=fins.map(r=>{
+    const c=calcCoparticipacaoDetalhe(r);
+    const entrada=Math.max(0,(Number(r.valorVenda)||0)-(Number(r.valorFinanciado)||0));
+    return [
+      r.cliente||'',
+      r.vendedor||'',
+      r.loja||'',
+      r.modelo||'',
+      c.modeloTabela||'Modelo não encontrado na tabela de taxa',
+      r.familia||'',
+      Number(r.valorVenda)||0,
+      entrada,
+      r.valorVenda?entrada/Number(r.valorVenda):0,
+      Number(r.valorFinanciado)||0,
+      c.ok?Number(c.rebateTotal)||0:'Modelo não encontrado na tabela de taxa',
+      c.ok?Number(c.parteBrabus)||0:'Modelo não encontrado na tabela de taxa',
+      c.ok?Number(c.valorRebateTotal)||0:'Modelo não encontrado na tabela de taxa',
+      c.ok?Number(c.coparticipacao)||0:'Modelo não encontrado na tabela de taxa',
+      r.situacaoB3||'',
+      r.parcelas?Number(r.parcelas):'',
+      r.pmt?Number(r.pmt):'',
+      excelDateValue(r.data)||'',
+      r.chassi||''
+    ];
+  });
+  const wb=XLSX.utils.book_new();
+  const ws=buildStyledWorksheet(headers, rows, 'Coparticipados');
+  XLSX.utils.book_append_sheet(wb,ws,'Coparticipados');
+  wb.Workbook={Views:[{RTL:false}]};
+  const filename=`Coparticipados_Score_FI_${excelFileStamp()}.xlsx`;
+  XLSX.writeFile(wb,filename,{bookType:'xlsx',cellDates:true});
+}</script>
+</body>
+</html>

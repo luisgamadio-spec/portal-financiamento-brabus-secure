@@ -42,6 +42,7 @@ let OPERATIONAL_METRICS_STATE={
   error:''
 };
 let OPERATIONAL_ANALYST_METRICS_STATE={key:'',rows:[],error:''};
+let OPERATIONAL_MANAGER_DIRECTORY_STATE={key:'',rows:[],error:''};
 let OPERATIONAL_METRICS_PENDING=null;
 let OPERATIONAL_METRICS_PENDING_KEY='';
 let OPERATIONAL_SALARY_DETAIL_STATE=null;
@@ -811,6 +812,28 @@ async function loadOperationalCommissionMetrics(force=false){
         OPERATIONAL_ANALYST_METRICS_STATE.error
       );
     }
+    try{
+      const managerResult=await supabaseClient.rpc(
+        'operational_salary_manager_directory',
+        {p_start:period.start,p_end:period.end}
+      );
+      if(managerResult.error) throw managerResult.error;
+      OPERATIONAL_MANAGER_DIRECTORY_STATE={
+        key,
+        rows:Array.isArray(managerResult.data?.rows)?managerResult.data.rows:[],
+        error:''
+      };
+    }catch(managerError){
+      OPERATIONAL_MANAGER_DIRECTORY_STATE={
+        key:'',
+        rows:[],
+        error:managerError?.message||'Falha ao carregar nomes de gerentes.'
+      };
+      console.error(
+        'Nomes de gerentes indisponiveis:',
+        OPERATIONAL_MANAGER_DIRECTORY_STATE.error
+      );
+    }
     return data;
   })();
   try{
@@ -883,6 +906,13 @@ function operationalAuthorizedAnalystRows(){
   return (OPERATIONAL_ANALYST_METRICS_STATE.rows||[])
     .filter(row=>!selected||norm(row.store)===norm(selected));
 }
+function operationalManagerName(store,department){
+  if(OPERATIONAL_MANAGER_DIRECTORY_STATE.key!==operationalMetricsKey()) return '';
+  const match=(OPERATIONAL_MANAGER_DIRECTORY_STATE.rows||[]).find(row=>
+    norm(row.store)===norm(store)&&norm(row.department)===norm(department)
+  );
+  return String(match?.manager_name||'').trim();
+}
 function registerOperationalAggregateDetail(detail){
   const index=OPERATIONAL_AGGREGATE_DETAIL_STATE.push(detail)-1;
   return index;
@@ -943,34 +973,43 @@ function operationalSalaryDetailRows(){
   });
   return rows;
 }
-function operationalSalaryDetailRowHtml(row){
+function operationalSalaryDetailItemHtml(row){
   const returnGross=Number(row.return_gross)||0;
   const returnConsidered=Number(row.return_considered)||0;
   const spfGross=Number(row.spf_gross)||0;
   const spfConsidered=Number(row.spf_considered)||0;
-  const status=row.included_in_commission
+  const commissionStatus=row.included_in_commission
     ?'<span class="salaryStatus salaryIncluded">INCLUIDA</span>'
     :`<span class="salaryStatus salaryExcluded">EXCLUIDA</span><small>${escapeOperationalHtml(row.exclusion_reason||'Sem motivo informado')}</small>`;
-  return `<tr>
-    <td data-label="Venda">${dataBR(row.date||'')}</td>
-    <td data-label="Operacao"><b>${escapeOperationalHtml(row.operation_ref||'-')}</b><small>${escapeOperationalHtml(row.chassis_masked||'Sem identificador')}</small></td>
-    <td data-label="Loja / Modelo"><b>${escapeOperationalHtml(row.store||'-')}</b><small>${escapeOperationalHtml(row.vehicle_model||'-')}</small></td>
-    <td data-label="Financiamento">${row.financed?'<span class="salaryStatus salaryFinanced">FINANCIADA</span>':'<span class="salaryStatus">NAO FINANCIADA</span>'}<small>${row.finance_date?dataBR(row.finance_date):''}</small></td>
-    <td data-label="Modalidade">${escapeOperationalHtml(row.modality||'-')}<small>${row.installments?`${row.installments}x de ${fmtMoney(Number(row.installment_value)||0)}`:'-'}</small></td>
-    <td data-label="Venda">${fmtMoney(Number(row.sale_value)||0)}</td>
-    <td data-label="Financiado">${fmtMoney(Number(row.financed_value)||0)}</td>
-    <td data-label="Retorno"><b>${fmtMoney(returnConsidered)}</b><small>Bruto: ${fmtMoney(returnGross)} · excluido: ${fmtMoney(Math.max(0,returnGross-returnConsidered))}</small></td>
-    <td data-label="SPF"><b>${fmtMoney(spfConsidered)}</b><small>${Number(row.spf_count)||0} produto(s) · bruto ${fmtMoney(spfGross)} · excluido: ${fmtMoney(Math.max(0,spfGross-spfConsidered))}</small></td>
-    <td data-label="70% SPF">${fmtMoney(Number(row.spf_70)||0)}</td>
-    <td data-label="Rentabilidade"><b>${fmtMoney(Number(row.operation_profitability)||0)}</b></td>
-    <td data-label="Comissao">${status}<small>${escapeOperationalHtml(row.applied_rule||'Faixa consolidada')}</small></td>
-  </tr>`;
+  const financeStatus=row.financed
+    ?'<span class="tag ok">FINANCIADO</span>'
+    :'<span class="tag">NAO FINANCIADO</span>';
+  const cls=row.financed?'fin':'nofin';
+  const term=row.installments
+    ?`${Number(row.installments)||0}x de ${fmtMoney(Number(row.installment_value)||0)}`
+    :'-';
+  return `<div class="chassisItem ${cls}">
+    <div><b>${escapeOperationalHtml(row.chassis_masked||row.operation_ref||'SEM IDENTIFICADOR')}</b> ${financeStatus}</div>
+    <div class="note">Operacao: ${escapeOperationalHtml(row.operation_ref||'-')} · Venda: ${dataBR(row.date||'')} · Financiamento: ${row.finance_date?dataBR(row.finance_date):'-'}</div>
+    <div class="note">Loja: ${escapeOperationalHtml(row.store||'-')} · Gerente: ${escapeOperationalHtml(row.manager_name||'NAO LOCALIZADO')} · Modelo: ${escapeOperationalHtml(row.vehicle_model||'-')}</div>
+    <div class="detailGrid">
+      <span>Valor da venda: <b>${fmtMoney(Number(row.sale_value)||0)}</b></span>
+      <span>Valor financiado: <b>${fmtMoney(Number(row.financed_value)||0)}</b></span>
+      <span>Modalidade: <b>${escapeOperationalHtml(row.modality||'-')}</b></span>
+      <span>Prazo / parcela: <b>${term}</b></span>
+      <span>Retorno considerado: <b>${fmtMoney(returnConsidered)}</b><small>Bruto: ${fmtMoney(returnGross)}</small></span>
+      <span>SPF considerado: <b>${fmtMoney(spfConsidered)}</b><small>${Number(row.spf_count)||0} produto(s) · bruto ${fmtMoney(spfGross)}</small></span>
+      <span>70% do SPF: <b>${fmtMoney(Number(row.spf_70)||0)}</b></span>
+      <span>Rentabilidade total: <b>${fmtMoney(Number(row.operation_profitability)||0)}</b></span>
+      <span>Comissao: ${commissionStatus}<small>${escapeOperationalHtml(row.applied_rule||'Faixa consolidada')}</small></span>
+    </div>
+  </div>`;
 }
 function applyOperationalSalaryDetailFilters(){
   const rows=operationalSalaryDetailRows();
   const body=document.getElementById('salaryDetailRows');
   const count=document.getElementById('salaryDetailCount');
-  if(body)body.innerHTML=rows.map(operationalSalaryDetailRowHtml).join('')
+  if(body)body.innerHTML=rows.map(operationalSalaryDetailItemHtml).join('')
     ||'<tr><td colspan="12" class="salaryEmpty">Nenhuma operacao encontrada com estes filtros.</td></tr>';
   if(count)count.textContent=`${rows.length} de ${OPERATIONAL_SALARY_DETAIL_STATE?.rows?.length||0} operacoes`;
 }
@@ -985,37 +1024,31 @@ function renderOperationalSalaryDetailsModal(){
   const shell=document.getElementById('chassisModal');
   if(!state||!shell)return;
   const {name,period,metrics,commission,data}=state;
-  shell.innerHTML=`<div class="modalBack salaryModalBack" onclick="closeModal(event)">
-    <section class="modalBox salaryModal" role="dialog" aria-modal="true" aria-label="Conferencia segura de vendas">
-      <div class="modalHead salaryModalHead">
-        <div><span class="salaryEyebrow">ACOMPANHAMENTO DE SALARIOS</span><h2>Conferencia de vendas</h2><p>${escapeOperationalHtml(name)} · ${dataBR(period.start)} a ${dataBR(period.end)}</p></div>
-        <button class="secondary" onclick="document.getElementById('chassisModal').remove()">Fechar</button>
+  const rows=operationalSalaryDetailRows();
+  shell.innerHTML=`<div class="modalBack" onclick="closeModal(event)">
+    <section class="modalBox" role="dialog" aria-modal="true" aria-label="Detalhes das vendas">
+      <div class="modalHead"><h2>Detalhes · ${escapeOperationalHtml(name)}</h2><button onclick="document.getElementById('chassisModal').remove()">Fechar</button></div>
+      <div class="detailCard">
+        <div class="detailGrid">
+          <span>Periodo: <b>${dataBR(period.start)} a ${dataBR(period.end)}</b></span>
+          <span>Vendidas: <b>${metrics.vendidas}</b></span>
+          <span>Financiadas: <b>${metrics.financiadas}</b></span>
+          <span>Share: <b>${pct(metrics.financiadas,metrics.vendidas)}</b></span>
+          <span>Producao: <b>${fmtMoney(metrics.producao||0)}</b></span>
+          <span>Retorno: <b>${fmtMoney(metrics.retorno)}</b></span>
+          <span>SPF Extra: <b>${fmtMoney(metrics.spf)}</b></span>
+          <span>SPF Liquido 70%: <b>${fmtMoney(commission.spfLiquido)}</b></span>
+          <span>Rentabilidade total: <b>${fmtMoney(commission.rentTotal)}</b></span>
+          <span>Faixa unica: <b>${fmtPct2(commission.faixa)}</b></span>
+          <span>Comissao principal: <b>${fmtMoney(commission.comissaoPrincipal)}</b></span>
+        </div>
+        <div class="formulaBox"><b>Formula:</b> Rentabilidade total = Retorno bruto (${fmtMoney(metrics.retorno)}) + SPF liquido 70% (${fmtMoney(commission.spfLiquido)}) = <b>${fmtMoney(commission.rentTotal)}</b><br><b>Seguranca:</b> somente operacoes autorizadas, com chassi mascarado e sem cliente, CPF ou NBS.</div>
       </div>
-      <div class="salarySummary">
-        <article><span>Vendidas</span><b>${metrics.vendidas}</b></article>
-        <article><span>Financiadas</span><b>${metrics.financiadas}</b></article>
-        <article><span>Share</span><b>${pct(metrics.financiadas,metrics.vendidas)}</b></article>
-        <article><span>Retorno total</span><b>${fmtMoney(metrics.retorno)}</b></article>
-        <article><span>SPF total</span><b>${fmtMoney(metrics.spf)}</b></article>
-        <article><span>70% do SPF</span><b>${fmtMoney(commission.spfLiquido)}</b></article>
-        <article><span>Rentabilidade</span><b>${fmtMoney(commission.rentTotal)}</b></article>
-        <article class="salaryCommissionCard"><span>Comissao consolidada</span><b>${fmtMoney(commission.comissaoPrincipal)}</b><small>Faixa ${fmtPct2(commission.faixa)}</small></article>
-      </div>
-      <div class="salaryNotice"><b>Como ler:</b> retorno, SPF e rentabilidade aparecem por operacao. A comissao e calculada pela faixa consolidada do vendedor e nao e rateada artificialmente entre as vendas.</div>
-      <div class="salaryFilters">
-        <label>Localizar<input id="salaryDetailSearch" placeholder="Referencia, chassi final, modelo..." oninput="applyOperationalSalaryDetailFilters()"></label>
-        <label>Loja<select id="salaryDetailStore" onchange="applyOperationalSalaryDetailFilters()"><option value="">Todas</option>${salaryDetailOptions(state.rows,'store')}</select></label>
-        <label>Modalidade<select id="salaryDetailModality" onchange="applyOperationalSalaryDetailFilters()"><option value="">Todas</option>${salaryDetailOptions(state.rows,'modality')}</select></label>
-        <label>Financiamento<select id="salaryDetailFinanced" onchange="applyOperationalSalaryDetailFilters()"><option value="">Todos</option><option value="true">Financiadas</option><option value="false">Nao financiadas</option></select></label>
-        <label>Comissao<select id="salaryDetailIncluded" onchange="applyOperationalSalaryDetailFilters()"><option value="">Todas</option><option value="true">Incluidas</option><option value="false">Excluidas</option></select></label>
-        <label>Ordenar<select id="salaryDetailSort" onchange="applyOperationalSalaryDetailFilters()"><option value="date_desc">Venda mais recente</option><option value="date_asc">Venda mais antiga</option><option value="sale_desc">Maior valor de venda</option><option value="financed_desc">Maior financiamento</option><option value="return_desc">Maior retorno</option><option value="profit_desc">Maior rentabilidade</option></select></label>
-      </div>
-      <div class="salaryTableMeta"><b id="salaryDetailCount"></b>${data.truncated?`<span class="warn">Limite seguro: ${data.row_limit} de ${data.row_count} operacoes.</span>`:''}</div>
-      <div class="salaryTableWrap"><table class="salaryDetailTable"><thead><tr><th>Venda</th><th>Operacao</th><th>Loja / Modelo</th><th>Financiamento</th><th>Modalidade</th><th>Venda</th><th>Financiado</th><th>Retorno</th><th>SPF</th><th>70% SPF</th><th>Rentabilidade</th><th>Comissao</th></tr></thead><tbody id="salaryDetailRows"></tbody></table></div>
-      <p class="salaryPrivacy"><b>Privacidade:</b> chassi mascarado, sem cliente, CPF, NBS ou chassi completo. A autorizacao e validada no banco.</p>
+      <h3>Chassis vendidos</h3>
+      <div class="chassisList">${rows.map(operationalSalaryDetailItemHtml).join('')||'<p class="note">Nenhum chassi vendido no periodo.</p>'}</div>
+      ${data.truncated?`<p class="note warn">Limite seguro: ${data.row_limit} de ${data.row_count} operacoes.</p>`:''}
     </section>
   </div>`;
-  applyOperationalSalaryDetailFilters();
 }
 async function showOperationalSalaryDetails(sellerId,nameEncoded){
   const name=decodeURIComponent(nameEncoded||'VENDEDOR');
@@ -1044,7 +1077,11 @@ async function showOperationalSalaryDetails(sellerId,nameEncoded){
     );
     const metrics=operationalMetricFromRow(aggregate||{});
     const commission=commissionCalc(String(aggregate?.department||''),metrics,'');
-    OPERATIONAL_SALARY_DETAIL_STATE={name,period,metrics,commission,data,rows:data.rows};
+    const rows=data.rows.map(row=>({
+      ...row,
+      manager_name:operationalManagerName(row.store,row.department)
+    }));
+    OPERATIONAL_SALARY_DETAIL_STATE={name,period,metrics,commission,data,rows};
     renderOperationalSalaryDetailsModal();
   }catch(error){
     OPERATIONAL_SALARY_DETAIL_STATE=null;
@@ -1135,8 +1172,10 @@ function operationalManagerRowHtml(label,rows,status,store){
     kind:'manager',name:label,store:store||rows[0]?.store||'',status,
     metrics,commission,rows
   });
+  const department=norm(status).includes('SEMINOVOS')?'SEMINOVOS':'NOVOS';
+  const managerName=operationalManagerName(store||rows[0]?.store||'',department);
   return `<tr class="manager">
-    <td data-label="Nome">${escapeOperationalHtml(label)}</td>
+    <td data-label="Nome">${escapeOperationalHtml(managerName||label)}</td>
     <td data-label="Vend.">${metrics.vendidas}</td><td data-label="Fin.">${metrics.financiadas}</td>
     <td data-label="Share">${shareBadge(metrics.financiadas,metrics.vendidas)}</td>
     <td data-label="Retorno">${fmtMoney(metrics.retorno)}</td>
@@ -1454,6 +1493,16 @@ async function carregarMeuAnalistaFi(){
   if(error){console.warn('Falha ao consultar analista_fi:',error.message);return null;}
   return data?.row||null;
 }
+async function portalCallAnalystFi(){
+  if(!supabaseClient) throw new Error('Supabase não inicializado.');
+  const {data:sessionData,error:sessionError}=await supabaseClient.auth.getSession();
+  if(sessionError) throw sessionError;
+  if(!sessionData?.session?.user) throw new Error('Sessão autenticada não encontrada.');
+  const {data,error}=await supabaseClient.rpc('chamar_analista_fi');
+  if(error) throw error;
+  return Array.isArray(data)?data:[];
+}
+window.portalCallAnalystFi=portalCallAnalystFi;
 async function showPainelAnalistaFi(viewUser=currentPortalUser()){
   const tipo=String((REAL_USER||viewUser)?.tipo||'').toUpperCase();
   if(!['ANALISTA','MASTER'].includes(tipo)){alert('Painel liberado apenas para ANALISTA ou MASTER.');return;}
