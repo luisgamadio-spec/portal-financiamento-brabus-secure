@@ -1,0 +1,21 @@
+# Dados operacionais e pessoais nunca devem ser publicados no repositório.
+data/*.xlsx
+data/*.xls
+data/*.csv
+data/embedded-data.js
+
+# Segredos e configurações locais.
+.env
+.env.*
+!.env.example
+assets/js/portal-runtime-config.local.js
+*.pem
+*.key
+
+# Artefatos locais, cópias e perfis de navegador.
+backups/
+supabase/private/
+*.bak
+*.tmp
+.chrome-*/
+.edge-*/
