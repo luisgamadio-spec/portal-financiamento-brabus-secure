@@ -700,7 +700,8 @@ window.addEventListener('DOMContentLoaded', loadGithubBases);
 const PORTAL_RUNTIME_CONFIG = Object.freeze({
   supabaseUrl: window.PORTAL_RUNTIME_CONFIG?.supabaseUrl || "https://yacqlelpzchcotgngwbh.supabase.co",
   supabasePublishableKey: window.PORTAL_RUNTIME_CONFIG?.supabasePublishableKey || "sb_publishable__J96gDH1kOqlc4iFW24Z2Q_u_lWAg5_",
-  authMode: window.PORTAL_RUNTIME_CONFIG?.authMode || "legacy"
+  authMode: window.PORTAL_RUNTIME_CONFIG?.authMode || "legacy",
+  passwordRecoveryMode: window.PORTAL_RUNTIME_CONFIG?.passwordRecoveryMode || "admin"
 });
 const SUPABASE_URL = PORTAL_RUNTIME_CONFIG.supabaseUrl;
 const SUPABASE_ANON_KEY = PORTAL_RUNTIME_CONFIG.supabasePublishableKey;
@@ -1414,8 +1415,28 @@ async function tentarRestaurarSessao(){
 
 
 async function esqueciSenha(){
-  if(!DATA_READY){alert('As bases ainda não foram carregadas. Aguarde a mensagem de sucesso.');return}
   if(!supabaseClient){setAuthMsg('Supabase não foi carregado. Verifique conexão ou configuração.',true);return}
+  if(PORTAL_RUNTIME_CONFIG.authMode==='secure'){
+    if(PORTAL_RUNTIME_CONFIG.passwordRecoveryMode!=='email'){
+      setAuthMsg('Solicite ao administrador a redefinição segura da sua senha.',false);
+      return;
+    }
+    const email=(document.getElementById('cpfInput')?.value||'').trim().toLowerCase();
+    if(!email||!email.includes('@')){
+      setAuthMsg('Digite o e-mail cadastrado para solicitar a redefinição.',true);
+      return;
+    }
+    setAuthMsg('Enviando instruções de redefinição...');
+    const currentPage=window.location.href.split('#')[0].split('?')[0];
+    const redirectTo=window.location.origin==='null'?currentPage:(window.location.origin+window.location.pathname);
+    const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo});
+    if(error){
+      console.warn('Falha na solicitação de recuperação:',error.message);
+    }
+    setAuthMsg('Se o e-mail estiver cadastrado, você receberá as instruções para criar uma nova senha.',false);
+    return;
+  }
+  if(!DATA_READY){alert('As bases ainda não foram carregadas. Aguarde a mensagem de sucesso.');return}
   const {cpf:c,user:u}=findUserByCpfInput();
   if(!u){setAuthMsg('Informe um CPF válido da base oficial para solicitar redefinição.',true);return}
 
@@ -1426,9 +1447,9 @@ async function esqueciSenha(){
 
 
 async function trocarSenhaObrigatoria(u){
-  const nova=prompt('Troca de senha obrigatória. Digite uma nova senha com no mínimo 6 caracteres:');
-  if(!nova || nova.length<6){
-    setAuthMsg('A nova senha precisa ter no mínimo 6 caracteres.',true);
+  const nova=prompt('Troca de senha obrigatória. Digite uma nova senha com no mínimo 8 caracteres:');
+  if(!nova || nova.length<8){
+    setAuthMsg('A nova senha precisa ter no mínimo 8 caracteres.',true);
     try{await supabaseClient.auth.signOut();}catch(e){}
     return false;
   }
@@ -1492,6 +1513,42 @@ async function carregarMeuAnalistaFi(){
   const {data,error}=await supabaseClient.rpc('operational_my_analyst_fi');
   if(error){console.warn('Falha ao consultar analista_fi:',error.message);return null;}
   return data?.row||null;
+}
+
+async function concluirRecuperacaoSenhaSegura(){
+  const nova=prompt('Digite uma nova senha com no mínimo 8 caracteres:');
+  if(!nova||nova.length<8){
+    setAuthMsg('A nova senha precisa ter no mínimo 8 caracteres.',true);
+    return false;
+  }
+  const conf=prompt('Confirme a nova senha:');
+  if(nova!==conf){
+    setAuthMsg('As senhas não conferem.',true);
+    return false;
+  }
+  const {error}=await supabaseClient.auth.updateUser({password:nova});
+  if(error){
+    setAuthMsg('Não foi possível atualizar a senha. Solicite um novo link de recuperação.',true);
+    return false;
+  }
+  const {error:profileError}=await supabaseClient.rpc('operational_complete_password_change');
+  if(profileError){
+    console.warn('Senha alterada, mas o perfil não pôde ser atualizado:',profileError.message);
+  }
+  await supabaseClient.auth.signOut();
+  setAuthMsg('Senha atualizada com sucesso. Entre novamente com a nova senha.',false);
+  return true;
+}
+
+if(supabaseClient){
+  supabaseClient.auth.onAuthStateChange((event)=>{
+    if(PORTAL_RUNTIME_CONFIG.authMode==='secure'&&event==='PASSWORD_RECOVERY'){
+      window.setTimeout(()=>{concluirRecuperacaoSenhaSegura().catch(e=>{
+        console.warn('Falha na recuperação de senha:',e);
+        setAuthMsg('Não foi possível concluir a redefinição. Solicite um novo link.',true);
+      });},0);
+    }
+  });
 }
 async function portalCallAnalystFi(){
   if(!supabaseClient) throw new Error('Supabase não inicializado.');
@@ -1586,6 +1643,12 @@ async function login(){
       let u=await carregarUsuarioAutorizado();
       loginStage='registro seguro de login';
       u=(await registrarMeuLoginSeguro())||u;
+      if(u.primeiroAcesso===true){
+        loginStage='troca obrigatória de senha';
+        const ok=await trocarSenhaObrigatoria(u);
+        if(!ok)return;
+        u.primeiroAcesso=false;
+      }
       loginStage='configurações do portal';
       await carregarParametrosPortal();
       USER=u;
