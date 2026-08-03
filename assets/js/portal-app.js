@@ -2699,31 +2699,7 @@ function forcarTrocaSenha(cpfAlvo){
   confirmarAcaoUsuario({cpfAlvo,title:'Forçar troca de senha',text:`O usuário <b>${cpfAlvo}</b> será obrigado a trocar a senha no próximo login.`,payload:{primeiro_acesso:true},descricao:`Forçada troca de senha para ${cpfAlvo}`});
 }
 function resetarSenhaUsuario(cpfAlvo){
-  if(PORTAL_RUNTIME_CONFIG.authMode==='secure'){
-    toastAdmin('Reset para senha padrão foi desativado. Use o fluxo seguro do Supabase Auth.','err');
-    return;
-  }
-  confirmarAcaoUsuario({
-    cpfAlvo,
-    title:'Resetar senha para 123456',
-    text:`A senha do CPF <b>${cpfAlvo}</b> será redefinida para <b>123456</b> e o usuário será obrigado a trocar no próximo acesso.`,
-    danger:true,
-    action:async()=>{
-      setAdminModalMsg('Enviando solicitação de reset...');
-      try{
-        const {data,error}=await supabaseClient.functions.invoke('admin-reset-password',{body:{cpf:cpfAlvo,password:'123456'}});
-        if(error) throw error;
-        await registrarAcaoAdmin('RESET_SENHA','Senha resetada para padrão 123456 e primeiro acesso forçado',cpfAlvo);
-        toastAdmin('Senha resetada para 123456.');
-        await renderMasterAdmin();
-        return true;
-      }catch(e){
-        setAdminModalMsg('Erro no reset: '+(e.message||e),true);
-        toastAdmin('Erro ao resetar senha.','err');
-        return false;
-      }
-    }
-  });
+  toastAdmin('Redefinição administrativa com senha padrão foi desativada. Use o fluxo seguro do Supabase Auth.','err');
 }
 async function salvarConfigPortalComAuditoria(chave,novo,descricao){
   await salvarConfigPortal(chave,novo,descricao);
@@ -3445,7 +3421,7 @@ async function renderMasterAdminContent(renderSequence){
         </div>`:'';
       const passActions=MASTER_TAB==='senhas'?`
         <div class="adminActions">
-          <button class="adminActionBtn warn" onclick="resetarSenhaUsuario('${u.cpf}')">Resetar 123456</button>
+          <button class="adminActionBtn warn" onclick="resetarSenhaUsuario('${u.cpf}')">Redefinir senha</button>
           <button class="adminActionBtn warn" onclick="forcarTrocaSenha('${u.cpf}')">Forçar troca</button>
           ${u.ativo?`<button class="adminActionBtn danger" onclick="bloquearUsuario('${u.cpf}')">Bloquear</button>`:`<button class="adminActionBtn good" onclick="desbloquearUsuario('${u.cpf}')">Desbloquear</button>`}
         </div>`:'';
