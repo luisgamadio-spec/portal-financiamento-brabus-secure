@@ -3249,7 +3249,7 @@ renderAntecipacaoBaloes(); updateAntecipacaoFiltros();
 
 
 window.addEventListener('message', function(ev){
-  if(ev && ev.data === 'showMenu'){
+  if(ev && ev.origin === window.location.origin && ev.data === 'showMenu'){
     if(typeof showMenu === 'function') showMenu();
   }
 });
@@ -3258,9 +3258,6 @@ window.addEventListener('message', function(ev){
 <script>
 /* Fallback de atendimento: usado apenas se o arquivo fi-atendimento.js não carregar. */
 window.falarComAnalista = window.falarComAnalista || async function(){
-  const SUPABASE_URL = "https://yacqlelpzchcotgngwbh.supabase.co";
-  const SUPABASE_KEY = "sb_publishable__J96gDH1kOqlc4iFW24Z2Q_u_lWAg5_";
-  function limparTelefone(valor){ return valor ? String(valor).replace(/\D/g,"") : ""; }
   function mostrarStatusAnalista(mensagem){
     let box=document.getElementById("statusAnalistaFI");
     if(!box){
@@ -3274,26 +3271,7 @@ window.falarComAnalista = window.falarComAnalista || async function(){
     clearTimeout(box._timer);
     box._timer=setTimeout(()=>{box.style.display="none";},5000);
   }
-  try{
-    mostrarStatusAnalista("Procurando analista disponível...");
-    const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/chamar_analista_fi`,{
-      method:"POST",
-      headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`,"Content-Type":"application/json"},
-      body:JSON.stringify({})
-    });
-    if(!response.ok) throw new Error("Erro ao consultar analista disponível.");
-    const data=await response.json();
-    if(!data || !data.length){ mostrarStatusAnalista("Nenhum analista disponível no momento."); return; }
-    const analista=data[0];
-    const telefone=limparTelefone(analista.whatsapp);
-    if(!telefone){ mostrarStatusAnalista("Analista encontrado, mas WhatsApp não cadastrado."); return; }
-    mostrarStatusAnalista(`Analista encontrado: ${analista.nome}. Abrindo WhatsApp...`);
-    const mensagem=encodeURIComponent("Olá, preciso de apoio em uma simulação F&I.");
-    setTimeout(()=>window.open(`https://wa.me/${telefone}?text=${mensagem}`,"_blank"),800);
-  }catch(e){
-    console.error(e);
-    mostrarStatusAnalista("Não foi possível localizar um analista agora.");
-  }
+  mostrarStatusAnalista("Abra o simulador pelo Portal F&I autenticado.");
 };
 
 </script>
@@ -3301,7 +3279,7 @@ window.falarComAnalista = window.falarComAnalista || async function(){
 <script src="../assets/js/fi-atendimento.js?v=secure-session-20260731"></script>
 
 <script id="portal-iframe-helper-v224">
-(function(){window.portalBack=function(){try{parent.postMessage('portal:back','*')}catch(e){history.back();}};})();
+(function(){window.portalBack=function(){try{parent.postMessage('portal:back',window.location.origin)}catch(e){history.back();}};})();
 </script>
 </body>
 </html>

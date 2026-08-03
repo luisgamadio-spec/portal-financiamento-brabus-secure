@@ -2461,7 +2461,7 @@ window.addEventListener("DOMContentLoaded", ()=>{
 </script>
 
 <script id="portal-iframe-helper-v224">
-(function(){window.portalBack=function(){try{parent.postMessage('portal:back','*')}catch(e){history.back();}};})();
+(function(){window.portalBack=function(){try{parent.postMessage('portal:back',window.location.origin)}catch(e){history.back();}};})();
 </script>
 </body>
 </html>

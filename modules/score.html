@@ -72,7 +72,7 @@
 
 function voltarAoPortalScore(){
   try{
-    if(window.parent && window.parent !== window){ window.parent.postMessage('portal:back','*'); return; }
+    if(window.parent && window.parent !== window){ window.parent.postMessage('portal:back',window.location.origin); return; }
   }catch(e){}
   if(document.referrer){ history.back(); return; }
   window.location.href='../index.html';
