@@ -6,5 +6,6 @@ window.PORTAL_RUNTIME_CONFIG = {
   supabaseUrl: "https://yacqlelpzchcotgngwbh.supabase.co",
   supabasePublishableKey: "sb_publishable__J96gDH1kOqlc4iFW24Z2Q_u_lWAg5_",
   authMode: "secure",
-  passwordRecoveryMode: "admin"
+  passwordRecoveryMode: "admin",
+  turnstileSiteKey: "0x4AAAAAAEFmBWKvC-l1_CEs"
 };

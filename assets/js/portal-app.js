@@ -701,11 +701,77 @@ const PORTAL_RUNTIME_CONFIG = Object.freeze({
   supabaseUrl: window.PORTAL_RUNTIME_CONFIG?.supabaseUrl || "https://yacqlelpzchcotgngwbh.supabase.co",
   supabasePublishableKey: window.PORTAL_RUNTIME_CONFIG?.supabasePublishableKey || "sb_publishable__J96gDH1kOqlc4iFW24Z2Q_u_lWAg5_",
   authMode: window.PORTAL_RUNTIME_CONFIG?.authMode || "legacy",
-  passwordRecoveryMode: window.PORTAL_RUNTIME_CONFIG?.passwordRecoveryMode || "admin"
+  passwordRecoveryMode: window.PORTAL_RUNTIME_CONFIG?.passwordRecoveryMode || "admin",
+  turnstileSiteKey: String(window.PORTAL_RUNTIME_CONFIG?.turnstileSiteKey || '').trim()
 });
 const SUPABASE_URL = PORTAL_RUNTIME_CONFIG.supabaseUrl;
 const SUPABASE_ANON_KEY = PORTAL_RUNTIME_CONFIG.supabasePublishableKey;
 let supabaseClient = null;
+let turnstileScriptPromise = null;
+function loadTurnstileScript(){
+  if(window.turnstile)return Promise.resolve(window.turnstile);
+  if(turnstileScriptPromise)return turnstileScriptPromise;
+  turnstileScriptPromise=new Promise((resolve,reject)=>{
+    const existing=document.querySelector('script[data-portal-turnstile]');
+    const script=existing||document.createElement('script');
+    const timeout=setTimeout(()=>reject(new Error('Tempo esgotado ao carregar a proteção antiabuso.')),20000);
+    script.onload=()=>{
+      clearTimeout(timeout);
+      if(window.turnstile)resolve(window.turnstile);
+      else reject(new Error('A proteção antiabuso não foi inicializada.'));
+    };
+    script.onerror=()=>{
+      clearTimeout(timeout);
+      turnstileScriptPromise=null;
+      reject(new Error('Não foi possível carregar a proteção antiabuso.'));
+    };
+    if(!existing){
+      script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      script.async=true;
+      script.defer=true;
+      script.dataset.portalTurnstile='true';
+      document.head.appendChild(script);
+    }
+  });
+  return turnstileScriptPromise;
+}
+async function obtainTurnstileToken(){
+  const sitekey=PORTAL_RUNTIME_CONFIG.turnstileSiteKey;
+  if(!sitekey)return '';
+  const api=await loadTurnstileScript();
+  return new Promise((resolve,reject)=>{
+    const host=document.createElement('div');
+    host.setAttribute('aria-label','Verificação de segurança');
+    Object.assign(host.style,{position:'fixed',right:'18px',bottom:'18px',zIndex:'2147483647'});
+    document.body.appendChild(host);
+    let widgetId=null;
+    let finished=false;
+    const cleanup=()=>{
+      if(widgetId!==null){try{api.remove(widgetId)}catch(_){}}
+      host.remove();
+    };
+    const finish=(error,token='')=>{
+      if(finished)return;
+      finished=true;
+      clearTimeout(timer);
+      cleanup();
+      if(error)reject(error);else resolve(token);
+    };
+    const timer=setTimeout(()=>finish(new Error('A verificação de segurança expirou. Tente novamente.')),120000);
+    try{
+      widgetId=api.render(host,{
+        sitekey,
+        theme:'dark',
+        appearance:'interaction-only',
+        execution:'execute',
+        callback:token=>finish(null,token),
+        'error-callback':()=>finish(new Error('A verificação de segurança falhou. Tente novamente.')),
+        'expired-callback':()=>finish(new Error('A verificação de segurança expirou. Tente novamente.'))
+      });
+      api.execute(widgetId);
+    }catch(error){finish(error)}
+  });
+}
 try{
   if(window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }catch(e){ console.warn('Supabase não inicializado:', e); }
@@ -1429,7 +1495,16 @@ async function esqueciSenha(){
     setAuthMsg('Enviando instruções de redefinição...');
     const currentPage=window.location.href.split('#')[0].split('?')[0];
     const redirectTo=window.location.origin==='null'?currentPage:(window.location.origin+window.location.pathname);
-    const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo});
+    let captchaToken='';
+    try{
+      captchaToken=await obtainTurnstileToken();
+    }catch(error){
+      setAuthMsg(error?.message||'Não foi possível concluir a verificação de segurança.',true);
+      return;
+    }
+    const recoveryOptions={redirectTo};
+    if(captchaToken)recoveryOptions.captchaToken=captchaToken;
+    const {error}=await supabaseClient.auth.resetPasswordForEmail(email,recoveryOptions);
     if(error){
       console.warn('Falha na solicitação de recuperação:',error.message);
     }
@@ -1634,7 +1709,10 @@ async function login(){
     let loginStage='autenticação';
     try{
       setAuthMsg('Validando acesso...');
-      const {error}=await supabaseClient.auth.signInWithPassword({email,password:senha});
+      const captchaToken=await obtainTurnstileToken();
+      const credentials={email,password:senha};
+      if(captchaToken)credentials.options={captchaToken};
+      const {error}=await supabaseClient.auth.signInWithPassword(credentials);
       if(error){
         setAuthMsg('E-mail ou senha inválidos.',true);
         return;
