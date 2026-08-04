@@ -1714,7 +1714,14 @@ async function login(){
       if(captchaToken)credentials.options={captchaToken};
       const {error}=await supabaseClient.auth.signInWithPassword(credentials);
       if(error){
-        setAuthMsg('E-mail ou senha inválidos.',true);
+        const authError=String(error.message||'').toLowerCase();
+        const captchaRejected=authError.includes('captcha')||authError.includes('turnstile');
+        setAuthMsg(
+          captchaRejected
+            ? 'A verificação antiabuso não foi aceita. Atualize a página e tente novamente.'
+            : 'E-mail ou senha inválidos.',
+          true
+        );
         return;
       }
       loginStage='perfil autorizado';
