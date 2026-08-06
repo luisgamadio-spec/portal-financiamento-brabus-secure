@@ -2158,6 +2158,15 @@ function secureModelRows(data, family){
     target.entradaQtd += Number(row.valid_entry_count) || 0;
     target.entradaTotal += Number(row.entry_total) || 0;
     target.valorVendaTotal += Number(row.entry_sales_value_total) || 0;
+    // plan_breakdown preserva a classificação por tipo de plano (ver planTypeFromFields());
+    // sem isso, linearQtd/balaoQtd/reversaoQtd ficavam sempre zerados no modo seguro.
+    (row.plan_breakdown || []).forEach(group=>{
+      const groupCount = Number(group.financed_count) || 0;
+      const planType = String(group.plan_type || "LINEAR").toUpperCase();
+      if(planType === "BALÃO") target.balaoQtd += groupCount;
+      else if(planType === "REVERSÃO") target.reversaoQtd += groupCount;
+      else if(planType === "LINEAR") target.linearQtd += groupCount;
+    });
   });
 
   const known = FAMILY_MODELS[family] || [];
@@ -2658,7 +2667,7 @@ function modeloPadrao(raw){
 }
 
 function addAgg(map, key, values){
-  if(!map[key]) map[key]={qtd:0,vendas:0,fin:0,receita:0,producao:0,parcelasSum:0,parcelasQtd:0,pmtSum:0,pmtQtd:0,balaoQtd:0,linearQtd:0,balaoValorSum:0,balaoValorQtd:0};
+  if(!map[key]) map[key]={qtd:0,vendas:0,fin:0,receita:0,producao:0,parcelasSum:0,parcelasQtd:0,pmtSum:0,pmtQtd:0,balaoQtd:0,linearQtd:0,coparticipadoQtd:0,subsidiadoQtd:0,reversaoQtd:0,balaoValorSum:0,balaoValorQtd:0};
   const o = map[key];
   for(const [k,v] of Object.entries(values)){
     if(k.endsWith("Qtd")) o[k] += v ? 1 : 0;
@@ -2913,9 +2922,11 @@ function processBase02(rows, b03index){
     const isReversaoFlag = isReversaoValue(codigoIFRaw) || codigoIF === "777" || codigoIFNum === 777;
     const isBalaoFlag = balaoValor > 0;
 
-    if(isCoparticipadoFlag) planoClassificado = "COPARTICIPADO";
-    else if(isSubsidiadoFlag) planoClassificado = "SUBSIDIADO";
+    // Prioridade oficial (igual a planTypeFromFields() do módulo Análise F&I do Grupo):
+    // SUBSIDIADO > REVERSÃO > COPARTICIPADO > BALÃO > LINEAR.
+    if(isSubsidiadoFlag) planoClassificado = "SUBSIDIADO";
     else if(isReversaoFlag) planoClassificado = "REVERSÃO";
+    else if(isCoparticipadoFlag) planoClassificado = "COPARTICIPADO";
     else if(isBalaoFlag) planoClassificado = "BALÃO";
 
     valid.push({
@@ -2983,9 +2994,11 @@ function scoreB03PlanRow(row){
   const tcNum = asNumber(tcRaw);
   const ifNum = asNumber(ifRaw);
 
-  if(isCoparticipadoValue(tcRaw) || tcNum === 1) return 100;
-  if(isSubsidiadoValue(ifRaw) || normalizeText(ifRaw) === "999" || ifNum === 999) return 90;
-  if(isReversaoValue(ifRaw) || normalizeText(ifRaw) === "777" || ifNum === 777) return 85;
+  // Prioridade oficial (igual a planTypeFromFields() do módulo Análise F&I do Grupo):
+  // SUBSIDIADO > REVERSÃO > COPARTICIPADO > BALÃO > LINEAR.
+  if(isSubsidiadoValue(ifRaw) || normalizeText(ifRaw) === "999" || ifNum === 999) return 100;
+  if(isReversaoValue(ifRaw) || normalizeText(ifRaw) === "777" || ifNum === 777) return 90;
+  if(isCoparticipadoValue(tcRaw) || tcNum === 1) return 85;
   if(balaoValor > 0) return 80;
 
   const pmt = asNumber(getCol(row,["Op Fin - PMT (R$)","PMT","Valor Parcela"]));
@@ -3034,8 +3047,13 @@ function aggregate(results){
       qtd:1, fin:1, receita:r.receita, receitaSPF:r.receitaSPF || 0, receitaTotal:(r.receita || 0) + (r.receitaSPF || 0), producao:r.producao,
       parcelasSum:r.parcelas, parcelasQtd:r.parcelas>0?1:0,
       pmtSum:r.pmt, pmtQtd:r.pmt>0?1:0,
-      balaoQtd:r.balaoValor>0?1:0,
-      linearQtd:r.balaoValor>0?0:1,
+      // Classificação preservada via planoClassificado/isFin*() — a agregação não pode
+      // reduzir COPARTICIPADO, SUBSIDIADO e REVERSÃO a BALÃO/LINEAR (ver planTypeFromFields()).
+      balaoQtd:isFinBalao(r)?1:0,
+      linearQtd:isFinLinear(r)?1:0,
+      coparticipadoQtd:isFinCoparticipado(r)?1:0,
+      subsidiadoQtd:isFinSubsidiado(r)?1:0,
+      reversaoQtd:isFinReversao(r)?1:0,
       balaoValorSum:r.balaoValor,
       balaoValorQtd:r.balaoValor>0?1:0
     };

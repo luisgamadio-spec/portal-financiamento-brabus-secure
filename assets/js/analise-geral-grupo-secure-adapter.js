@@ -49,22 +49,40 @@
           origem: { "Data venda": recordDate, __secureAggregate: true, __row: rowIndex }
         });
       }
-      for (let index = 0; index < financed; index += 1) {
-        fins.push({
-          loja: store,
-          dept: department,
-          vendedor: seller,
-          modelo: model,
-          receita: distribute(number(row.return_value), financed, index),
-          receitaSPF: distribute(number(row.spf_net_value), financed, index),
-          producao: distribute(number(row.production_value), financed, index),
-          parcelas: 0,
-          pmt: 0,
-          balaoValor: 0,
-          matched: true,
-          origem: { "Data Venda": recordDate, __secureAggregate: true, __row: rowIndex }
-        });
-      }
+      // plan_breakdown particiona financed_count por tipo de plano (SUBSIDIADO/REVERSÃO/
+      // COPARTICIPADO/BALÃO/LINEAR), calculado pela API segura com a mesma prioridade de
+      // planTypeFromFields(). SPF não tem quebra por plano, por isso continua distribuído
+      // pelo total financiado (spfIndex), não pelo subtotal de cada grupo.
+      const planGroups = Array.isArray(row.plan_breakdown) && row.plan_breakdown.length
+        ? row.plan_breakdown
+        : (financed ? [{ plan_type: "LINEAR", financed_count: financed, production_value: row.production_value, return_value: row.return_value }] : []);
+      let spfIndex = 0;
+      planGroups.forEach(group => {
+        const groupCount = Math.max(0, Math.round(number(group.financed_count)));
+        const planType = String(group.plan_type || "LINEAR").toUpperCase();
+        for (let index = 0; index < groupCount; index += 1) {
+          fins.push({
+            loja: store,
+            dept: department,
+            vendedor: seller,
+            modelo: model,
+            receita: distribute(number(group.return_value), groupCount, index),
+            receitaSPF: distribute(number(row.spf_net_value), financed, spfIndex),
+            producao: distribute(number(group.production_value), groupCount, index),
+            parcelas: 0,
+            pmt: 0,
+            balaoValor: planType === "BALÃO" ? 1 : 0,
+            planoClassificado: planType,
+            isCoparticipadoFlag: planType === "COPARTICIPADO",
+            isSubsidiadoFlag: planType === "SUBSIDIADO",
+            isReversaoFlag: planType === "REVERSÃO",
+            isBalaoFlag: planType === "BALÃO",
+            matched: true,
+            origem: { "Data Venda": recordDate, __secureAggregate: true, __row: rowIndex }
+          });
+          spfIndex += 1;
+        }
+      });
     });
     return { sales, fins };
   }
