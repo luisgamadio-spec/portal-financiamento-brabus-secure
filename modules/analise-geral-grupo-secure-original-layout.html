@@ -1881,7 +1881,6 @@ html body #kpis.cards > .card::after{
     <div id="modelosTab" class="tab modelosTab" onclick="showTab('modelos', this)">Análise por Modelos</div>
     <div id="rankingTab" class="tab" onclick="showTab('ranking', this)">Ranking</div>
     <div id="novosLojaTab" class="tab modelosTab" onclick="showTab('novosLoja', this)">Novos por Loja</div>
-    <div id="analiseVendedorTab" class="tab modelosTab" onclick="showTab('analiseVendedor', this)">Análise por Vendedor</div>
   </div>
 
   <section id="visao"></section>
@@ -1892,7 +1891,6 @@ html body #kpis.cards > .card::after{
   <section id="share" class="active"></section>
   <section id="ranking"></section>
   <section id="novosLoja"></section>
-  <section id="analiseVendedor"></section>
   <section id="alertas"></section>
 
   <div class="footer">
@@ -2132,7 +2130,9 @@ function secureModelRows(data, family){
   (data?.rows || []).forEach(row=>{
     if(normalizeText(row.department) !== "NOVOS") return;
     if(currentStoreFilter && normalizeText(row.store) !== normalizeText(currentStoreFilter)) return;
-    const model = normalizeText(row.model || "NÃO INFORMADO");
+    // Normaliza para o mesmo nome canônico usado em FAMILY_MODELS (ex.: "ECLIPSE CROSS HPE-S 4x2"),
+    // senão os modelos ficam fragmentados por variações do texto cru vindo do banco.
+    const model = modeloPadrao(row.model);
     if(familyOfModel(model) !== family) return;
     if(!grouped[model]){
       grouped[model] = {
@@ -2151,6 +2151,9 @@ function secureModelRows(data, family){
     target.financiada += financed;
     target.producao += Number(row.production_value) || 0;
     target.receita += Number(row.return_value) || 0;
+    // operational_model_metrics já devolve spf_net_value por linha (modelo/loja/período),
+    // mas esse acumulador nunca lia o campo — por isso Receita SPF ficava sempre em 0.
+    target.receitaSPF += Number(row.spf_net_value) || 0;
     target.parcelasWeighted += installments * financed;
     target.parcelasWeight += installments > 0 ? financed : 0;
     target.pmtWeighted += installmentValue * financed;
@@ -2183,7 +2186,7 @@ function secureModelRows(data, family){
   return Object.values(grouped).map(row=>({
     ...row,
     penetracao:row.volume ? row.financiada/row.volume : 0,
-    receitaTotal:row.receita,
+    receitaTotal:row.receita + row.receitaSPF,
     ticket:row.financiada ? row.producao/row.financiada : 0,
     parcelasMed:row.parcelasWeight ? row.parcelasWeighted/row.parcelasWeight : 0,
     prazoMedio:row.parcelasWeight ? row.parcelasWeighted/row.parcelasWeight : 0,
@@ -2194,6 +2197,50 @@ function secureModelRows(data, family){
   })).sort((a,b)=>b.volume-a.volume || a.Modelo.localeCompare(b.Modelo));
 }
 
+// operational_metrics (usado para montar results.fins no modo seguro) agrupa por
+// vendedor/loja/departamento e NUNCA devolve o modelo do veículo — por isso
+// planRowsByModel/planTotalRowsForFamily/planRowsByStoreForFamily/specialPlanDetailRows/
+// planoDestaqueFamiliaAtualHtml nunca encontravam nada ao comparar r.modelo (sempre
+// "NÃO INFORMADO"). operational_model_metrics é a única API que devolve modelo real,
+// e já carrega plan_breakdown com a mesma classificação oficial. Esta função apenas
+// reaproveita esses dados no mesmo formato de fins já consumido por essas funções —
+// não recalcula nem cria uma classificação nova.
+function buildModelPlanFinsRows(data){
+  const fins = [];
+  (data?.rows || []).forEach((row, rowIndex)=>{
+    if(normalizeText(row.department) !== "NOVOS") return;
+    const store = String(row.store || "NÃO LOCALIZADO");
+    const modelo = modeloPadrao(row.model);
+    const planGroups = Array.isArray(row.plan_breakdown) && row.plan_breakdown.length
+      ? row.plan_breakdown
+      : (row.financed_count ? [{plan_type:"LINEAR", financed_count:row.financed_count, production_value:row.production_value, return_value:row.return_value}] : []);
+    planGroups.forEach(group=>{
+      const groupCount = Math.max(0, Math.round(Number(group.financed_count) || 0));
+      const planType = String(group.plan_type || "LINEAR").toUpperCase();
+      for(let i=0;i<groupCount;i++){
+        fins.push({
+          loja:store,
+          dept:"Novos",
+          modelo,
+          receita: groupCount ? (Number(group.return_value)||0)/groupCount : 0,
+          producao: groupCount ? (Number(group.production_value)||0)/groupCount : 0,
+          receitaSPF:0,
+          parcelas:0,
+          pmt:0,
+          balaoValor: planType === "BALÃO" ? 1 : 0,
+          planoClassificado: planType,
+          isCoparticipadoFlag: planType === "COPARTICIPADO",
+          isSubsidiadoFlag: planType === "SUBSIDIADO",
+          isReversaoFlag: planType === "REVERSÃO",
+          isBalaoFlag: planType === "BALÃO",
+          matched:true,
+          origem:{__secureModelAggregate:true, __row:rowIndex}
+        });
+      }
+    });
+  });
+  return fins;
+}
 
 /* ============================================================
    V01.01.37 — Integração Supabase · Mudança de Loja Vendedores
@@ -3230,7 +3277,7 @@ function updateModelosTabVisibility(){
   const isNovos = currentDeptView === "Novos";
   tab.classList.toggle("hiddenByDept", !isNovos);
 
-  if(!isNovos && (modelosSection.classList.contains("active") || (document.getElementById("analiseVendedor") && document.getElementById("analiseVendedor").style.display === "block"))){
+  if(!isNovos && modelosSection.classList.contains("active")){
     document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));
     const share = document.getElementById("share");
     if(share) share.classList.add("active");
@@ -3242,13 +3289,9 @@ function updateModelosTabVisibility(){
 
   const novosLojaTab = document.getElementById("novosLojaTab");
   if(novosLojaTab) novosLojaTab.style.display = currentDeptView === "Novos" ? "flex" : "none";
-  const analiseVendedorTab = document.getElementById("analiseVendedorTab");
-  if(analiseVendedorTab) analiseVendedorTab.style.display = currentDeptView === "Novos" ? "flex" : "none";
   if(currentDeptView !== "Novos"){
     const nl = document.getElementById("novosLoja");
     if(nl) nl.style.display = "none";
-    const av = document.getElementById("analiseVendedor");
-    if(av) av.style.display = "none";
   }
 }
 
@@ -3398,6 +3441,10 @@ function specialPlanDetailRows(results, family){
 
 
 function planDiagnosticsHtml(){
+  // No modo seguro os dados vêm prontos da API (plan_breakdown), não de upload de
+  // Base 03 no navegador — base03PlanDiagnostics nunca é preenchido nesse fluxo e
+  // ficaria travado em "não encontrado" para sempre, gerando um alerta falso.
+  if(MODEL_SECURE_MODE) return "";
   const diag = (typeof base03PlanDiagnostics !== 'undefined') ? base03PlanDiagnostics : {hasTC:false, hasIF:false};
   if(diag.hasTC && diag.hasIF) return "";
   const faltantes = [];
@@ -3619,6 +3666,11 @@ async function renderModelos(results){
     }
   }
   results = {...results, aggs: aggregate({sales: results.sales || [], fins: results.fins || []})};
+  // results.fins (via operational_metrics) não carrega modelo — as tabelas de plano por
+  // modelo precisam do fins reconstruído a partir de operational_model_metrics.
+  const modelPlanResults = MODEL_SECURE_MODE
+    ? {...results, fins: buildModelPlanFinsRows(secureModelData)}
+    : results;
   const prevModelResults = applyPreviousMonthComparisonFilter(lastResults || results);
   const prevModelRows = MODEL_SECURE_MODE
     ? secureModelRows(securePreviousModelData, currentFamily)
@@ -3669,7 +3721,7 @@ async function renderModelos(results){
         <div class="metricBox"><div class="mk">Média de parcela</div><div class="mv">${money(extraFam.pmtMed)}${metricCompareBlock(extraFam.pmtMed, prevExtraFam.pmtMed, money(prevExtraFam.pmtMed))}</div></div>
         <div class="metricBox"><div class="mk">Entrada média</div><div class="mv">${money(extraFam.entradaMed)}${metricCompareBlock(extraFam.entradaMed, prevExtraFam.entradaMed, money(prevExtraFam.entradaMed))}</div></div>
         <div class="metricBox"><div class="mk">% Entrada médio</div><div class="mv">${pct(extraFam.entradaPct)}${metricCompareBlock(extraFam.entradaPct, prevExtraFam.entradaPct, pct(prevExtraFam.entradaPct))}</div></div>
-        <div class="metricBox planoDestaqueBox"><div class="mk">🏆 Plano Destaque</div><div class="mv">${planoDestaqueFamiliaAtualHtml(results)}</div></div>
+        <div class="metricBox planoDestaqueBox"><div class="mk">🏆 Plano Destaque</div><div class="mv">${planoDestaqueFamiliaAtualHtml(modelPlanResults)}</div></div>
       </div>
     </div>`+
     table(`${currentFamily} · Indicadores por modelo`, rows, [
@@ -3698,7 +3750,7 @@ async function renderModelos(results){
       {k:"ModeloOriginal",label:"Modelo original"},
       {k:"Vendedor",label:"Vendedor"}
     ]) : "")+
-    table(`${currentFamily} · Resumo tipos de plano`, planTotalRowsForFamily(results, currentFamily), [
+    table(`${currentFamily} · Resumo tipos de plano`, planTotalRowsForFamily(modelPlanResults, currentFamily), [
       {k:"Família",label:"Família"},
       {k:"Financiamentos",label:"Financiamentos",f:(v)=>num(v)},
       {k:"Linear",label:"Linear",f:(v)=>num(v)},
@@ -3712,7 +3764,7 @@ async function renderModelos(results){
       {k:"Reversao",label:"Reversão",f:(v)=>num(v)},
       {k:"ReversaoPct",label:"Reversão %",f:pct}
     ])+
-    table(`${currentFamily} · Quantidade por tipo de plano / Modelo`, planRowsByModel(results, currentFamily), [
+    table(`${currentFamily} · Quantidade por tipo de plano / Modelo`, planRowsByModel(modelPlanResults, currentFamily), [
       {k:"Modelo",label:"Modelo"},
       {k:"Financiamentos",label:"Financiamentos",f:(v)=>num(v)},
       {k:"Linear",label:"Linear",f:(v)=>num(v)},
@@ -3726,7 +3778,7 @@ async function renderModelos(results){
       {k:"Reversao",label:"Reversão",f:(v)=>num(v)},
       {k:"ReversaoPct",label:"Reversão %",f:pct}
     ])+
-    table(`${currentFamily} · Quantidade por tipo de plano / Loja`, planRowsByStoreForFamily(results, currentFamily), [
+    table(`${currentFamily} · Quantidade por tipo de plano / Loja`, planRowsByStoreForFamily(modelPlanResults, currentFamily), [
       {k:"Loja",label:"Loja"},
       {k:"Financiamentos",label:"Financiamentos",f:(v)=>num(v)},
       {k:"Linear",label:"Linear",f:(v)=>num(v)},
@@ -3740,7 +3792,7 @@ async function renderModelos(results){
       {k:"Reversao",label:"Reversão",f:(v)=>num(v)},
       {k:"ReversaoPct",label:"Reversão %",f:pct}
     ])+
-    table(`${currentFamily} · Detalhe COPARTICIPADO / SUBSIDIADO / REVERSÃO`, specialPlanDetailRows(results, currentFamily), [
+    table(`${currentFamily} · Detalhe COPARTICIPADO / SUBSIDIADO / REVERSÃO`, specialPlanDetailRows(modelPlanResults, currentFamily), [
       {k:"Loja",label:"Loja"},
       {k:"Modelo",label:"Modelo"},
       {k:"Plano",label:"Plano"},
@@ -4223,86 +4275,6 @@ function planoDestaqueFamiliaAtualHtml(results){
     <div class="planoDestaqueSub">Plano mais vendido da família</div>
   </div>`;
 }
-function buildAnaliseVendedorNovosRows(results){
-  const fins = (results.fins || []).filter(r => r.dept === "Novos");
-  const map = {};
-  fins.forEach(r=>{
-    const vendedor = r.vendedor || "NÃO LOCALIZADO";
-    if(!map[vendedor]) map[vendedor] = {Vendedor:vendedor, regs:[]};
-    map[vendedor].regs.push(r);
-  });
-  return Object.values(map).map(x=>{
-    const c = planoCounts(x.regs);
-    return {
-      Vendedor:x.Vendedor,
-      Financiado:x.regs.length,
-      PlanoDestaque:getPlanoDestaque(x.regs),
-      Linear:c.LINEAR || 0,
-      Balao:c["BALÃO"] || 0,
-      Coparticipado:c.COPARTICIPADO || 0,
-      Subsidiado:c.SUBSIDIADO || 0,
-      Reversao:c["REVERSÃO"] || 0
-    };
-  }).sort((a,b)=>(b.Financiado-a.Financiado)||a.Vendedor.localeCompare(b.Vendedor));
-}
-function buildCoberturaFamiliasVendedorRows(results){
-  const fins = (results.fins || []).filter(r => r.dept === "Novos");
-  const map = {};
-  fins.forEach(r=>{
-    const vendedor = r.vendedor || "NÃO LOCALIZADO";
-    if(!map[vendedor]) map[vendedor] = {Vendedor:vendedor, OUTLANDER:false, "ECLIPSE CROSS":false, TRITON:false};
-    const fam = familyOfModel(r.modelo);
-    if(fam === "OUTLANDER" || fam === "ECLIPSE CROSS" || fam === "TRITON") map[vendedor][fam] = true;
-  });
-  return Object.values(map).sort((a,b)=>a.Vendedor.localeCompare(b.Vendedor));
-}
-function renderAnaliseVendedor(results){
-  const el = document.getElementById("analiseVendedor");
-  if(!el) return;
-  if(currentDeptView !== "Novos"){
-    el.innerHTML = "";
-    return;
-  }
-  const rows = buildAnaliseVendedorNovosRows(results);
-  const cobertura = buildCoberturaFamiliasVendedorRows(results);
-
-  const header = ["Vendedor","QTD Financiado","Plano Destaque","Linear","Balão","Coparticipado","Subsidiado","Reversão"];
-  const body = rows.map(r=>`
-    <div class="cell" data-label="Vendedor">${r.Vendedor}</div>
-    <div class="cell num" data-label="QTD Financiado">${num(r.Financiado)}</div>
-    <div class="cell num" data-label="Plano Destaque">${planoBadgeHtml(r.PlanoDestaque,true)}</div>
-    <div class="cell num" data-label="Linear">${num(r.Linear)}</div>
-    <div class="cell num" data-label="Balão">${num(r.Balao)}</div>
-    <div class="cell num" data-label="Coparticipado">${num(r.Coparticipado)}</div>
-    <div class="cell num" data-label="Subsidiado">${num(r.Subsidiado)}</div>
-    <div class="cell num" data-label="Reversão">${num(r.Reversao)}</div>
-  `).join("");
-
-  const famBody = cobertura.map(r=>`
-    <div class="cell" data-label="Vendedor">${r.Vendedor}</div>
-    <div class="cell num" data-label="Eclipse">${r["ECLIPSE CROSS"] ? '<span class="simNao sim">✅ SIM</span>' : '<span class="simNao nao">❌ NÃO</span>'}</div>
-    <div class="cell num" data-label="Triton">${r.TRITON ? '<span class="simNao sim">✅ SIM</span>' : '<span class="simNao nao">❌ NÃO</span>'}</div>
-    <div class="cell num" data-label="Outlander">${r.OUTLANDER ? '<span class="simNao sim">✅ SIM</span>' : '<span class="simNao nao">❌ NÃO</span>'}</div>
-  `).join("");
-
-  el.innerHTML = `<div class="panel">
-    <h2>Análise por Vendedor</h2>
-    <p class="muted">Leitura exclusiva de Novos, respeitando período, loja e regras de planos já homologadas.</p>
-    <div class="vendedorGrid" style="margin-top:16px">
-      ${header.map(h=>`<div class="head">${h}</div>`).join("")}
-      ${body || `<div class="cell muted" style="grid-column:1/-1">Sem dados.</div>`}
-    </div>
-  </div>
-  <div class="panel">
-    <h2>Cobertura de Famílias por Vendedor</h2>
-    <p class="muted">Indica se o vendedor financiou ao menos uma operação da família no período selecionado.</p>
-    <div class="familiaGrid" style="margin-top:16px">
-      <div class="head">Vendedor</div><div class="head">Eclipse</div><div class="head">Triton</div><div class="head">Outlander</div>
-      ${famBody || `<div class="cell muted" style="grid-column:1/-1">Sem dados.</div>`}
-    </div>
-  </div>`;
-}
-
 function buildNovosLojaRows(results){
   const sales = (results.sales || []).filter(r => r.dept === "Novos");
   const fins = (results.fins || []).filter(r => r.dept === "Novos");
@@ -4393,7 +4365,7 @@ function render(r){
   (document.getElementById("mainTabs")||{style:{}}).style.display="flex";
   populateStoreFilter(r);
   updateModelosTabVisibility();
-  if(!(document.getElementById("share")||{classList:{add:function(){},remove:function(){},contains:function(){return false;}}}).classList.contains("active") && !(document.getElementById("modelos")||{classList:{add:function(){},remove:function(){},contains:function(){return false;}}}).classList.contains("active") && !(document.getElementById("ranking")||{classList:{add:function(){},remove:function(){},contains:function(){return false;}}}).classList.contains("active") && !(document.getElementById("analiseVendedor")||{classList:{add:function(){},remove:function(){},contains:function(){return false;}}}).classList.contains("active")){
+  if(!(document.getElementById("share")||{classList:{add:function(){},remove:function(){},contains:function(){return false;}}}).classList.contains("active") && !(document.getElementById("modelos")||{classList:{add:function(){},remove:function(){},contains:function(){return false;}}}).classList.contains("active") && !(document.getElementById("ranking")||{classList:{add:function(){},remove:function(){},contains:function(){return false;}}}).classList.contains("active")){
     document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));
     (document.getElementById("share")||{classList:{add:function(){},remove:function(){},contains:function(){return false;}}}).classList.add("active");
   }
@@ -4512,7 +4484,6 @@ function render(r){
   renderRanking(filteredResults, salesView, finsView);
 
   renderModelos(filteredResults);
-  if((document.getElementById("analiseVendedor")||{style:{}}).style.display === "block") renderAnaliseVendedor(filteredResults);
 
   const missingStores = [...new Set([...r.sales.filter(x=>x.loja==="NÃO LOCALIZADO").map(x=>x.vendedor), ...r.fins.filter(x=>x.loja==="NÃO LOCALIZADO").map(x=>x.vendedor)])].filter(Boolean);
   document.getElementById("alertas").innerHTML =
@@ -4527,7 +4498,7 @@ function render(r){
 function showTab(id, el){
   document.querySelectorAll("#tabs .tab").forEach(t=>t.classList.remove("active"));
   if(el) el.classList.add("active");
-  ["share","modelos","ranking","novosLoja","analiseVendedor"].forEach(secId=>{
+  ["share","modelos","ranking","novosLoja"].forEach(secId=>{
     const sec = document.getElementById(secId);
     if(sec) sec.style.display = (secId === id ? "block" : "none");
   });
@@ -4540,7 +4511,6 @@ function showTab(id, el){
       renderRanking(filteredResults, salesView, finsView);
     }
     if(id === "novosLoja") renderNovosLojaAnalysis(applyCurrentPeriodFilter(lastResults));
-    if(id === "analiseVendedor") renderAnaliseVendedor(applyCurrentPeriodFilter(lastResults));
   }
 }
 

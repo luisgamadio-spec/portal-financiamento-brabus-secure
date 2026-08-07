@@ -38,7 +38,12 @@
       const store = String(row.store || "NÃO LOCALIZADO");
       const department = titleDepartment(row.department);
       const seller = String(row.seller_name || "NÃO INFORMADO");
-      const model = String(row.model || "NÃO INFORMADO");
+      // A API segura devolve o nome cru do modelo; normaliza para o mesmo padrão
+      // canônico de FAMILY_MODELS (ex.: "ECLIPSE CROSS HPE-S 4x2"), do contrário
+      // planRowsByModel/planRowsByStoreForFamily (comparação exata) nunca casam.
+      const model = typeof window.modeloPadrao === "function"
+        ? window.modeloPadrao(row.model)
+        : String(row.model || "NÃO INFORMADO");
       for (let index = 0; index < sold; index += 1) {
         sales.push({
           loja: store,
