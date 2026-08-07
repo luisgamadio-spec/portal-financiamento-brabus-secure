@@ -174,8 +174,9 @@
 
   function initializePeriod() {
     const end = new Date();
-    const start = new Date(end);
-    start.setDate(start.getDate() - 731);
+    // Primeiro dia do mês atual, em hora local (evita o deslocamento de um dia
+    // que toISOString()/UTC causaria perto da virada do dia).
+    const start = new Date(end.getFullYear(), end.getMonth(), 1);
     currentPeriodFilter = { start, end, mode: "secureDefault" };
     setInputs(start, end);
   }
