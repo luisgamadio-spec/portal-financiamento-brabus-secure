@@ -291,8 +291,26 @@ async function readTaxaCopart(file){
   });
   return taxas;
 }
+// Alias controlado e centralizado: nomenclaturas de ERP que representam a
+// MESMA versão comercial de um modelo já cadastrado na tabela de taxas, mas
+// cujo texto não bate nem por chave exata nem pelo fallback por substring de
+// taxaKey() (ex.: "BLACK" aparece em posição diferente na string). Mapeia
+// texto de ERP -> nome canônico da tabela; a taxa em si continua vindo
+// exclusivamente de DATA.taxasCopart, buscada pelo nome canônico — nunca
+// hardcoded aqui. Adicionar uma entrada só quando comprovado que é a mesma
+// versão comercial (ex.: único modelo "BLACK" com tração 4x4/S-AWC cadastrado).
+// "4X4" está na lista de termos genéricos de taxaKey() (correto para Triton/
+// Outlander, que não têm taxa própria por tração) — mas para Eclipse Cross
+// a tabela tem uma linha própria para a versão S-AWC (4x4), então remover
+// "4X4" antes do match perde essa informação. Tratado aqui pontualmente,
+// por família, sem alterar a lista de termos genéricos.
+const MODELO_ALIAS_ERP={
+  'ECLIPSE CROSS BLACK 1.5T 4X4 C':'ECLIPSE CROSS HPE-S S-AWC BLACK',
+  'ECLIPSE CROSS HPE-S 1.5T 4X4 C':'ECLIPSE CROSS HPE-S S-AWC'
+};
 function findTaxaCopart(modelo){
-  const key=taxaKey(modelo);
+  const alias=MODELO_ALIAS_ERP[normalizeText(modelo)];
+  const key=taxaKey(alias||modelo);
   if(!key)return null;
   if(DATA.taxasCopart[key])return DATA.taxasCopart[key];
   const entries=Object.entries(DATA.taxasCopart||{});

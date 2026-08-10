@@ -1453,6 +1453,8 @@ async function tentarRestaurarSessao(){
       USER=u;
       REAL_USER=u;
       HOMOLOGATION_USER=null;
+      const bloqueadoPorMigracaoEmail=await checarMigracaoEmailPosLogin();
+      if(bloqueadoPorMigracaoEmail)return;
       await initApp();
       return;
     }
@@ -1483,7 +1485,16 @@ async function tentarRestaurarSessao(){
 async function esqueciSenha(){
   if(!supabaseClient){setAuthMsg('Supabase não foi carregado. Verifique conexão ou configuração.',true);return}
   if(PORTAL_RUNTIME_CONFIG.authMode==='secure'){
-    if(PORTAL_RUNTIME_CONFIG.passwordRecoveryMode!=='email'){
+    // HOMOLOGATION ONLY — sobreposição LOCAL, explícita e temporária, só
+    // para homologação do fluxo de recuperação por e-mail (diagnóstico de
+    // senha/Turnstile). NÃO publicar/promover para produção sem decisão
+    // própria. PORTAL_RUNTIME_CONFIG.passwordRecoveryMode continua "admin" no
+    // arquivo compartilhado — isso NÃO muda o comportamento em produção
+    // (GitHub Pages), só o valor efetivo calculado aqui, em runtime,
+    // quando o hostname é localhost/127.0.0.1.
+    const isLocalhost=location.hostname==='127.0.0.1'||location.hostname==='localhost';
+    const effectivePasswordRecoveryMode=isLocalhost?'email':PORTAL_RUNTIME_CONFIG.passwordRecoveryMode;
+    if(effectivePasswordRecoveryMode!=='email'){
       setAuthMsg('Solicite ao administrador a redefinição segura da sua senha.',false);
       return;
     }
@@ -1493,8 +1504,10 @@ async function esqueciSenha(){
       return;
     }
     setAuthMsg('Enviando instruções de redefinição...');
-    const currentPage=window.location.href.split('#')[0].split('?')[0];
-    const redirectTo=window.location.origin==='null'?currentPage:(window.location.origin+window.location.pathname);
+    // Redireciona sempre para a tela dedicada de definição de senha (já
+    // trata PASSWORD_RECOVERY e já está na allowlist do Supabase Auth) —
+    // não para a própria página de login, que não trata esse evento.
+    const redirectTo=`${location.origin}${location.pathname.replace(/[^/]*$/,'')}primeiro-acesso.html`;
     let captchaToken='';
     try{
       captchaToken=await obtainTurnstileToken();
@@ -1739,6 +1752,9 @@ async function login(){
       USER=u;
       REAL_USER=u;
       HOMOLOGATION_USER=null;
+      loginStage='verificação de migração de e-mail';
+      const bloqueadoPorMigracaoEmail=await checarMigracaoEmailPosLogin();
+      if(bloqueadoPorMigracaoEmail)return;
       loginStage='inicialização dos módulos';
       setAuthMsg('Acesso confirmado. Carregando módulos...');
       await initApp();
@@ -1783,6 +1799,188 @@ async function login(){
   setAuthMsg('');
   await initApp();
 }
+// Turnstile ISOLADO para a migração de e-mail (Fase 3.6.1) — cópia
+// deliberada de obtainTurnstileToken(), NÃO uma modificação dela: o
+// login continua usando exatamente a função original, sem tocar. Mesma
+// Site Key, mesmo script (loadTurnstileScript() já é só um carregador
+// compartilhado do script da Cloudflare, não é "o widget do login").
+// action dedicada ('email_migration_request') para o backend poder
+// recusar um token gerado para outro fluxo.
+async function obtainTurnstileTokenParaMigracaoEmail(){
+  const sitekey=PORTAL_RUNTIME_CONFIG.turnstileSiteKey;
+  if(!sitekey)return '';
+  const api=await loadTurnstileScript();
+  return new Promise((resolve,reject)=>{
+    const host=document.createElement('div');
+    host.setAttribute('aria-label','Verificação de segurança');
+    Object.assign(host.style,{position:'fixed',right:'18px',bottom:'18px',zIndex:'2147483647'});
+    document.body.appendChild(host);
+    let widgetId=null;
+    let finished=false;
+    const cleanup=()=>{
+      if(widgetId!==null){try{api.remove(widgetId)}catch(_){}}
+      host.remove();
+    };
+    const finish=(error,token='')=>{
+      if(finished)return;
+      finished=true;
+      clearTimeout(timer);
+      cleanup();
+      if(error)reject(error);else resolve(token);
+    };
+    const timer=setTimeout(()=>finish(new Error('A verificação de segurança expirou. Tente novamente.')),120000);
+    try{
+      widgetId=api.render(host,{
+        sitekey,
+        theme:'dark',
+        appearance:'interaction-only',
+        execution:'execute',
+        action:'email_migration_request',
+        callback:token=>finish(null,token),
+        'error-callback':()=>finish(new Error('A verificação de segurança falhou. Tente novamente.')),
+        'expired-callback':()=>finish(new Error('A verificação de segurança expirou. Tente novamente.'))
+      });
+      api.execute(widgetId);
+    }catch(error){finish(error)}
+  });
+}
+
+// ---------------- Migração de e-mail fictício -> real (Fase 3.6) ----------------
+// Checagem pós-login, ANTES de liberar o conteúdo normal do Portal.
+// Feature flag vazia hoje (nenhum usuario_id real habilitado) — para
+// todo mundo hoje, verificar_migracao_email_status() sempre devolve
+// necessita_migracao:false, então este bloco é, na prática, uma única
+// chamada RPC extra e nenhuma mudança visual/comportamental (Etapa 4).
+let EMAIL_MIGRACAO_ULTIMO_ENVIO_EM=0;
+function maskEmailMigracao(email){
+  const s=String(email||'');
+  const at=s.indexOf('@');
+  if(at<=0)return s;
+  const local=s.slice(0,at), dominio=s.slice(at);
+  return (local[0]||'')+'***'+dominio;
+}
+async function checarMigracaoEmailPosLogin(){
+  if(!supabaseClient)return false;
+  try{
+    const {data,error}=await supabaseClient.rpc('verificar_migracao_email_status');
+    if(error){console.warn('Falha ao checar status de migração de e-mail:',error.message);return false}
+    if(data && data.necessita_migracao===true){
+      mostrarTelaMigracaoEmail();
+      return true;
+    }
+    return false;
+  }catch(e){
+    console.warn('Falha ao checar status de migração de e-mail:',e);
+    return false;
+  }
+}
+function mostrarTelaMigracaoEmail(){
+  document.getElementById('loginBox')?.classList.add('hidden');
+  document.getElementById('app')?.classList.add('hidden');
+  document.getElementById('portalHome')?.classList.add('hidden');
+  document.getElementById('painelAnalistaFi')?.classList.add('hidden');
+  document.getElementById('centralFiGestor')?.classList.add('hidden');
+  document.getElementById('migEmailEtapaForm')?.classList.remove('hidden');
+  document.getElementById('migEmailEtapaEnviado')?.classList.add('hidden');
+  document.getElementById('migracaoEmailScreen')?.classList.remove('hidden');
+}
+function usarOutroEmailMigracao(){
+  document.getElementById('migEmailEtapaEnviado')?.classList.add('hidden');
+  document.getElementById('migEmailEtapaForm')?.classList.remove('hidden');
+  const msg=document.getElementById('migEmailMsg');
+  if(msg){msg.textContent='';msg.className='authMsg'}
+}
+async function enviarVerificacaoMigracaoEmail(isReenvio){
+  const msgEl=document.getElementById(isReenvio?'migEmailMsgReenvio':'migEmailMsg');
+  const setMsg=(t,err)=>{if(msgEl){msgEl.textContent=t||'';msgEl.className='authMsg'+(err?' err':'')}};
+  const novo=(document.getElementById('migEmailNovo')?.value||'').trim().toLowerCase();
+  const confirmar=(document.getElementById('migEmailConfirmar')?.value||'').trim().toLowerCase();
+  if(!isReenvio){
+    if(!novo||!confirmar){setMsg('Preencha os dois campos de e-mail.',true);return}
+    if(novo!==confirmar){setMsg('Os e-mails informados não coincidem.',true);return}
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(novo)){setMsg('Digite um e-mail válido.',true);return}
+  }
+  const cooldownRestante=60-Math.floor((Date.now()-EMAIL_MIGRACAO_ULTIMO_ENVIO_EM)/1000);
+  if(EMAIL_MIGRACAO_ULTIMO_ENVIO_EM && cooldownRestante>0){
+    setMsg(`Aguarde ${cooldownRestante}s antes de tentar novamente.`,true);
+    return;
+  }
+  const btn=document.getElementById(isReenvio?'migEmailBtnReenviar':'migEmailBtnEnviar');
+  if(btn)btn.disabled=true;
+  setMsg('Enviando verificação...');
+  try{
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(!session){setMsg('Sessão expirada — entre novamente.',true);return}
+    let captchaToken='';
+    try{
+      captchaToken=await obtainTurnstileTokenParaMigracaoEmail();
+    }catch(captchaErr){
+      setMsg('Não foi possível concluir a verificação de segurança. Tente novamente.',true);
+      return;
+    }
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/request-email-migration`,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':SUPABASE_ANON_KEY,
+        'Authorization':'Bearer '+session.access_token
+      },
+      body:JSON.stringify({email_novo:novo||undefined,captchaToken})
+    });
+    const result=await resp.json().catch(()=>({}));
+    if(!resp.ok || result?.success===false){
+      setMsg(result?.error||result?.message||'Não foi possível enviar a verificação.',true);
+      return;
+    }
+    EMAIL_MIGRACAO_ULTIMO_ENVIO_EM=Date.now();
+    document.getElementById('migEmailEtapaForm')?.classList.add('hidden');
+    document.getElementById('migEmailEtapaEnviado')?.classList.remove('hidden');
+    const destino=document.getElementById('migEmailDestinoMascarado');
+    if(destino)destino.textContent=maskEmailMigracao(novo||destino.dataset.email||'');
+    if(destino)destino.dataset.email=novo||destino.dataset.email||'';
+    setMsg('');
+  }catch(e){
+    setMsg('Falha ao enviar verificação: '+String(e?.message||e),true);
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+
+// Preview LOCAL, só visual — não chama request-email-migration, não toca
+// Auth/banco, não envia Postmark. Só existe em localhost/127.0.0.1 com
+// ?emailMigrationPreview=1 na URL. Documentado na entrega da Fase 3.6.
+(function initEmailMigrationPreview(){
+  const isLocalhost=location.hostname==='127.0.0.1'||location.hostname==='localhost';
+  if(!isLocalhost)return;
+  const params=new URLSearchParams(location.search);
+  if(params.get('emailMigrationPreview')!=='1')return;
+  document.addEventListener('DOMContentLoaded',()=>{
+    // Preview é só cosmético e roda em paralelo com o resto da
+    // inicialização real da página (ex.: tentarRestaurarSessao(), que
+    // pode restaurar uma sessão de teste de verdade e chamar initApp()
+    // por conta própria). Para representar fielmente "nenhum acesso ao
+    // dashboard" no preview, força repetidamente esses containers a
+    // ficarem ocultos enquanto o preview estiver ativo — sem tocar em
+    // initApp()/tentarRestaurarSessao() nem no fluxo real.
+    const idsParaOcultar=['app','portalHome','painelAnalistaFi','centralFiGestor'];
+    const forcarOcultacao=()=>{
+      idsParaOcultar.forEach(id=>{
+        const el=document.getElementById(id);
+        if(el && !el.classList.contains('hidden'))el.classList.add('hidden');
+      });
+    };
+    mostrarTelaMigracaoEmail();
+    forcarOcultacao();
+    const destino=document.getElementById('migEmailDestinoMascarado');
+    if(destino)destino.textContent='p***@exemplo.com';
+    const observer=new MutationObserver(forcarOcultacao);
+    idsParaOcultar.forEach(id=>{
+      const el=document.getElementById(id);
+      if(el)observer.observe(el,{attributes:true,attributeFilter:['class']});
+    });
+  });
+})();
+
 async function loginMasterDemo(){if(!DATA_READY){alert('As bases ainda não foram carregadas. Aguarde a mensagem de sucesso ou verifique o erro de carregamento.');return} USER=DATA.master[0]||{nome:'MASTER DEMO',tipo:'MASTER',loja:'TODAS',status:'MASTER',statusGroups:['NOVOS','SEMINOVOS']}; REAL_USER=USER; HOMOLOGATION_USER=null; await initApp();}
 // Endurecimento do build público: neutraliza atalhos de privilégio que eram
 // invocáveis diretamente pelo console. Não substitui autorização no servidor.
@@ -2273,6 +2471,125 @@ async function confirmAdminModal(){
 function setAdminModalMsg(msg,err=false){
   const el=document.getElementById('adminModalMsg');
   if(el){el.textContent=msg||'';el.className='adminMsg '+(err?'err':'ok');}
+}
+
+// ---------------- Convites de novo usuário (Fase 1) ----------------
+// Fluxo: master_convidar_usuario (RPC, valida tudo e cria o registro
+// funcional em usuarios + a linha de auditoria em convites_usuario, SEM
+// tocar em Supabase Auth) -> Edge Function admin-invite-user (única peça
+// com service_role, chama auth.admin.inviteUserByEmail de fato). Se a RPC
+// funcionar mas a Edge Function falhar, o convite fica com status FALHA e
+// pode ser reenviado — nenhuma conta fica "pela metade" sem rastro.
+const CONVITE_PERFIS=['MASTER','DIRETOR NOVOS','DIRETOR SEMINOVOS','ANALISTA','GERENTE','VENDEDOR','RECURSOS HUMANOS','RH'];
+const CONVITE_LOJAS=['ABC','ALPHAVILLE','ANALIA FRANCO','BANDEIRANTES','BARRA FUNDA','EUROPA','GASTAO','NACOES'];
+
+async function renderConvitesSection(){
+  if(!supabaseClient) return '';
+  let convites=[];
+  try{
+    const {data,error}=await supabaseClient.rpc('master_listar_convites');
+    if(error) throw error;
+    convites=data||[];
+  }catch(e){
+    return `<h3 style="margin-top:24px">Convites de novo usuário</h3><p class="note" style="color:#ff6b61">Não foi possível carregar os convites: ${escapeOperationalHtml(String(e?.message||e))}</p>`;
+  }
+  if(!convites.length) return `<h3 style="margin-top:24px">Convites de novo usuário</h3><p class="note">Nenhum convite registrado ainda.</p>`;
+  const badge=s=>({PENDENTE:'warn',ENVIADO:'ok',FALHA:'bad',ACEITO:'ok',EXPIRADO:'bad'}[s]||'warn');
+  const rows=convites.map(c=>`<tr>
+    <td>${escapeOperationalHtml(c.nome||'')}<br><span class="note">${escapeOperationalHtml(c.cpf||'')}</span></td>
+    <td>${escapeOperationalHtml(c.email||'')}</td>
+    <td>${escapeOperationalHtml(c.perfil||'')}</td><td>${escapeOperationalHtml(c.loja||'')}</td>
+    <td><span class="adminStatus ${badge(c.status)}">${escapeOperationalHtml(c.status||'')}</span>${c.erro_mensagem?`<br><span class="note" style="color:#ff6b61">${escapeOperationalHtml(c.erro_mensagem)}</span>`:''}</td>
+    <td>${c.convidado_em?new Date(c.convidado_em).toLocaleString('pt-BR'):'-'}</td>
+    <td>${c.status!=='ACEITO'?`<button class="adminActionBtn warn" onclick="reenviarConvite('${c.id}')">Reenviar</button>`:''}</td>
+  </tr>`).join('');
+  return `<h3 style="margin-top:24px">Convites de novo usuário</h3>
+    <div class="tableWrap"><table class="adminTable">
+    <thead><tr><th>Nome / CPF</th><th>E-mail</th><th>Perfil</th><th>Loja</th><th>Status</th><th>Convidado em</th><th>Ações</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function abrirConvidarUsuarioModal(){
+  const perfilOptions=CONVITE_PERFIS.map(p=>`<option value="${p}">${p}</option>`).join('');
+  const lojaOptions=`<option value="">(nenhuma / não vinculado a loja)</option>`+CONVITE_LOJAS.map(l=>`<option value="${l}">${l}</option>`).join('');
+  openAdminModal({
+    title:'Convidar novo usuário',
+    text:'O usuário receberá um e-mail real para definir a própria senha. Você não define nem vê a senha dele.',
+    fieldHtml:`
+      <div class="adminModalForm">
+        <label>CPF</label><input id="conviteCpf" inputmode="numeric" placeholder="Somente números">
+        <label>Nome</label><input id="conviteNome" placeholder="Nome completo">
+        <label>Cargo/Perfil</label><select id="convitePerfil"><option value="">Selecione</option>${perfilOptions}</select>
+        <label>Loja</label><select id="conviteLoja">${lojaOptions}</select>
+        <label>E-mail real</label><input id="conviteEmail" type="email" placeholder="nome@dominio.com">
+        <label>Login NBS (opcional)</label><input id="conviteNbs" placeholder="Deixe em branco se não aplicável">
+      </div>`,
+    confirmText:'Enviar convite',
+    onConfirm:confirmarConviteUsuario
+  });
+}
+
+async function confirmarConviteUsuario(){
+  const cpf=(document.getElementById('conviteCpf')?.value||'').trim();
+  const nome=(document.getElementById('conviteNome')?.value||'').trim();
+  const perfil=(document.getElementById('convitePerfil')?.value||'').trim();
+  const loja=(document.getElementById('conviteLoja')?.value||'').trim();
+  const email=(document.getElementById('conviteEmail')?.value||'').trim();
+  const nbs=(document.getElementById('conviteNbs')?.value||'').trim();
+  if(!cpf||!nome||!perfil||!email){ setAdminModalMsg('Preencha CPF, nome, perfil e e-mail.',true); return; }
+  setAdminModalMsg('Validando e criando o convite...');
+  try{
+    const {data,error}=await supabaseClient.rpc('master_convidar_usuario',{
+      p_cpf:cpf,p_nome:nome,p_perfil:perfil,p_loja:loja||null,p_email:email,p_nbs:nbs||null
+    });
+    if(error) throw error;
+    const conviteId=data?.convite_id;
+    setAdminModalMsg('Convite criado. Enviando e-mail real...');
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(!session) throw new Error('Sessão expirada — entre novamente.');
+    const redirectTo=`${location.origin}${location.pathname.replace(/[^/]*$/,'')}primeiro-acesso.html`;
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/admin-invite-user`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({convite_id:conviteId,redirect_to:redirectTo})
+    });
+    const result=await resp.json().catch(()=>({}));
+    if(!resp.ok||result.error){
+      setAdminModalMsg(`Convite registrado, mas o envio falhou: ${result.error||resp.status}. Você pode reenviar na lista de convites.`,true);
+      toastAdmin('Convite criado mas envio falhou — ver lista de convites.','warn');
+      renderMasterAdmin();
+      return;
+    }
+    toastAdmin(`Convite enviado para ${email}.`,'ok');
+    closeAdminModal();
+    renderMasterAdmin();
+  }catch(e){
+    setAdminModalMsg(String(e?.message||e),true);
+  }
+}
+
+async function reenviarConvite(conviteId){
+  try{
+    const {data,error}=await supabaseClient.rpc('master_reenviar_convite',{p_convite_id:conviteId});
+    if(error) throw error;
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(!session) throw new Error('Sessão expirada — entre novamente.');
+    const redirectTo=`${location.origin}${location.pathname.replace(/[^/]*$/,'')}primeiro-acesso.html`;
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/admin-invite-user`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({convite_id:conviteId,redirect_to:redirectTo})
+    });
+    const result=await resp.json().catch(()=>({}));
+    if(!resp.ok||result.error){
+      toastAdmin(`Reenvio falhou: ${result.error||resp.status}`,'err');
+    }else{
+      toastAdmin('Convite reenviado.','ok');
+    }
+    renderMasterAdmin();
+  }catch(e){
+    toastAdmin(String(e?.message||e),'err');
+  }
 }
 
 async function carregarUsuariosSupabase(){
@@ -2876,7 +3193,7 @@ function salvarParametroModal(chave,titulo,descricao){
 }
 
 function adminTabsHtml(){
-  const tabs=[['usuarios','Usuários'],['senhas','Senhas'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
+  const tabs=[['usuarios','Usuários'],['senhas','Senhas'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
   return `<div class="masterSide">${tabs.map(t=>`<button class="${MASTER_TAB===t[0]?'active':''}" onclick="setMasterTab('${t[0]}')">${t[1]}</button>`).join('')}</div>`;
 }
 function filtroUsuarios(list){
@@ -3589,11 +3906,14 @@ async function renderMasterAdminContent(renderSequence){
         <div class="adminCard"><div class="k">Primeiro acesso</div><div class="v">${primeiro}</div></div>
         <div class="adminCard"><div class="k">Bloqueados</div><div class="v">${bloqueados}</div></div>
       </div>
-      <div class="adminToolbar"><div><label>Pesquisar por nome, CPF ou loja</label><br><input class="adminSearch" oninput="setMasterSearch(this.value)" value="${MASTER_SEARCH}" placeholder="Digite para pesquisar"></div></div>
+      <div class="adminToolbar"><div><label>Pesquisar por nome, CPF ou loja</label><br><input class="adminSearch" oninput="setMasterSearch(this.value)" value="${MASTER_SEARCH}" placeholder="Digite para pesquisar"></div>
+        ${MASTER_TAB==='usuarios'?'<div><button class="adminActionBtn good" onclick="abrirConvidarUsuarioModal()">+ Convidar novo usuário</button></div>':''}
+      </div>
       <div id="adminMsg" class="adminMsg"></div>
       <div class="tableWrap" style="margin-top:12px"><table class="adminTable">
       <thead><tr><th>Nome / CPF</th><th>Perfil</th><th>Loja</th><th>Status</th><th>Último login</th><th>Situação</th><th>Primeiro acesso</th><th>AÇÕES</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="8">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div>`;
+      <tbody>${rows||'<tr><td colspan="8">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div>
+      ${MASTER_TAB==='usuarios'?await renderConvitesSection():''}`;
   }else if(MASTER_TAB==='config'){
     await carregarParametrosPortal();
     body=`
@@ -3690,6 +4010,10 @@ async function renderMasterAdminContent(renderSequence){
   }else if(MASTER_TAB==='fechamento'){
     await carregarFechamentosComissao();
     body=renderFechamentoCompetenciaPreview();
+  }else if(MASTER_TAB==='bases'){
+    body = typeof renderGestaoBasesTab==='function'
+      ? await renderGestaoBasesTab()
+      : '<h2>Gestão de Bases</h2><p class="note" style="color:#ff6b61">Módulo não carregado (assets/js/master-gestao-bases.js).</p>';
   }else if(MASTER_TAB==='auditoria'){
     const aud=await carregarAuditoriaSupabase();
     const rows=aud.map(a=>`<tr><td>${a.criado_em?new Date(a.criado_em).toLocaleString('pt-BR'):'-'}</td><td>${a.tipo||''}</td><td>${a.descricao||''}</td><td>${a.cpf||''}</td><td>${a.vendedor||''}</td><td>${a.resolvido?'SIM':'NÃO'}</td></tr>`).join('');

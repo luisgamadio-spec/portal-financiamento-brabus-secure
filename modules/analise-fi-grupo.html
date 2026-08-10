@@ -2203,7 +2203,12 @@ function prodSummary(rows, status){
   };
 }
 function prodTotalSummary(rows){
-  const g = rows.filter(r=>r.status==="PAGA" || r.status==="FATURADA");
+  // "rows" (operacional) já vem exclusivamente com PAGA/FATURADA/AG. FATURAMENTO
+  // — população definida em um único ponto na RPC operational_fandi_dashboard
+  // (FANDI + status elegível). O filtro abaixo só documenta esse invariante;
+  // ANTES incluía só PAGA/FATURADA e descartava silenciosamente AG. FATURAMENTO
+  // do card "Produção Total", divergindo dos demais indicadores do módulo.
+  const g = rows.filter(r=>r.status==="PAGA" || r.status==="FATURADA" || r.status==="AG. FATURAMENTO");
   const n = g.filter(r=>r.departamento==="Novos");
   const s = g.filter(r=>r.departamento==="Seminovos");
   return {
