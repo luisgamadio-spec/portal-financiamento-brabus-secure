@@ -316,6 +316,18 @@ table.compactMain td.commValue{
 .gbProgressWrap{background:#1b1b1b;border-radius:999px;height:14px;overflow:hidden;margin:14px 0 6px}
 .gbProgressBar{background:linear-gradient(135deg,var(--red),#98000a);height:100%;width:0;transition:width .2s ease}
 @media(max-width:900px){.gbGrid{grid-template-columns:1fr}}
+.gsGroupTitle{margin:20px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.gsGroupTitle:first-of-type{margin-top:8px}
+.gsSharedBadge,.gsBootstrapBadge,.gsPartialBadge{display:inline-block;font-size:10px;font-weight:900;letter-spacing:.3px;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle;text-transform:none}
+.gsSharedBadge{background:rgba(90,160,255,.14);border:1px solid rgba(90,160,255,.4);color:#9cc4ff}
+.gsBootstrapBadge{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#cfcfcf}
+.gsPartialBadge{background:rgba(246,196,83,.14);border:1px solid rgba(246,196,83,.4);color:#f6c453;cursor:help}
+.gsPartialNote{color:#ffe6a3}
+.gsTableWrap{max-height:280px;overflow:auto;margin-top:8px;border-radius:8px;border:1px solid rgba(255,255,255,.1)}
+.gsTable{width:100%;border-collapse:collapse;font-size:12px}
+.gsTable th,.gsTable td{padding:6px 8px;text-align:left;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.06)}
+.gsTable th{position:sticky;top:0;background:#171717;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.3px}
+.gsTable td{color:#fff}
 @media(max-width:900px){
   .masterAdminLayout{grid-template-columns:1fr}
   .masterSide{position:static}
@@ -1054,6 +1066,7 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
 </script>
 <script src="assets/js/portal-app.js"></script>
 <script src="assets/js/master-gestao-bases.js"></script>
+<script src="assets/js/master-gestao-simuladores.js"></script>
 
 <div id="adminModalOverlay" class="adminModalOverlay"></div>
 <div id="adminToastWrap" class="adminToastWrap"></div>

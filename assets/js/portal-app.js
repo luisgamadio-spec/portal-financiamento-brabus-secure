@@ -1648,6 +1648,23 @@ async function portalCallAnalystFi(){
   return Array.isArray(data)?data:[];
 }
 window.portalCallAnalystFi=portalCallAnalystFi;
+// Ponte para os simuladores (iframes) lerem a base ACTIVE de taxas/coeficientes
+// via RPC autenticada (não exige MASTER — ver simulador_get_* no banco).
+// Mesmo padrão de portalCallAnalystFi: os iframes não têm supabaseClient
+// próprio, então chamam window.parent.simuladorGetBase(...).
+async function simuladorGetBase(rpcName){
+  if(!supabaseClient) throw new Error('Supabase não inicializado.');
+  const {data:sessionData,error:sessionError}=await supabaseClient.auth.getSession();
+  if(sessionError) throw sessionError;
+  if(!sessionData?.session?.user) throw new Error('Sessão autenticada não encontrada.');
+  // Timeout curto (reaproveita portalPromiseTimeout já usado no restante do
+  // Portal) — o submódulo do simulador fica bloqueado em "Carregando..." até
+  // isso resolver, então não pode ficar preso esperando indefinidamente.
+  const {data,error}=await portalPromiseTimeout(supabaseClient.rpc(rpcName), 'Carregamento da base do simulador', 6000);
+  if(error) throw error;
+  return data;
+}
+window.simuladorGetBase=simuladorGetBase;
 async function showPainelAnalistaFi(viewUser=currentPortalUser()){
   const tipo=String((REAL_USER||viewUser)?.tipo||'').toUpperCase();
   if(!['ANALISTA','MASTER'].includes(tipo)){alert('Painel liberado apenas para ANALISTA ou MASTER.');return;}
@@ -3193,7 +3210,7 @@ function salvarParametroModal(chave,titulo,descricao){
 }
 
 function adminTabsHtml(){
-  const tabs=[['usuarios','Usuários'],['senhas','Senhas'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
+  const tabs=[['usuarios','Usuários'],['senhas','Senhas'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
   return `<div class="masterSide">${tabs.map(t=>`<button class="${MASTER_TAB===t[0]?'active':''}" onclick="setMasterTab('${t[0]}')">${t[1]}</button>`).join('')}</div>`;
 }
 function filtroUsuarios(list){
@@ -4014,6 +4031,10 @@ async function renderMasterAdminContent(renderSequence){
     body = typeof renderGestaoBasesTab==='function'
       ? await renderGestaoBasesTab()
       : '<h2>Gestão de Bases</h2><p class="note" style="color:#ff6b61">Módulo não carregado (assets/js/master-gestao-bases.js).</p>';
+  }else if(MASTER_TAB==='simuladores'){
+    body = typeof renderGestaoSimuladoresTab==='function'
+      ? await renderGestaoSimuladoresTab()
+      : '<h2>Gestão dos Simuladores</h2><p class="note" style="color:#ff6b61">Módulo não carregado (assets/js/master-gestao-simuladores.js).</p>';
   }else if(MASTER_TAB==='auditoria'){
     const aud=await carregarAuditoriaSupabase();
     const rows=aud.map(a=>`<tr><td>${a.criado_em?new Date(a.criado_em).toLocaleString('pt-BR'):'-'}</td><td>${a.tipo||''}</td><td>${a.descricao||''}</td><td>${a.cpf||''}</td><td>${a.vendedor||''}</td><td>${a.resolvido?'SIM':'NÃO'}</td></tr>`).join('');

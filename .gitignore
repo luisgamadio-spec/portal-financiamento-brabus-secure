@@ -3,6 +3,7 @@ data/*.xlsx
 data/*.xls
 data/*.csv
 data/embedded-data.js
+simuladores/*.xlsx
 
 # Segredos e configurações locais.
 .env
@@ -19,3 +20,6 @@ supabase/private/
 *.tmp
 .chrome-*/
 .edge-*/
+.claude/
+__pycache__/
+*.pyc
