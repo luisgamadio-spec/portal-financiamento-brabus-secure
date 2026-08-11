@@ -265,7 +265,6 @@ table.compactMain td.commValue{
 
 
 <style id="master-admin-final-style">
-#masterPanelBtn{background:linear-gradient(180deg,#5c1220,#3c0b15)!important;border:1px solid rgba(145,41,59,.70)!important}
 .masterAdminLayout{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start}
 .masterSide{background:#101010;border:1px solid var(--line);border-radius:18px;padding:12px;display:grid;gap:8px;position:sticky;top:12px}
 .masterSide button{width:100%;text-align:left;background:#181818;border:1px solid rgba(255,255,255,.08);box-shadow:none;padding:12px;border-radius:12px}
@@ -1046,7 +1045,6 @@ body{background:
       <div><label>Loja</label><br><select id="lojaSel" onchange="render()"><option value="">Todas</option></select></div>
       <button class="portalBackBtnStrong" onclick="voltarPortalHome()">⬅ VOLTAR AO PORTAL F&I</button>
       <button class="secondary" onclick="logout()">Sair</button>
-      <button id="masterPanelBtn" class="secondary hidden" onclick="toggleMasterAdmin()">Painel Master</button>
     </div>
     <div id="userInfo" class="note" style="margin-top:12px"></div>
   </div>
@@ -1055,8 +1053,9 @@ body{background:
   <div id="kpis" class="cards"></div>
   <div id="content"></div>
   <div id="audit" class="panel"></div>
-  <div id="masterAdmin" class="panel hidden"></div>
 </div>
+<div id="masterAdminBackBar" class="hidden" style="margin-bottom:12px"><button class="portalBackBtnStrong" onclick="voltarPortalHome()">⬅ VOLTAR AO PORTAL F&I</button></div>
+<div id="masterAdmin" class="panel hidden"></div>
 </main>
 <script src="assets/js/portal-runtime-config.production.js"></script>
 <script>
@@ -1132,7 +1131,7 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
     const tipo=normRole(u.tipo);
     const isDirNovos=raw.includes('DIRETOR DE NOVOS')||raw.includes('DIRETOR NOVOS')||(raw.includes('DIRETOR')&&raw.includes('NOVOS')&&!raw.includes('SEMINOVOS'));
     const isDirSemis=raw.includes('DIRETOR DE SEMINOVOS')||raw.includes('DIRETOR SEMINOVOS')||(raw.includes('DIRETOR')&&raw.includes('SEMINOVOS'));
-    if(tipo==='MASTER')return['simuladorSeminovos','simuladorCompleto','dashbi','gestao','centralAtendimentoFi','painelAnalistaFi','comissoes'];
+    if(tipo==='MASTER')return['simuladorSeminovos','simuladorCompleto','dashbi','gestao','centralAtendimentoFi','painelAnalistaFi','comissoes','painelMaster'];
     if(tipo==='RECURSOS HUMANOS'||tipo==='RH')return['comissoes'];
     if(tipo==='ANALISTA')return['simuladorSeminovos','simuladorCompleto','dashbi','gestao','painelAnalistaFi','comissoes'];
     if(isDirNovos)return['simuladorSeminovos','simuladorCompleto','dashbi','comissoes'];
@@ -1170,6 +1169,7 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
     if(!m.internal){ window.open(m.url,'_blank','noopener'); return; }
     if(id==='painelAnalistaFi'){ if(typeof showPainelAnalistaFi==='function') showPainelAnalistaFi(u); return; }
     if(id==='centralAtendimentoFi'){ showCentralAtendimentoFi(); return; }
+    if(id==='painelMaster'){ if(typeof abrirPainelMasterDireto==='function') abrirPainelMasterDireto(); return; }
     if(typeof showComissoesModule==='function') showComissoesModule(u);
   };
   window.showCentralAtendimentoFi=async function(tab='dashboard'){
@@ -1388,7 +1388,7 @@ body.portal-module-open{overflow:hidden!important}
   const previousOpen=window.openPortalModule || (typeof openPortalModule==='function'?openPortalModule:null);
   window.openPortalModule=openPortalModule=function(id){ if(IFRAME_MODULES[id]) return showPortalIframeModule(id); hideUniversalView(); if(previousOpen) return previousOpen.apply(this,arguments); };
   function labelFor(m){ if(m.id==='painelAnalistaFi')return 'Abrir Painel'; if(m.id==='comissoes')return 'Abrir Minha Comissão'; if(m.id==='coparticipadoPortal')return 'Abrir Coparticipados'; if(m.id==='analiseScoreVendedores')return 'Abrir Score'; if(m.id==='simuladorSeminovos'||m.id==='simuladorCompleto')return 'Abrir Simulador'; return 'Abrir Módulo'; }
-  window.renderPortalHome=function(){APP_VIEW='home'; hideUniversalView(); const home=document.getElementById('portalHome'); if(!home)return; document.getElementById('app')?.classList.add('hidden'); document.getElementById('painelAnalistaFi')?.classList.add('hidden'); document.getElementById('centralFiGestor')?.classList.add('hidden'); home.classList.remove('hidden'); const viewUser=(typeof currentPortalUser==='function'?currentPortalUser():getUser()); const allowed=portalAllowedModules(viewUser); const groups=[...new Set(PORTAL_MODULES.filter(m=>allowed.includes(m.id)).map(m=>m.grupo))]; const sections=groups.map(g=>{const cards=PORTAL_MODULES.filter(m=>m.grupo===g&&allowed.includes(m.id)).map(m=>`<div class="portalModuleCard"><div><div class="portalModuleIcon">${m.icon||'📌'}</div><h3>${m.title}</h3><p>${m.desc||''}</p></div>${m.internal?`<button class="portalModuleBtn" onclick="openPortalModule('${m.id}')">${labelFor(m)}</button>`:`<a class="portalModuleBtn ${m.id==='dashbi'?'secondaryPortal':''}" href="${m.url}" target="_blank" rel="noopener">Abrir Análise</a>`}</div>`).join('');return`<div class="portalSectionTitle">${g}</div><div class="portalModuleGrid">${cards}</div>`;}).join(''); home.innerHTML=`<div class="portalHero"><div class="portalHeroTop"><div><div class="portalEyebrow">Grupo Brabus Mitsubishi</div><div class="portalTitle">Portal F&I — Grupo Brabus Mitsubishi</div><div class="portalSubtitle">Central única para simuladores, dashboards, gestão operacional, incentivos e acompanhamento de comissões. Os módulos são liberados conforme perfil e STATUS.</div></div><div class="portalUserPill"><div class="k">Usuário conectado</div><div class="v">${(window.REAL_USER||window.USER||viewUser)?.nome||''}</div><div class="note">${(window.REAL_USER||window.USER||viewUser)?.tipo||''} · ${(window.REAL_USER||window.USER||viewUser)?.status||''} · ${(window.REAL_USER||window.USER||viewUser)?.loja||'Todas'}</div><button class="portalModuleBtn secondaryPortal" style="margin-top:12px" onclick="logout()">Sair</button></div></div>${typeof renderHomologacaoBanner==='function'?renderHomologacaoBanner(viewUser):''}<div class="portalMetrics"><div class="portalMetricCard"><div class="k">Bem-vindo</div><div class="v">${viewUser?.nome||''}</div></div><div class="portalMetricCard"><div class="k">Perfil visualizado</div><div class="v">${viewUser?.tipo||''}</div></div><div class="portalMetricCard"><div class="k">STATUS</div><div class="v">${viewUser?.status||''}</div></div><div class="portalMetricCard"><div class="k">Módulos liberados</div><div class="v">${allowed.length}</div></div></div>${typeof renderHomologacaoCard==='function'?renderHomologacaoCard():''}${sections||'<div class="empty">Nenhum módulo disponível para este perfil.</div>'}<div class="centralFooterNote">${BUILD_TXT}</div></div>`; };
+  window.renderPortalHome=function(){APP_VIEW='home'; hideUniversalView(); const home=document.getElementById('portalHome'); if(!home)return; document.getElementById('app')?.classList.add('hidden'); document.getElementById('painelAnalistaFi')?.classList.add('hidden'); document.getElementById('centralFiGestor')?.classList.add('hidden'); if(typeof MASTER_PANEL_OPEN!=='undefined')MASTER_PANEL_OPEN=false; document.getElementById('masterAdmin')?.classList.add('hidden'); document.getElementById('masterAdminBackBar')?.classList.add('hidden'); home.classList.remove('hidden'); const viewUser=(typeof currentPortalUser==='function'?currentPortalUser():getUser()); const allowed=portalAllowedModules(viewUser); const groups=[...new Set(PORTAL_MODULES.filter(m=>allowed.includes(m.id)).map(m=>m.grupo))]; const sections=groups.map(g=>{const cards=PORTAL_MODULES.filter(m=>m.grupo===g&&allowed.includes(m.id)).map(m=>`<div class="portalModuleCard"><div><div class="portalModuleIcon">${m.icon||'📌'}</div><h3>${m.title}</h3><p>${m.desc||''}</p></div>${m.internal?`<button class="portalModuleBtn" onclick="openPortalModule('${m.id}')">${labelFor(m)}</button>`:`<a class="portalModuleBtn ${m.id==='dashbi'?'secondaryPortal':''}" href="${m.url}" target="_blank" rel="noopener">Abrir Análise</a>`}</div>`).join('');return`<div class="portalSectionTitle">${g}</div><div class="portalModuleGrid">${cards}</div>`;}).join(''); home.innerHTML=`<div class="portalHero"><div class="portalHeroTop"><div><div class="portalEyebrow">Grupo Brabus Mitsubishi</div><div class="portalTitle">Portal F&I — Grupo Brabus Mitsubishi</div><div class="portalSubtitle">Central única para simuladores, dashboards, gestão operacional, incentivos e acompanhamento de comissões. Os módulos são liberados conforme perfil e STATUS.</div></div><div class="portalUserPill"><div class="k">Usuário conectado</div><div class="v">${(window.REAL_USER||window.USER||viewUser)?.nome||''}</div><div class="note">${(window.REAL_USER||window.USER||viewUser)?.tipo||''} · ${(window.REAL_USER||window.USER||viewUser)?.status||''} · ${(window.REAL_USER||window.USER||viewUser)?.loja||'Todas'}</div><button class="portalModuleBtn secondaryPortal" style="margin-top:12px" onclick="logout()">Sair</button></div></div>${typeof renderHomologacaoBanner==='function'?renderHomologacaoBanner(viewUser):''}<div class="portalMetrics"><div class="portalMetricCard"><div class="k">Bem-vindo</div><div class="v">${viewUser?.nome||''}</div></div><div class="portalMetricCard"><div class="k">Perfil visualizado</div><div class="v">${viewUser?.tipo||''}</div></div><div class="portalMetricCard"><div class="k">STATUS</div><div class="v">${viewUser?.status||''}</div></div><div class="portalMetricCard"><div class="k">Módulos liberados</div><div class="v">${allowed.length}</div></div></div>${typeof renderHomologacaoCard==='function'?renderHomologacaoCard():''}${sections||'<div class="empty">Nenhum módulo disponível para este perfil.</div>'}<div class="centralFooterNote">${BUILD_TXT}</div></div>`; };
   ['showComissoesModule','showPainelAnalistaFi','showCentralAtendimentoFi'].forEach(function(fn){const old=window[fn]; if(typeof old==='function'){window[fn]=function(){hideUniversalView(); return old.apply(this,arguments);};}});
   window.addEventListener('message',function(ev){ if(ev && ev.origin===window.location.origin && ev.data==='portal:back'){ if(typeof renderPortalHome==='function')renderPortalHome(); else hideUniversalView(); }});
   function footer(){let el=document.getElementById('brabusBuildFooterFinal'); if(!el){el=document.createElement('div');el.id='brabusBuildFooterFinal';document.body.appendChild(el);} el.innerHTML=BUILD_TXT;}
