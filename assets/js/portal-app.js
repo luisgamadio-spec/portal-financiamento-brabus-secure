@@ -1355,9 +1355,18 @@ function renderOperationalSecureContent(){
     return '<div class="panel"><b>API SEGURA:</b> nenhum indicador autorizado foi encontrado para este período e loja.</div>';
   }
   const analystRows=operationalAuthorizedAnalystRows();
+  const podeVerAnalista=USER.tipo==='MASTER'||USER.tipo==='ANALISTA'||isDiretorComissao(USER);
+  // Incidente 3.21: se a RPC de Analistas falhar (ex.: timeout — o custo cresce a
+  // cada ausência ativa, pois cada uma recomputa operational_commission_metrics
+  // para sua própria janela de cobertura), loadOperationalCommissionMetrics()
+  // zera OPERATIONAL_ANALYST_METRICS_STATE.key, e a seção Analista some para
+  // TODAS as lojas sem nenhum aviso. Não esconder mais isso silenciosamente.
+  const analistaIndisponivelAviso=podeVerAnalista&&OPERATIONAL_ANALYST_METRICS_STATE.error
+    ?`<div class="panel"><b>Dados dos Analistas indisponíveis:</b> ${escapeOperationalHtml(operationalMetricsSafeError(OPERATIONAL_ANALYST_METRICS_STATE.error))} Vendedores e Gerentes abaixo não são afetados.</div>`
+    :'';
   const stores=[...new Set(rows.map(row=>String(row.store||'SEM LOJA')))]
     .sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  return stores.map(store=>{
+  return analistaIndisponivelAviso+stores.map(store=>{
     const storeRows=rows.filter(row=>String(row.store||'SEM LOJA')===store);
     const sections=[
       {key:'NOVOS',label:'NOVOS'},
@@ -1384,7 +1393,7 @@ function renderOperationalSecureContent(){
     });
     html+='</tbody></table></div>';
     const storeAnalysts=analystRows.filter(row=>norm(row.store)===norm(store));
-    if(storeAnalysts.length&&(USER.tipo==='MASTER'||USER.tipo==='ANALISTA'||isDiretorComissao(USER))){
+    if(storeAnalysts.length&&podeVerAnalista){
       html+='<h3>Analista</h3><div class="tableWrap"><table class="compactMain main10 analystMain"><thead><tr><th>Nome</th><th>Vend.</th><th>Fin.</th><th>Share</th><th>Retorno</th><th>70% SPF</th><th>Rentab. Total</th><th>Faixa</th><th>Com. Total</th><th>Detalhes</th></tr></thead><tbody>';
       storeAnalysts.forEach(row=>{html+=operationalAnalystRowHtml(row)});
       html+='</tbody></table></div>';
