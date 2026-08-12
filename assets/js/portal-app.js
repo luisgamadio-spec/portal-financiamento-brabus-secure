@@ -31,6 +31,7 @@ let MUDANCAS_LOJA_VENDEDORES=[];
 let FECHAMENTOS_COMISSAO=[];
 let FECHAMENTOS_COMISSAO_CARREGADOS_EM=0;
 let SNAPSHOT_VIEW=[];
+let SNAPSHOT_VIEW_SELECTED_ID=null;
 let PERIOD_OVERRIDE=null;
 let REAL_USER=null;
 let HOMOLOGATION_USER=null;
@@ -47,6 +48,10 @@ let OPERATIONAL_METRICS_PENDING=null;
 let OPERATIONAL_METRICS_PENDING_KEY='';
 let OPERATIONAL_SALARY_DETAIL_STATE=null;
 let OPERATIONAL_AGGREGATE_DETAIL_STATE=[];
+// Cache do detalhe operacional em massa (todos os vendedores, 1 chamada), usado
+// exclusivamente pela Prévia RH/DP (Checkpoint C.2) — distinto do
+// OPERATIONAL_SALARY_DETAIL_STATE acima, que é do modal de conferência por vendedor.
+let OPERATIONAL_SALARY_DETAIL_BULK_STATE={key:'',data:null};
 let MASTER_ADMIN_REFERENCE_STATE={data:null,loading:null};
 let MASTER_SECURITY_STATE={data:null,loading:null};
 let LOGIN_IN_PROGRESS=false;
@@ -826,6 +831,19 @@ function operationalMetricsSafeError(message){
   if(text.includes('JWT')||text.includes('session')) return 'Sua sessão expirou. Saia e entre novamente.';
   return 'Não foi possível carregar os indicadores autorizados.';
 }
+// Checkpoint C.3: estado de prontidão da competência atual, compartilhado entre
+// Fechamento de Competência e Relatórios RH/DP — um único lugar decide
+// CARREGANDO/PRONTO/ERRO, para os dois pontos de acesso nunca divergirem.
+function fechamentoEstadoAtualStatus(){
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  if(!secureMode) return {estado:'PRONTO',mensagem:''};
+  if(OPERATIONAL_METRICS_STATE.loading) return {estado:'CARREGANDO',mensagem:'Carregando indicadores operacionais...'};
+  const erro=OPERATIONAL_METRICS_STATE.error||OPERATIONAL_ANALYST_METRICS_STATE.error||OPERATIONAL_MANAGER_DIRECTORY_STATE.error;
+  if(erro) return {estado:'ERRO',mensagem:operationalMetricsSafeError(erro)};
+  if(!gestorFIIdentidadeSegura()) return {estado:'ERRO',mensagem:'A identidade configurada para o Gestor F&I não foi encontrada ou está inativa no cadastro. Corrija o cadastro ou a configuração antes de continuar.'};
+  if(!calcularPreviewFechamentoCompetencia()) return {estado:'ERRO',mensagem:'Os dados operacionais desta competência ainda não foram carregados. Reabra a aba para tentar novamente.'};
+  return {estado:'PRONTO',mensagem:''};
+}
 function operationalMetricsKey(){
   const p=operationalMetricsPeriod();
   return `${p.start}|${p.end}|${USER?.tipo||''}|${USER?.loja||''}`;
@@ -918,6 +936,48 @@ async function loadOperationalCommissionMetrics(force=false){
     OPERATIONAL_METRICS_PENDING=null;
     OPERATIONAL_METRICS_PENDING_KEY='';
   }
+}
+// Checkpoint C.2 — busca em massa (1 única chamada, p_seller_id=null cobre todos
+// os vendedores autorizados) para alimentar as abas 5/6 da Prévia RH/DP.
+// Reaproveita a mesma validação de segurança já usada no modal de conferência
+// individual (showOperationalSalaryDetails): rejeita qualquer resposta que
+// contenha identidade de cliente, documento pessoal, chassi completo ou NBS.
+async function carregarDetalhesOperacionaisSeguro(force=false){
+  if(!supabaseClient) return null;
+  const period=operationalMetricsPeriod();
+  if(!period.start||!period.end) return null;
+  const key=operationalMetricsKey();
+  if(!force&&OPERATIONAL_SALARY_DETAIL_BULK_STATE.key===key&&OPERATIONAL_SALARY_DETAIL_BULK_STATE.data){
+    return OPERATIONAL_SALARY_DETAIL_BULK_STATE.data;
+  }
+  try{
+    const {data,error}=await supabaseClient.rpc('operational_salary_details',{
+      p_start:period.start,p_end:period.end,p_seller_id:null
+    });
+    if(error) throw error;
+    if(!data||!Array.isArray(data.rows)||data.contains_client_identity||
+       data.contains_personal_documents||data.contains_full_chassis||
+       data.contains_chassis||data.contains_nbs){
+      throw new Error('Resposta de detalhe operacional insegura ou incompleta.');
+    }
+    OPERATIONAL_SALARY_DETAIL_BULK_STATE={key,data};
+    return data;
+  }catch(error){
+    console.error('Detalhe operacional seguro indisponível:',error?.message||error);
+    OPERATIONAL_SALARY_DETAIL_BULK_STATE={key:'',data:null};
+    return null;
+  }
+}
+function nomeVendedorPorSellerId(sellerId){
+  const rows=OPERATIONAL_METRICS_STATE.data?.rows||[];
+  const row=rows.find(r=>String(r.seller_id)===String(sellerId));
+  return row?row.seller_name||'':'';
+}
+// CPF/loja por nome, exclusivamente para enriquecer a Prévia RH/DP (competência
+// atual) em modo secure — nunca usado para snapshot histórico (Checkpoint C.2).
+function usuarioSeguroPorNome(nome){
+  const key=norm(nome||'');
+  return (MASTER_SECURITY_STATE.data?.users||[]).find(u=>norm(u.nome||'')===key)||null;
 }
 function operationalTotalsForCurrentStore(){
   const data=OPERATIONAL_METRICS_STATE.data;
@@ -2708,10 +2768,18 @@ async function executarAdminSeguro(entity,action,payload={}){
   return data;
 }
 function vendedoresOptions(selectedCpf=''){
-  const list=DATA.auth.filter(a=>a.tipo==='VENDEDOR').sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  const list=(secureMode
+    ?(MASTER_SECURITY_STATE.data?.users||[]).filter(u=>u.ativo&&String(u.perfil||'').toUpperCase()==='VENDEDOR')
+    :DATA.auth.filter(a=>a.tipo==='VENDEDOR')
+  ).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   return '<option value="">Selecione</option>'+list.map(a=>`<option value="${a.cpf||a.nomeKey}" ${String(selectedCpf)===String(a.cpf||a.nomeKey)?'selected':''}>${a.nome} · ${a.loja} · ${a.status}</option>`).join('');
 }
 function getVendedorById(id){
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  if(secureMode){
+    return (MASTER_SECURITY_STATE.data?.users||[]).find(u=>u.ativo&&String(u.perfil||'').toUpperCase()==='VENDEDOR'&&u.cpf===id)||null;
+  }
   return DATA.auth.find(a=>a.tipo==='VENDEDOR'&&(a.cpf===id||a.nomeKey===id||a.login===id||a.login_nbs===id))||null;
 }
 function mudancasAtivasVendedor(a){
@@ -2866,14 +2934,28 @@ function renderMudancasLojaVendedoresHtml(){
 }
 
 function analistasOptions(selectedCpf=''){
-  const list=DATA.auth.filter(a=>a.tipo==='ANALISTA').sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  const list=(secureMode
+    ?(MASTER_SECURITY_STATE.data?.users||[]).filter(u=>u.ativo&&String(u.perfil||'').toUpperCase()==='ANALISTA')
+    :DATA.auth.filter(a=>a.tipo==='ANALISTA')
+  ).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   return '<option value="">Selecione</option>'+list.map(a=>`<option value="${a.cpf}" ${String(selectedCpf)===String(a.cpf)?'selected':''}>${a.nome} · ${a.loja}</option>`).join('');
 }
 function lojasOptions(selected=''){
-  const lojas=[...new Set(DATA.auth.map(a=>a.loja).filter(Boolean))].sort();
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  const lojas=[...new Set((secureMode
+    ?(MASTER_SECURITY_STATE.data?.users||[]).filter(u=>u.ativo).map(u=>u.loja)
+    :DATA.auth.map(a=>a.loja)
+  ).filter(Boolean))].sort();
   return '<option value="">Selecione</option>'+lojas.map(l=>`<option value="${l}" ${String(selected)===String(l)?'selected':''}>${l}</option>`).join('');
 }
-function getAnalistaByCpf(cpfAlvo){return DATA.auth.find(a=>a.tipo==='ANALISTA'&&a.cpf===cpfAlvo)||null}
+function getAnalistaByCpf(cpfAlvo){
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  if(secureMode){
+    return (MASTER_SECURITY_STATE.data?.users||[]).find(u=>u.ativo&&String(u.perfil||'').toUpperCase()==='ANALISTA'&&u.cpf===cpfAlvo)||null;
+  }
+  return DATA.auth.find(a=>a.tipo==='ANALISTA'&&a.cpf===cpfAlvo)||null;
+}
 async function salvarAusenciaAnalista(){
   const cpfAus=document.getElementById('ausCpfAusente')?.value||'';
   const cpfSub=document.getElementById('ausCpfSubstituto')?.value||'';
@@ -3000,9 +3082,15 @@ async function fecharCompetencia(){
   if(!PERIODO_SELECIONADO?.id){toastAdmin('Selecione um Período de Comissão oficial antes de fechar.','err');return}
   await carregarFechamentosComissao();
   if(fechamentoAtual()){toastAdmin('Este período já possui fechamento ativo. Reabra antes de fechar novamente.','err');return}
-  if(!confirm('Confirmar fechamento oficial desta competência? O snapshot será gravado no Supabase.')) return;
   const preview=calcularPreviewFechamentoCompetencia();
   const executivo=calcularResumoExecutivoFechamento();
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  const fonteInvalida=!preview||!executivo||preview.linhas.length===0||(secureMode&&!MASTER_SECURITY_STATE.data);
+  if(fonteInvalida){
+    toastAdmin('Fechamento bloqueado: os dados da competência não foram carregados corretamente.','err');
+    return;
+  }
+  if(!confirm('Confirmar fechamento oficial desta competência? O snapshot será gravado no Supabase.')) return;
   const payload={
     periodo_id:PERIODO_SELECIONADO.id,
     nome_periodo:PERIODO_SELECIONADO.nome_periodo||'',
@@ -3275,6 +3363,18 @@ function renderAnalystMetricAuditHtml(){
 
 
 function calcularResumoExecutivoFechamento(){
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  if(secureMode){
+    const t=operationalTotalsForCurrentStore();
+    if(!t) return null; // fonte operacional ainda não carregada/pronta — não fabricar zeros.
+    return {
+      vendidas:Number(t.sold_count)||0,
+      financiadas:Number(t.financed_count)||0,
+      producao:Number(t.production_value)||0,
+      retorno:Number(t.return_value)||0,
+      spf:Number(t.spf_value)||0
+    };
+  }
   const rows=[];
   visibleStores().forEach(st=>{
     DATA.auth
@@ -3305,6 +3405,8 @@ function contarPerfisSnapshot(linhas){
 }
 
 function calcularPreviewFechamentoCompetencia(){
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  if(secureMode) return calcularPreviewFechamentoCompetenciaSegura();
   const linhas=[];
   let vendidas=0, financiadas=0, comissaoPrevista=0, retorno=0, spf=0, producao=0;
   visibleStores().forEach(store=>{
@@ -3343,9 +3445,114 @@ function calcularPreviewFechamentoCompetencia(){
   comissaoPrevista=linhas.reduce((t,l)=>t+(+l.comissao||0),0);
   return {linhas,vendidas,financiadas,producao,retorno,spf,comissaoPrevista};
 }
+function calcularPreviewFechamentoCompetenciaSegura(){
+  const key=operationalMetricsKey();
+  const vendState=OPERATIONAL_METRICS_STATE;
+  const vendReady=!!(vendState.data && vendState.key===key && !vendState.error);
+  const analystReady=!!(OPERATIONAL_ANALYST_METRICS_STATE.key===key && !OPERATIONAL_ANALYST_METRICS_STATE.error);
+  const managerReady=!!(OPERATIONAL_MANAGER_DIRECTORY_STATE.key===key && !OPERATIONAL_MANAGER_DIRECTORY_STATE.error);
+  const gestorIdentidade=gestorFIIdentidadeSegura();
+  if(!vendReady||!analystReady||!managerReady||!gestorIdentidade) return null; // fonte operacional/identidade do Gestor F&I não prontas — não fabricar linhas/zeros/fallback silencioso.
+
+  const linhas=[];
+  const vendRows=vendState.data.rows||[];
+
+  // VENDEDOR — granularidade já é por vendedor × loja × departamento (operational_commission_metrics).
+  vendRows.forEach(row=>{
+    const m={
+      vendidas:Number(row.sold_count)||0,
+      financiadas:Number(row.financed_count)||0,
+      producao:Number(row.production_value)||0,
+      retorno:Number(row.return_value)||0,
+      spf:Number(row.spf_value)||0,
+      spfQty:Number(row.spf_count)||0,
+      items:[]
+    };
+    if(!(m.vendidas>0||m.financiadas>0||m.retorno>0||m.spf>0)) return;
+    const status=row.department||'';
+    const c=commissionCalc(status,m,'seller');
+    linhas.push({perfil:'VENDEDOR',loja:row.store,nome:row.seller_name,status,m,c,comissao:c.comissaoTotal});
+  });
+
+  // GERENTE — soma os vendedores da mesma loja+departamento (mesma regra do modo legado);
+  // um vendedor com departamento combinado ("NOVOS/SEMINOVOS") contribui para os dois grupos.
+  const gerenteBuckets={};
+  vendRows.forEach(row=>{
+    const dep=String(row.department||'').toUpperCase();
+    const grupos=[];
+    if(dep.includes('NOVOS')) grupos.push('NOVOS');
+    if(dep.includes('SEMINOVOS')) grupos.push('SEMINOVOS');
+    grupos.forEach(g=>{
+      const key2=row.store+'|'+g;
+      if(!gerenteBuckets[key2]) gerenteBuckets[key2]={store:row.store,dep:g,m:{vendidas:0,financiadas:0,producao:0,retorno:0,spf:0,spfQty:0,items:[]}};
+      const b=gerenteBuckets[key2].m;
+      b.vendidas+=Number(row.sold_count)||0;
+      b.financiadas+=Number(row.financed_count)||0;
+      b.producao+=Number(row.production_value)||0;
+      b.retorno+=Number(row.return_value)||0;
+      b.spf+=Number(row.spf_value)||0;
+      b.spfQty+=Number(row.spf_count)||0;
+    });
+  });
+  const managerRows=OPERATIONAL_MANAGER_DIRECTORY_STATE.rows||[];
+  Object.values(gerenteBuckets).forEach(b=>{
+    if(!(b.m.vendidas>0||b.m.financiadas>0||b.m.retorno>0||b.m.spf>0)) return;
+    const dir=managerRows.find(r=>norm(r.store)===norm(b.store)&&String(r.department||'').toUpperCase()===b.dep);
+    const c=commissionCalc('GERENTE '+b.dep,b.m,'manager');
+    linhas.push({perfil:'GERENTE',loja:b.store,nome:dir?dir.manager_name:('GERENTE '+b.dep+' NÃO LOCALIZADO'),status:'GERENTE '+b.dep,m:b.m,c,comissao:c.comissaoPrincipal});
+  });
+
+  // ANALISTA — já vem redistribuído (férias/ausências) pelo servidor: não recalcular aqui.
+  const analystRows=OPERATIONAL_ANALYST_METRICS_STATE.rows||[];
+  analystRows.forEach(row=>{
+    const m={
+      vendidas:Number(row.sold_count)||0,
+      financiadas:Number(row.financed_count)||0,
+      producao:Number(row.production_value)||0,
+      retorno:Number(row.return_value)||0,
+      spf:Number(row.spf_value)||0,
+      spfQty:Number(row.spf_count)||0,
+      items:[]
+    };
+    const c=commissionCalc('ANALISTA',m,'analyst');
+    linhas.push({
+      perfil:'ANALISTA',
+      loja:row.store,
+      nome:row.analyst_name,
+      status:row.transfer?'ANALISTA COBERTURA':'ANALISTA',
+      m,c,comissao:c.comissaoTotal,
+      obs:row.transfer?`Cobertura ${dataBR(row.covered_start)} a ${dataBR(row.covered_end)} · redistribuído por operational_analyst_commission_metrics_v2`:''
+    });
+  });
+
+  // GESTOR F&I — soma grupo inteiro; identidade já confirmada (gestorIdentidade) no topo desta função.
+  const g=calcGestorFIGrupo();
+  if(g.pronto && !linhas.some(l=>String(l.perfil||'').toUpperCase().includes('GESTOR'))){
+    linhas.push({
+      perfil:'GESTOR F&I',loja:'GRUPO',nome:gestorIdentidade.nome,cpf:gestorIdentidade.cpf,status:'GESTOR F&I',
+      m:{vendidas:g.vendidas||0,financiadas:g.financiadas||0,producao:g.producao||0,retorno:g.retorno||0,spf:g.spf||0,spfQty:g.spfQty||0,items:[]},
+      c:{share:g.share||0,spfLiquido:g.spfLiquido||0,rentTotal:g.base||0,faixa:g.faixa||0,comissaoPrincipal:g.comissaoPrincipal||0,comissaoSpf:g.bonusSpf||0,comissaoTotal:g.comissaoFinal||0},
+      comissao:g.comissaoFinal||0,obs:'Comissão Gestor F&I'
+    });
+  }
+
+  let vendidas=0,financiadas=0,producao=0,retorno=0,spf=0,comissaoPrevista=0;
+  linhas.forEach(l=>{vendidas+=+(l.m.vendidas||0);financiadas+=+(l.m.financiadas||0);producao+=+(l.m.producao||0);retorno+=+(l.m.retorno||0);spf+=+(l.m.spf||0);comissaoPrevista+=+(l.comissao||0);});
+  return {linhas,vendidas,financiadas,producao,retorno,spf,comissaoPrevista};
+}
 function renderFechamentoCompetenciaPreview(){
   const preview=calcularPreviewFechamentoCompetencia();
   const executivo=calcularResumoExecutivoFechamento();
+  if(!preview||!executivo){
+    const status=fechamentoEstadoAtualStatus();
+    return `<h2>Fechamento de Competência</h2>
+      <p class="note">Fechamento oficial com gravação de snapshot no Supabase.</p>
+      <div class="fechamentoPreviewBox">
+        <div class="fechamentoSectionTitle">${status.estado==='CARREGANDO'?'Carregando indicadores operacionais...':'Fechamento indisponível'}</div>
+        <div class="fechamentoSectionNote">${status.mensagem}</div>
+        <div class="fechamentoActionBox"><button disabled>Fechar Competência</button></div>
+      </div>`;
+  }
   const contagem=contarPerfisSnapshot(preview.linhas);
   const periodo=periodoComissaoLabelAtual();
   const periodoStatus=PERIODO_SELECIONADO?.status||'EM CONFERÊNCIA';
@@ -3389,8 +3596,9 @@ function renderFechamentoCompetenciaPreview(){
       </div>
       <div class="fechamentoActionBox">
         ${fechamento?`<button disabled>Competência já fechada</button><button class="secondary" onclick="reabrirCompetencia('${fechamento.id}')">Reabrir Competência</button>`:`<button onclick="fecharCompetencia()">Fechar Competência</button>`}
+        <button class="secondary" onclick="exportarPreviaRhDp()">Exportar Prévia RH/DP</button>
       </div>
-      <div class="fechamentoWarning"><b>Atenção:</b> ao fechar, o Portal grava uma foto das linhas de comissão em snapshot_comissoes.</div>
+      <div class="fechamentoWarning"><b>Atenção:</b> ao fechar, o Portal grava uma foto das linhas de comissão em snapshot_comissoes. A Prévia RH/DP não grava nada — é só para conferência.</div>
     </div>
     <h3 style="margin-top:24px">Prévia das linhas do snapshot</h3>
     <div class="tableWrap"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Retorno</th><th>70% SPF</th><th>Rentab.</th><th>Comissão</th></tr></thead><tbody>${rows||'<tr><td colspan="10">Nenhuma linha prevista para o período.</td></tr>'}</tbody></table></div>
@@ -3400,6 +3608,32 @@ function renderFechamentoCompetenciaPreview(){
     ${(SNAPSHOT_VIEW||[]).length?`<div class="snapshotBox"><h3>Snapshot Visualizado</h3><div class="tableWrap"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Comissão</th></tr></thead><tbody>${snapRows}</tbody></table></div>${SNAPSHOT_VIEW.length>60?`<p class="note">Exibindo 60 de ${SNAPSHOT_VIEW.length} linhas.</p>`:''}</div>`:''}`;
 }
 
+// Checkpoint C.2 (Fase C.2-B): exporta a prévia da competência ATUAL — nunca
+// grava snapshot, nunca chama master_close_commission_period, nunca altera
+// status da competência. Mesma trava estrutural de fecharCompetencia(): só
+// segue adiante se preview/executivo/linhas/diretório/Gestor F&I estiverem
+// todos prontos (calcularPreviewFechamentoCompetencia() já retorna null se
+// qualquer um desses não estiver íntegro).
+async function exportarPreviaRhDp(){
+  const preview=calcularPreviewFechamentoCompetencia();
+  const executivo=calcularResumoExecutivoFechamento();
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  if(!preview||!executivo||!preview.linhas.length||(secureMode&&!MASTER_SECURITY_STATE.data)){
+    toastAdmin('Prévia bloqueada: os dados da competência não foram carregados corretamente.','err');
+    return;
+  }
+  if(secureMode) await carregarDetalhesOperacionaisSeguro();
+  const previewRows=preview.linhas.map(l=>({
+    loja:l.loja,perfil:l.perfil,nome:l.nome,status:l.status,
+    vendidas:l.m?.vendidas,financiadas:l.m?.financiadas,share:l.c?.share,
+    producao:l.m?.producao,retorno:l.m?.retorno,spf_extra:l.m?.spf,spf_liquido:l.c?.spfLiquido,
+    rentabilidade_total:l.c?.rentTotal,faixa:l.c?.faixa,comissao_principal:l.c?.comissaoPrincipal,
+    comissao_spf:l.c?.comissaoSpf,comissao_total:l.comissao,observacao:l.obs||''
+  }));
+  const ini=document.getElementById('dtIni')?.value||'';
+  const fim=document.getElementById('dtFim')?.value||'';
+  exportSnapshotExcel(previewRows,`PREVIA_RH_DP_${ini}_${fim}.xlsx`,true);
+}
 function parseMaybeJson(v){
   if(!v) return {};
   if(typeof v==='object') return v;
@@ -3462,13 +3696,24 @@ function historicoOptions(){
   return (FECHAMENTOS_COMISSAO||[]).filter(f=>String(f.status||'').toUpperCase()==='FECHADO'||f.ativo!==false).map(f=>`<option value="${f.id}">${f.nome_periodo||'Competência'} · ${dataBR(f.data_inicio||'')} a ${dataBR(f.data_fim||'')} · ${f.status||''}</option>`).join('');
 }
 async function carregarHistoricoSnapshotSelecionado(id){
+  SNAPSHOT_VIEW_SELECTED_ID=id||null;
   SNAPSHOT_VIEW=await getSnapshotFechamento(id);
   renderMasterAdmin();
 }
+// Checkpoint C.3: classificação puramente em runtime (nunca gravada) — distingue
+// um snapshot histórico com valores reais de um estruturalmente preenchido mas
+// zerado (achado do Checkpoint C.1: 18 dos 20 fechamentos estão nesse estado).
+function classificarSnapshotHistorico(rows){
+  const soma=(rows||[]).reduce((t,r)=>t+(+r.vendidas||0)+(+r.financiadas||0)+(+r.producao||0)+(+r.retorno||0)+(+r.comissao_total||0),0);
+  return soma>0?'VALIDO':'ZERADO';
+}
 function renderSnapshotReportHtml(rows,title='Relatório RH/DP'){
   const agg=aggregateSnapshot(rows);
+  const avisoZerado=classificarSnapshotHistorico(rows)==='ZERADO'
+    ?'<div class="fechamentoWarning">⚠ Este snapshot histórico foi gravado sem valores financeiros. Os dados originais foram preservados e não serão recalculados.</div>'
+    :'';
   const trs=rows.map(r=>`<tr><td>${r.loja}</td><td>${r.perfil}</td><td>${r.nome}</td><td>${r.status}</td><td>${r.vendidas}</td><td>${r.financiadas}</td><td>${fmtMoney(r.retorno)}</td><td>${fmtMoney(r.spf_liquido)}</td><td>${fmtMoney(r.rentabilidade_total)}</td><td>${fmtPct2(r.faixa)}</td><td><b>${fmtMoney(r.comissao_total)}</b></td><td>${r.observacao||''}</td></tr>`).join('');
-  return `<div class="rhReportPanel"><h2>${title}</h2><div class="readonlyBanner">Modo histórico somente leitura. Os valores abaixo vêm do snapshot congelado, sem recálculo.</div><div class="rhReportGrid"><div class="rhReportCard"><div class="k">Linhas</div><div class="v">${rows.length}</div></div><div class="rhReportCard"><div class="k">Vendidas</div><div class="v">${agg.vendidas}</div></div><div class="rhReportCard"><div class="k">Financiadas</div><div class="v">${agg.financiadas}</div></div><div class="rhReportCard"><div class="k">Comissão Total</div><div class="v">${fmtMoney(agg.comissao_total)}</div></div><div class="rhReportCard"><div class="k">Retorno</div><div class="v">${fmtMoney(agg.retorno)}</div></div><div class="rhReportCard"><div class="k">SPF Extra</div><div class="v">${fmtMoney(agg.spf_extra)}</div></div><div class="rhReportCard"><div class="k">Vendedores</div><div class="v">${agg.vendedores}</div></div><div class="rhReportCard"><div class="k">Analistas</div><div class="v">${agg.analistas}</div></div></div><div class="tableWrap"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Retorno</th><th>70% SPF</th><th>Rentab.</th><th>Faixa</th><th>Comissão</th><th>Obs.</th></tr></thead><tbody>${trs||'<tr><td colspan="12">Nenhum snapshot carregado.</td></tr>'}</tbody></table></div></div>`;
+  return `<div class="rhReportPanel"><h2>${title}</h2><div class="readonlyBanner">Modo histórico somente leitura. Os valores abaixo vêm do snapshot congelado, sem recálculo.</div>${avisoZerado}<div class="rhReportGrid"><div class="rhReportCard"><div class="k">Linhas</div><div class="v">${rows.length}</div></div><div class="rhReportCard"><div class="k">Vendidas</div><div class="v">${agg.vendidas}</div></div><div class="rhReportCard"><div class="k">Financiadas</div><div class="v">${agg.financiadas}</div></div><div class="rhReportCard"><div class="k">Comissão Total</div><div class="v">${fmtMoney(agg.comissao_total)}</div></div><div class="rhReportCard"><div class="k">Retorno</div><div class="v">${fmtMoney(agg.retorno)}</div></div><div class="rhReportCard"><div class="k">SPF Extra</div><div class="v">${fmtMoney(agg.spf_extra)}</div></div><div class="rhReportCard"><div class="k">Vendedores</div><div class="v">${agg.vendedores}</div></div><div class="rhReportCard"><div class="k">Analistas</div><div class="v">${agg.analistas}</div></div></div><div class="tableWrap"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Retorno</th><th>70% SPF</th><th>Rentab.</th><th>Faixa</th><th>Comissão</th><th>Obs.</th></tr></thead><tbody>${trs||'<tr><td colspan="12">Nenhum snapshot carregado.</td></tr>'}</tbody></table></div></div>`;
 }
 
 function authByName(nome){
@@ -3608,12 +3853,10 @@ function resumoExecutivoOficialExcel(rowsFull){
       };
     }
   }
-  try{
-    const e=calcularResumoExecutivoFechamento();
-    if(e && (e.vendidas||e.financiadas||e.producao||e.retorno||e.spf)){
-      return {vendidas:+e.vendidas||0,financiadas:+e.financiadas||0,producao:+e.producao||0,retorno:+e.retorno||0,spf_extra:+e.spf||0};
-    }
-  }catch(err){console.warn('Resumo executivo oficial não disponível:',err)}
+  // Checkpoint C4: nunca cair para calcularResumoExecutivoFechamento() aqui —
+  // ela reflete o período ATUAL selecionado no Fechamento, não necessariamente
+  // o período do snapshot histórico sendo exportado. Fallback seguro abaixo
+  // deriva o resumo exclusivamente das próprias linhas do snapshot.
   // Fallback seguro: somente vendedores, para não duplicar com gerentes/analistas.
   const sellers=(rowsFull||[]).filter(r=>String(r.perfil||'').toUpperCase()==='VENDEDOR');
   return sellers.reduce((a,r)=>{a.vendidas+=+r.vendidas||0;a.financiadas+=+r.financiadas||0;a.producao+=+r.producao||0;a.retorno+=+r.retorno||0;a.spf_extra+=+r.spf_extra||0;return a;},{vendidas:0,financiadas:0,producao:0,retorno:0,spf_extra:0});
@@ -3647,34 +3890,32 @@ function fitColsFromJson(json, min=10, max=42){
   return keys.map(k=>({wch:Math.min(max,Math.max(min,k.length+2,...json.slice(0,200).map(r=>String(r[k]??'').length+2)))}));
 }
 
-function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx'){
+function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx',isPreview=false){
   if(!rows||!rows.length){alert('Nenhum snapshot carregado para exportar.');return}
-  let normalized=rows.map(snapshotNormalizedRow);
-
-  // Se o snapshot antigo estiver sem valores de comissão, usa a prévia atual como fallback controlado.
-  if(normalized.length && normalized.every(r=>(+r.comissao_total||0)===0)){
-    try{
-      const preview=calcularPreviewFechamentoCompetencia();
-      normalized=preview.linhas.map(l=>snapshotNormalizedRow({
-        loja:l.loja,perfil:l.perfil,nome:l.nome,status:l.status,
-        vendidas:l.m?.vendidas,financiadas:l.m?.financiadas,share:l.c?.share,
-        producao:l.m?.producao,retorno:l.m?.retorno,spf_extra:l.m?.spf,spf_liquido:l.c?.spfLiquido,
-        rentabilidade_total:l.c?.rentTotal,faixa:l.c?.faixa,comissao_principal:l.c?.comissaoPrincipal,
-        comissao_spf:l.c?.comissaoSpf,comissao_total:l.comissao,observacao:l.obs||''
-      }));
-    }catch(e){console.warn('Fallback de relatório não aplicado:',e)}
-  }
-
-  const rowsFull=addGestorToRowsIfMissing(normalized);
+  // Checkpoint C4: um snapshot histórico é fotografia imutável. NUNCA substituir
+  // por recálculo ao vivo (calcularPreviewFechamentoCompetencia/calcGestorFIGrupo
+  // refletem o período ATUALMENTE selecionado, que pode não ter nenhuma relação
+  // com o período do snapshot sendo exportado) — mesmo que os valores estejam
+  // zerados, exportar exatamente o que foi congelado.
+  const secureModeExport=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  const rowsFull=rows.map(snapshotNormalizedRow);
   const resumoComissao=aggregateSnapshot(rowsFull);
   const resumoExec=resumoExecutivoOficialExcel(rowsFull);
+  // Checkpoint C.2: prévia nunca tem fechamento selecionado — é sempre o período
+  // atualmente aberto, por definição. Histórico continua usando exclusivamente
+  // o período gravado no próprio fechamento selecionado (Checkpoint C4).
+  const fechamentoSelecionado=isPreview?null:getSelectedFechamentoForReport();
+  const periodoLabelExcel=isPreview
+    ?(periodoComissaoLabelAtual()+' · PRÉVIA — COMPETÊNCIA NÃO FECHADA')
+    :(fechamentoSelecionado?periodoLabel(fechamentoSelecionado):periodoComissaoLabelAtual());
   const wb=XLSX.utils.book_new();
 
   // ABA 1 - Principal / Resumo Executivo oficial
   const principal=[
     ['RELATÓRIO DE COMISSÕES RH/DP'],
     ['Grupo Brabus Mitsubishi'],
-    ['Período',periodoComissaoLabelAtual()],
+    isPreview?['ATENÇÃO','PRÉVIA — COMPETÊNCIA NÃO FECHADA. Valores sujeitos a alteração até o Fechamento oficial.']:['Status','Snapshot congelado (competência fechada)'],
+    ['Período',periodoLabelExcel],
     ['Origem','Resumo Executivo oficial do Portal + Snapshot congelado para lançamento'],
     ['Gerado em',new Date().toLocaleString('pt-BR')],
     [],
@@ -3695,12 +3936,20 @@ function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx'){
     ['Gestor F&I',rowsFull.filter(r=>String(r.perfil||'').toUpperCase().includes('GESTOR')).length]
   ];
   const wsPrincipal=sheetFromAoAWithWidths(wb,'1_RESUMO_PRINCIPAL',principal,[36,28,24,24]);
-  ['A1','A7','A17'].forEach(a=>{if(wsPrincipal[a])wsPrincipal[a].s={font:{bold:true,color:{rgb:'000000'}},fill:{fgColor:{rgb:'FFD200'},patternType:'solid'}}});
-  ['B12','B13','B14','B15'].forEach(addr=>{if(wsPrincipal[addr]){wsPrincipal[addr].t='n';wsPrincipal[addr].z='"R$" #,##0.00';}});
-  wsPrincipal['!freeze']={xSplit:0,ySplit:8,topLeftCell:'A9',activePane:'bottomLeft',state:'frozen'};
+  ['A1','A8','A18'].forEach(a=>{if(wsPrincipal[a])wsPrincipal[a].s={font:{bold:true,color:{rgb:'000000'}},fill:{fgColor:{rgb:'FFD200'},patternType:'solid'}}});
+  if(isPreview&&wsPrincipal['A3'])wsPrincipal['A3'].s={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'C0392B'},patternType:'solid'}};
+  ['B13','B14','B15','B16'].forEach(addr=>{if(wsPrincipal[addr]){wsPrincipal[addr].t='n';wsPrincipal[addr].z='"R$" #,##0.00';}});
+  wsPrincipal['!freeze']={xSplit:0,ySplit:9,topLeftCell:'A10',activePane:'bottomLeft',state:'frozen'};
 
+  // Checkpoint C.2: CPF/loja por nome só usa o diretório seguro ATUAL quando a
+  // exportação é da prévia da competência aberta — nunca para snapshot histórico
+  // (regra de imutabilidade: CPF gravado vazio no snapshot permanece vazio).
+  function authPorNome(nome){
+    if(isPreview&&secureModeExport) return usuarioSeguroPorNome(nome)||{};
+    return authByName(nome)||{};
+  }
   function linhaPadrao(r){
-    const auth=authByName(r.nome)||{};
+    const auth=authPorNome(r.nome);
     return {
       Nome:r.nome||'',
       CPF:r.cpf||auth.cpf||'',
@@ -3734,14 +3983,14 @@ function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx'){
       return p.includes('ANALISTA') || p.includes('GESTOR');
     })
     .map(r=>{
-      const auth=authByName(r.nome)||{};
+      const auth=authPorNome(r.nome);
       const isGestor=String(r.perfil||'').toUpperCase().includes('GESTOR');
       const qtdSpf=isGestor ? 0 : Math.round((+(r.comissao_spf||0))/150);
       const valorUnitario=isGestor ? 0 : 150;
       return {
         Nome:r.nome||'',
         CPF:r.cpf||auth.cpf||'',
-        Cargo:r.perfil||auth.tipo||'',
+        Cargo:r.perfil||auth.perfil||auth.tipo||'',
         Loja:r.loja||auth.loja||'',
         Departamento:r.status||auth.status||'',
         Vendas:+(r.vendidas||0),
@@ -3774,22 +4023,77 @@ function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx'){
   styleWorksheetSafra(wsGer,['RETORNO','SPF','COMISSAO'],['SHARE','FAIXA']);
   XLSX.utils.book_append_sheet(wb,wsGer,'4_GERENTES');
 
+  // Checkpoint C.2 (Fase C.2-C): fonte segura de detalhe por operação —
+  // chassi sempre mascarado, cliente/CPF de cliente NUNCA retornados
+  // (contrato validado em carregarDetalhesOperacionaisSeguro).
+  function detalheOperacionalRow(row){
+    return {
+      Loja:row.store||'',
+      Departamento:row.department||'',
+      Vendedor:nomeVendedorPorSellerId(row.seller_id),
+      'Chassi (mascarado)':row.chassis_masked||'',
+      Data:excelDateBR(row.date||''),
+      'Data Financiamento':row.finance_date?excelDateBR(row.finance_date):'',
+      Financiado:row.financed?'SIM':'NÃO',
+      'Valor Financiado':+(row.financed_value||0),
+      'Retorno Bruto':+(row.return_gross||0),
+      'Retorno Considerado':+(row.return_considered||0),
+      'SPF Bruto':+(row.spf_gross||0),
+      'SPF Considerado':+(row.spf_considered||0),
+      'SPF 70%':+(row.spf_70||0),
+      Rentabilidade:+(row.operation_profitability||0),
+      Modalidade:row.modality||'',
+      Modelo:row.vehicle_model||'',
+      'Incluído na Comissão':row.included_in_commission?'SIM':'NÃO',
+      'Motivo de Exclusão':row.exclusion_reason||''
+    };
+  }
+  let finRows,allRows;
+  if(isPreview&&secureModeExport){
+    const bulk=OPERATIONAL_SALARY_DETAIL_BULK_STATE;
+    if(bulk.key===operationalMetricsKey()&&bulk.data){
+      const detalheRows=bulk.data.rows||[];
+      allRows=detalheRows.length?detalheRows.map(detalheOperacionalRow):[{Aviso:'Nenhuma operação registrada para o período.'}];
+      const financiadas=detalheRows.filter(r=>r.financed);
+      finRows=financiadas.length?financiadas.map(detalheOperacionalRow):[{Aviso:'Nenhuma operação financiada no período.'}];
+    }else{
+      const msg=[{Aviso:'Detalhe operacional por chassi não pôde ser carregado nesta exportação. Os totais das abas 1 a 4 permanecem corretos.'}];
+      allRows=msg; finRows=msg;
+    }
+  }else if(secureModeExport){
+    // Histórico em modo seguro: o detalhe por operação não foi armazenado no
+    // snapshot congelado — não reconstruir com a RPC operacional atual
+    // (misturaria o período do snapshot com dados de hoje). Ver 8_MEMORIA_DE_CALCULO
+    // para os totais por pessoa que efetivamente foram congelados.
+    const aviso=[{Aviso:'Detalhe operacional por chassi não foi armazenado neste snapshot histórico. Consulte a aba 8_MEMORIA_DE_CALCULO para os totais por pessoa efetivamente congelados nesta competência.'}];
+    finRows=aviso; allRows=aviso;
+  }else{
+    finRows=chassisRowsReport(true);
+    allRows=chassisRowsReport(false);
+  }
+
   // ABA 5 - Chassis financiados
-  const finRows=chassisRowsReport(true);
   const wsFin=XLSX.utils.json_to_sheet(finRows);
   wsFin['!cols']=fitColsFromJson(finRows,12,42);
   styleWorksheetSafra(wsFin,['PRODUCAO','RETORNO','SPF','RENTABILIDADE','VALOR'],[]);
   XLSX.utils.book_append_sheet(wb,wsFin,'5_CHASSIS_FINANCIADOS');
 
   // ABA 6 - Todos os chassis por vendedor
-  const allRows=chassisRowsReport(false);
   const wsAll=XLSX.utils.json_to_sheet(allRows);
   wsAll['!cols']=fitColsFromJson(allRows,12,42);
   styleWorksheetSafra(wsAll,['PRODUCAO','RETORNO','SPF','RENTABILIDADE','VALOR'],[]);
   XLSX.utils.book_append_sheet(wb,wsAll,'6_TODOS_CHASSIS_VENDEDOR');
 
   // ABA 7 - Auditoria SPF
-  const spfAudit=[];
+  // Checkpoint C.2 (Fase C.2-D): NÃO implementada em modo seguro nesta fase —
+  // nenhuma RPC nova criada; master_operational_list_spf_extra_base02 não é
+  // reaproveitada (expõe chassi completo/client_match_key sem máscara e não é
+  // filtrada por período). Opção A: aba preservada, com aviso explícito.
+  let spfAudit;
+  if(secureModeExport){
+    spfAudit=[{Aviso:'Auditoria detalhada de SPF por operação indisponível no modo seguro nesta fase. Os totais de SPF (bruto e 70%) já estão corretos nas abas 1, 2, 3 e 4.'}];
+  }else{
+  spfAudit=[];
   currentSellerRowsForReport().forEach(({a,m})=>{
     (m.spfAudit||[]).forEach(s=>spfAudit.push({
       Loja:a.loja||s.loja||'',
@@ -3805,6 +4109,7 @@ function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx'){
       Motivo:s.motivo||''
     }));
   });
+  }
   const wsSpf=XLSX.utils.json_to_sheet(spfAudit);
   wsSpf['!cols']=fitColsFromJson(spfAudit,12,60);
   styleWorksheetSafra(wsSpf,['VALOR','SPF'],[]);
@@ -3864,8 +4169,34 @@ function renderHistoricoCompetenciasHtml(){
   return `<h2>Histórico de Competências</h2><p class="note">Consulte competências fechadas usando exclusivamente os snapshots congelados.</p><div class="readonlyBanner">Modo histórico: somente leitura e sem recálculo.</div><div class="reportActions"><select id="histFechamentoSel">${opts}</select><button onclick="carregarHistoricoSnapshotSelecionado(document.getElementById('histFechamentoSel').value)">Abrir competência</button><button onclick="exportarRelatorioHistoricoSelecionado()">Exportar Excel Completo RH/DP Completo</button><button onclick="imprimirRelatorioHistoricoSelecionado()">PDF / Imprimir</button></div><h3>Comparar competências</h3><div class="reportActions"><select id="cmpA">${opts}</select><select id="cmpB">${opts}</select><button onclick="compararCompetenciasHistorico()">Comparar</button></div><div class="tableWrap"><table class="adminTable"><thead><tr><th>Competência</th><th>Período</th><th>Status</th><th>Fechado por</th><th>Comissão Total</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="6">Nenhum fechamento encontrado.</td></tr>'}</tbody></table></div>${(SNAPSHOT_VIEW||[]).length?renderSnapshotReportHtml(SNAPSHOT_VIEW,'Snapshot / Relatório carregado'):''}`;
 }
 function renderRelatoriosRhDpHtml(){
+  // Checkpoint C.3: centraliza as duas experiências de RH/DP na mesma aba.
+  // Seção 1 reutiliza exatamente exportarPreviaRhDp() — o mesmo botão/motor já
+  // homologado no Fechamento de Competência (Checkpoint C.2). Seção 2 preserva
+  // integralmente o fluxo histórico já corrigido (Checkpoint C4).
   const opts=historicoOptions();
-  return `<h2>Relatórios RH/DP</h2><p class="note">Relatórios para lançamento de comissões em folha. Todos os números vêm do snapshot congelado.</p><div class="readonlyBanner">Uso principal: DP/RH. Exportação sem recálculo e com memória do fechamento.</div><div class="reportActions"><select id="relFechamentoSel">${opts}</select><button onclick="carregarHistoricoSnapshotSelecionado(document.getElementById('relFechamentoSel').value)">Carregar</button><button onclick="exportarRelatorioHistoricoSelecionado()">Exportar Excel Completo</button><button onclick="imprimirRelatorioHistoricoSelecionado()">PDF / Imprimir</button></div>${(SNAPSHOT_VIEW||[]).length?renderSnapshotReportHtml(SNAPSHOT_VIEW,'Relatório RH/DP carregado'):'<div class="empty">Selecione uma competência fechada para gerar o relatório.</div>'}`;
+  const status=fechamentoEstadoAtualStatus();
+  const periodoAtual=periodoComissaoLabelAtual();
+  const fechamentoJaFechado=fechamentoAtual();
+  const statusAtualLabel=fechamentoJaFechado?'FECHADA':(status.estado==='PRONTO'?'EM CONFERÊNCIA / NÃO FECHADA':status.estado);
+  const secaoAtual=`<div class="rhReportPanel">
+      <h3>Competência Atual — Em Conferência</h3>
+      <div class="fechamentoPreviewGrid">
+        <div class="fechamentoPreviewCard"><div class="k">Período</div><div class="v" style="font-size:15px">${periodoAtual}</div></div>
+        <div class="fechamentoPreviewCard"><div class="k">Status</div><div class="v" style="font-size:15px">${statusAtualLabel}</div></div>
+      </div>
+      <p class="note">Arquivo para conferência antes do fechamento oficial da competência. A exportação não cria snapshot nem fecha a competência.</p>
+      ${status.estado!=='PRONTO'?`<p class="note" style="color:#ff6b61">${status.mensagem}</p>`:''}
+      <div class="fechamentoActionBox"><button ${status.estado!=='PRONTO'?'disabled':''} onclick="exportarPreviaRhDp()">Exportar Prévia RH/DP</button></div>
+    </div>`;
+  const secaoHistorico=`<div class="rhReportPanel">
+      <h3>Histórico de Competências Fechadas</h3>
+      <p class="note">Todos os números desta seção vêm exclusivamente do snapshot congelado — sem recálculo.</p>
+      <div class="reportActions"><select id="relFechamentoSel">${opts}</select><button onclick="carregarHistoricoSnapshotSelecionado(document.getElementById('relFechamentoSel').value)">Carregar</button><button onclick="exportarRelatorioHistoricoSelecionado()">Exportar Excel Completo</button><button onclick="imprimirRelatorioHistoricoSelecionado()">PDF / Imprimir</button></div>
+      ${SNAPSHOT_VIEW_SELECTED_ID
+        ?(SNAPSHOT_VIEW.length?renderSnapshotReportHtml(SNAPSHOT_VIEW,'Relatório RH/DP carregado'):'<div class="empty">Este fechamento não possui linhas de snapshot armazenadas.</div>')
+        :'<div class="empty">Selecione uma competência fechada para gerar o relatório.</div>'}
+    </div>`;
+  return `<h2>Relatórios RH/DP</h2><p class="note">Relatórios para lançamento de comissões em folha.</p>${secaoAtual}${secaoHistorico}`;
 }
 async function showHistoricoRelatoriosRH(){
   await carregarFechamentosComissao();
@@ -3993,6 +4324,7 @@ async function renderMasterAdminContent(renderSequence){
         <tbody>${rows||'<tr><td colspan="6">Nenhum período cadastrado.</td></tr>'}</tbody>
       </table></div>`;
   }else if(MASTER_TAB==='ausencias'){
+    if(String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure') await carregarUsuariosSupabase();
     await carregarAusenciasAnalistas();
     const rows=(AUSENCIAS_ANALISTAS||[]).map(a=>`
       <tr>
@@ -4025,6 +4357,7 @@ async function renderMasterAdminContent(renderSequence){
         <tbody>${rows||'<tr><td colspan="7">Nenhuma regra de ausência cadastrada.</td></tr>'}</tbody>
       </table></div>`;
   }else if(MASTER_TAB==='mudancas_loja'){
+    if(String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure') await carregarUsuariosSupabase();
     await carregarMudancasLojaVendedores();
     body=renderMudancasLojaVendedoresHtml();
   }else if(MASTER_TAB==='metricas'){
@@ -4034,9 +4367,15 @@ async function renderMasterAdminContent(renderSequence){
     body=renderHistoricoCompetenciasHtml();
   }else if(MASTER_TAB==='relatorios'){
     await carregarFechamentosComissao();
+    if(String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure'){
+      await Promise.allSettled([carregarUsuariosSupabase(), loadOperationalCommissionMetrics()]);
+    }
     body=renderRelatoriosRhDpHtml();
   }else if(MASTER_TAB==='fechamento'){
     await carregarFechamentosComissao();
+    if(String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure'){
+      await Promise.allSettled([carregarUsuariosSupabase(), loadOperationalCommissionMetrics()]);
+    }
     body=renderFechamentoCompetenciaPreview();
   }else if(MASTER_TAB==='bases'){
     body = typeof renderGestaoBasesTab==='function'
@@ -4064,9 +4403,29 @@ async function renderMasterAdminContent(renderSequence){
 
 
 function calcGestorFIGrupo(){
-  const vendedores=DATA.auth.filter(a=>a.tipo==='VENDEDOR');
-  const rows=vendedores.map(a=>({a,m:calcSeller(a)})).filter(x=>x.m.vendidas>0 || x.m.financiadas>0 || x.m.retorno>0 || x.m.spf>0);
-  const t=sumRows(rows);
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  let t, pronto=true;
+  if(secureMode){
+    const data=OPERATIONAL_METRICS_STATE.data;
+    if(!data||OPERATIONAL_METRICS_STATE.key!==operationalMetricsKey()){
+      pronto=false;
+      t={vendidas:0,financiadas:0,producao:0,retorno:0,spf:0,spfQty:0};
+    }else{
+      const g=data.totals||{};
+      t={
+        vendidas:Number(g.sold_count)||0,
+        financiadas:Number(g.financed_count)||0,
+        producao:Number(g.production_value)||0,
+        retorno:Number(g.return_value)||0,
+        spf:Number(g.spf_value)||0,
+        spfQty:Number(g.spf_count)||0
+      };
+    }
+  }else{
+    const vendedores=DATA.auth.filter(a=>a.tipo==='VENDEDOR');
+    const rows=vendedores.map(a=>({a,m:calcSeller(a)})).filter(x=>x.m.vendidas>0 || x.m.financiadas>0 || x.m.retorno>0 || x.m.spf>0);
+    t=sumRows(rows);
+  }
   const share=t.vendidas?((t.financiadas/t.vendidas)*100):0;
   const faixa=share<40?0.0016:0.0030; // 0,16% ou 0,30%
   const spfLiquido=(+t.spf||0)*(cfgNum('spf_liquido_percentual')/100);
@@ -4074,7 +4433,20 @@ function calcGestorFIGrupo(){
   const comissaoPrincipal=base*faixa;
   const bonusSpf=(+t.spfQty||0)*30;
   const comissaoFinal=comissaoPrincipal+bonusSpf;
-  return {...t, share, faixa, spfLiquido, base, comissaoPrincipal, bonusSpf, comissaoFinal};
+  return {...t, share, faixa, spfLiquido, base, comissaoPrincipal, bonusSpf, comissaoFinal, pronto};
+}
+// Identidade explícita do Gestor F&I em modo secure (Checkpoint B.2).
+// Existe mais de um usuário MASTER ativo no cadastro (ex.: contas de teste);
+// "primeiro MASTER em ordem alfabética" era um fallback silencioso e frágil.
+// Aponta por usuario_id (estável), nunca por nome. Sem fallback: se este id
+// não existir ou estiver inativo, gestorFIIdentidadeSegura() retorna null e
+// isso bloqueia estruturalmente o Fechamento (ver calcularPreviewFechamentoCompetenciaSegura).
+const GESTOR_FI_USUARIO_ID_SEGURO='b5168cef-d111-4c5f-873e-ea823bb22729'; // LUIS GUSTAVO DE MELO AMADIO
+function gestorFIIdentidadeSegura(){
+  const users=MASTER_SECURITY_STATE.data?.users||[];
+  const gestor=users.find(u=>u.id===GESTOR_FI_USUARIO_ID_SEGURO);
+  if(!gestor||!gestor.ativo) return null;
+  return gestor;
 }
 function showGestorFICommission(){
   if(!USER || USER.tipo!=='MASTER') return;
@@ -4460,6 +4832,36 @@ function renderKpis(){
       <div class="card"><div class="k">Rentabilidade Total</div><div class="v">${fmtMoney(Number(secureTotals.profitability_value)||0)}</div></div>
       <div class="card"><div class="k">Produção</div><div class="v">${fmtMoney(Number(secureTotals.production_value)||0)}</div></div>
       <div class="card operationalSourceCard"><div class="k">Fonte dos KPIs</div><div class="v">API SEGURA</div></div>`;
+      // Checkpoint D: DSR é exclusivamente visual, somente para ANALISTA, e nunca
+      // integra comissao_total oficial — só este bloco de apresentação em
+      // renderKpis(). Fonte: operational_analyst_commission_metrics_v2 (já
+      // carregada para todo usuário autenticado, escopada ao próprio analista
+      // pela própria RPC), nunca DATA.auth/DATA.sales/DATA.finance/calcSeller.
+      if(USER && USER.tipo==='ANALISTA'){
+        const keyAnalista=operationalMetricsKey();
+        const rowsAnalista=(OPERATIONAL_ANALYST_METRICS_STATE.key===keyAnalista?OPERATIONAL_ANALYST_METRICS_STATE.rows:[])
+          .filter(r=>norm(r.analyst_name||'')===norm(USER.nome||''));
+        if(rowsAnalista.length){
+          const mAnalista={
+            vendidas:rowsAnalista.reduce((s,r)=>s+(Number(r.sold_count)||0),0),
+            financiadas:rowsAnalista.reduce((s,r)=>s+(Number(r.financed_count)||0),0),
+            producao:rowsAnalista.reduce((s,r)=>s+(Number(r.production_value)||0),0),
+            retorno:rowsAnalista.reduce((s,r)=>s+(Number(r.return_value)||0),0),
+            spf:rowsAnalista.reduce((s,r)=>s+(Number(r.spf_value)||0),0),
+            spfQty:rowsAnalista.reduce((s,r)=>s+(Number(r.spf_count)||0),0),
+            items:[]
+          };
+          const cAnalista=commissionCalc('ANALISTA',mAnalista,'analyst');
+          const dsr=calcDsrMes();
+          const valorDsr=(cAnalista.comissaoTotal||0)*(dsr.pct||0);
+          const comissaoComDsrVisual=(cAnalista.comissaoTotal||0)+valorDsr;
+          kpis.innerHTML+=`
+      <div class="card"><div class="k">Comissão (Analista)</div><div class="v">${fmtMoney(cAnalista.comissaoTotal||0)}</div></div>
+      <div class="card"><div class="k">DSR do mês</div><div class="v">${fmtPct2(dsr.pct||0)}</div>${dsrInfoHtml(dsr,valorDsr)}</div>
+      <div class="card comissaoCard dsrTotalCard"><div class="k">Comissão + DSR</div><div class="v">${fmtMoney(comissaoComDsrVisual)}</div></div>`;
+          kpis.setAttribute('data-dsr-validacao',`DSR: ${fmtPct2(dsr.pct||0)}; Comissão base: ${fmtMoney(cAnalista.comissaoTotal||0)}; Valor DSR: ${fmtMoney(valorDsr)}; Comissão + DSR: ${fmtMoney(comissaoComDsrVisual)}`);
+        }
+      }
       return;
     }
     const message=OPERATIONAL_METRICS_STATE.loading
