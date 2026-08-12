@@ -257,6 +257,13 @@ table.compactMain td.commValue{
 .authMsg.err{color:#ff8a8a!important}
 .authMsg.ok{color:#8ff0c6!important}
 .passwordHint{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}
+.loginInfoBox{margin:0 0 18px;padding:14px 16px;border:1px solid rgba(201,173,100,.35);border-radius:14px;background:rgba(201,173,100,.08)}
+.loginInfoTitle{margin:0 0 8px;font-size:12px;font-weight:900;letter-spacing:.04em;color:#c9ad64;text-transform:uppercase}
+.loginInfoBox ul{margin:0;padding-left:18px;color:#ddd;font-size:13px;line-height:1.5}
+.loginInfoExample{margin-top:10px;padding-top:10px;border-top:1px solid rgba(201,173,100,.2)}
+.loginInfoExampleLabel{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
+.loginInfoExampleRow{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#ddd;padding:2px 0}
+.loginInfoNote{margin:8px 0 0;font-size:12px;color:var(--muted)}
 </style>
 
 
@@ -985,6 +992,19 @@ body{background:
 <main>
 <div class="login" id="loginBox">
   <h2>FAÇA SEU LOGIN PARA ACESSAR O PORTAL F&I</h2>
+  <div class="loginInfoBox">
+    <p class="loginInfoTitle">Para o primeiro acesso à atualização de e-mail</p>
+    <ul>
+      <li>No campo de e-mail, digite: <b>SEUCPF@portalfi.brabus</b></li>
+      <li>Sua senha continua a mesma.</li>
+    </ul>
+    <div class="loginInfoExample">
+      <span class="loginInfoExampleLabel">Exemplo</span>
+      <div class="loginInfoExampleRow"><span>CPF</span><b>123.456.789-00</b></div>
+      <div class="loginInfoExampleRow"><span>Login</span><b>12345678900@portalfi.brabus</b></div>
+      <p class="loginInfoNote">Informe o CPF somente com números, sem pontos ou traço.</p>
+    </div>
+  </div>
   <form id="loginForm" onsubmit="event.preventDefault();login()">
   <div class="loginRowPremium">
     <div class="loginField">
@@ -1015,6 +1035,7 @@ body{background:
   <div id="migEmailEtapaForm">
     <p class="migEmailTexto">Para aumentar a segurança da sua conta, informe um endereço de e-mail válido ao qual você tenha acesso.</p>
     <p class="migEmailTexto">Esse endereço será utilizado para entrar no Portal F&amp;I e recuperar sua conta.</p>
+    <p class="migEmailTexto">Você pode cadastrar seu e-mail pessoal ou seu e-mail corporativo @brabus.com.br. O endereço informado será seu novo login no Portal.</p>
     <label for="migEmailNovo">Novo e-mail</label>
     <input id="migEmailNovo" type="email" autocomplete="email" placeholder="seuemail@exemplo.com">
     <label for="migEmailConfirmar">Confirmar novo e-mail</label>

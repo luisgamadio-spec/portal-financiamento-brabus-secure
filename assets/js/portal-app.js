@@ -1510,6 +1510,96 @@ async function primeiroAcesso(){
     setAuthMsg('Cadastro iniciado. Tente entrar com CPF e senha.',true);
   }
 }
+// Fase 3.25/3.25.1: sessionStorage é por-aba e sobrevive a F5, mas é
+// apagado ao fechar a aba/janela (e não existe em uma aba nova) — por
+// isso serve para diferenciar "refresh de uma sessão ativa" de "nova
+// visita ao Portal", sem depender de heurística frágil de URL/referrer.
+//
+// Fase 3.25.2: um booleano em sessionStorage não basta, porque o Chrome
+// "Duplicar aba" clona o sessionStorage inteiro — a aba clonada herdaria
+// o mesmo marcador e seria indistinguível da original só por esse valor
+// (confirmado em teste manual real). Para detectar a clonagem, cada aba
+// com sessão ativa recebe um identificador único (instanceId) e mantém
+// um Web Lock exclusivo nomeado por esse id pelo tempo de vida da aba.
+// Uma aba clonada herda o MESMO instanceId (também clonado), mas ao
+// tentar adquirir o lock encontra-o já em uso pela aba original — sem
+// nenhuma espera ou heurística de tempo, o navegador arbitra isso de
+// forma atômica (Web Locks API, {ifAvailable:true}, não-bloqueante).
+// Um F5 na mesma aba funciona porque o documento antigo libera o lock ao
+// descarregar, antes do novo documento (com o mesmo instanceId, pois
+// sessionStorage sobrevive ao F5) tentar adquiri-lo.
+const PORTAL_TAB_INSTANCE_KEY='portalTabInstanceId';
+const PORTAL_TAB_LOCK_PREFIX='portal-fi-tab-lock:';
+let PORTAL_TAB_LOCK_RELEASE_FN=null;
+// instanceId cujo lock esta aba JÁ mantém preso neste carregamento de
+// página — evita reentrar em navigator.locks.request() para o mesmo
+// nome que esta própria aba já detém (locks não são reentrantes: uma
+// segunda solicitação para o mesmo nome, mesmo pela mesma aba, ficaria
+// indisponível e seria mal interpretada como uma clonagem).
+let PORTAL_TAB_LOCK_HELD_FOR=null;
+function portalNovoInstanceId(){
+  return (window.crypto&&crypto.randomUUID)
+    ?crypto.randomUUID()
+    :`${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+function portalReleaseTabLock(){
+  PORTAL_TAB_LOCK_HELD_FOR=null;
+  if(PORTAL_TAB_LOCK_RELEASE_FN){
+    const fn=PORTAL_TAB_LOCK_RELEASE_FN;
+    PORTAL_TAB_LOCK_RELEASE_FN=null;
+    fn();
+  }
+}
+function portalAcquireTabLock(instanceId){
+  if(PORTAL_TAB_LOCK_HELD_FOR===instanceId)return Promise.resolve(true);
+  return new Promise((resolveOuter)=>{
+    if(!('locks' in navigator)){
+      // Sem suporte a Web Locks: falha seguro — não reivindica posse
+      // exclusiva, então o chamador não deve restaurar automaticamente.
+      resolveOuter(false);
+      return;
+    }
+    try{
+      navigator.locks.request(PORTAL_TAB_LOCK_PREFIX+instanceId,{ifAvailable:true},(lock)=>{
+        if(!lock){resolveOuter(false);return;}
+        // Mantém o lock preso (a promise só resolve em portalReleaseTabLock).
+        return new Promise((resolveHold)=>{
+          PORTAL_TAB_LOCK_RELEASE_FN=resolveHold;
+          PORTAL_TAB_LOCK_HELD_FOR=instanceId;
+          resolveOuter(true);
+        });
+      }).catch(()=>resolveOuter(false));
+    }catch(e){
+      resolveOuter(false);
+    }
+  });
+}
+async function portalMarcarTabSessaoAtiva(){
+  const id=portalNovoInstanceId();
+  if(PORTAL_TAB_LOCK_HELD_FOR!==id)portalReleaseTabLock();
+  try{sessionStorage.setItem(PORTAL_TAB_INSTANCE_KEY,id);}catch(e){}
+  await portalAcquireTabLock(id);
+}
+async function portalTabTemSessaoAtiva(){
+  let id=null;
+  try{id=sessionStorage.getItem(PORTAL_TAB_INSTANCE_KEY);}catch(e){}
+  if(!id)return false;
+  const adquiriu=await portalAcquireTabLock(id);
+  if(!adquiriu){
+    // Outra aba viva já é dona deste instanceId: esta é uma clonagem.
+    // Não é seguro restaurar aqui, mas também não se deve tocar na
+    // sessão compartilhada nem na aba original. Remove o identificador
+    // clonado desta aba; se o usuário se autenticar explicitamente aqui,
+    // ganha um instanceId (e lock) próprios via portalMarcarTabSessaoAtiva().
+    try{sessionStorage.removeItem(PORTAL_TAB_INSTANCE_KEY);}catch(e){}
+    return false;
+  }
+  return true;
+}
+function portalLimparTabSessaoAtiva(){
+  try{sessionStorage.removeItem(PORTAL_TAB_INSTANCE_KEY);}catch(e){}
+  portalReleaseTabLock();
+}
 async function tentarRestaurarSessao(){
   try{
     if(!supabaseClient || !DATA_READY) return;
@@ -1517,6 +1607,19 @@ async function tentarRestaurarSessao(){
     const session=data?.session;
     if(PORTAL_RUNTIME_CONFIG.authMode==='secure'){
       if(!session)return;
+      if(!(await portalTabTemSessaoAtiva())){
+        // Fase 3.25.1: nova visita (aba nova/navegador reaberto) com uma
+        // sessão do Supabase ainda persistida em localStorage de um uso
+        // anterior — não entrar silenciosamente, mas também NÃO chamar
+        // signOut() aqui. O escopo padrão do signOut() é global e
+        // encerraria a sessão em TODAS as abas/dispositivos que a
+        // compartilham (localStorage é compartilhado entre abas da mesma
+        // origem) — abrir uma aba nova não pode deslogar uma aba A ainda
+        // em uso. Apenas não restaura e mantém a tela de login visível;
+        // a sessão persistida só é encerrada por ação explícita do
+        // usuário (login novo nesta aba ou clique em Sair).
+        return;
+      }
       const u=await carregarUsuarioAutorizado();
       await carregarParametrosPortal();
       USER=u;
@@ -1833,6 +1936,10 @@ async function login(){
         );
         return;
       }
+      // Autenticação explícita concluída nesta aba (ação de submit/clique do
+      // usuário) — só a partir daqui um F5 nesta mesma aba pode restaurar a
+      // sessão automaticamente. Ver tentarRestaurarSessao().
+      await portalMarcarTabSessaoAtiva();
       loginStage='perfil autorizado';
       let u=await carregarUsuarioAutorizado();
       loginStage='registro seguro de login';
@@ -1856,6 +1963,7 @@ async function login(){
       await initApp();
     }catch(e){
       await supabaseClient.auth.signOut();
+      portalLimparTabSessaoAtiva();
       USER=null;
       REAL_USER=null;
       const detail=String(e?.message||'falha não identificada')
@@ -2096,6 +2204,7 @@ if(!PORTAL_SECURITY.allowClientHomologation){
 }
 async function logout(){
   try{ if(supabaseClient) await supabaseClient.auth.signOut(); }catch(e){}
+  portalLimparTabSessaoAtiva();
   USER=null; REAL_USER=null; HOMOLOGATION_USER=null; APP_VIEW='login';
   document.getElementById('app').classList.add('hidden');
   document.getElementById('portalHome')?.classList.add('hidden');
