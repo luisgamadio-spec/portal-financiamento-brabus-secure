@@ -5362,24 +5362,24 @@ function renderKpis(){
         const rowsAnalista=(OPERATIONAL_ANALYST_METRICS_STATE.key===keyAnalista?OPERATIONAL_ANALYST_METRICS_STATE.rows:[])
           .filter(r=>norm(r.analyst_name||'')===norm(USER.nome||''));
         if(rowsAnalista.length){
-          const mAnalista={
-            vendidas:rowsAnalista.reduce((s,r)=>s+(Number(r.sold_count)||0),0),
-            financiadas:rowsAnalista.reduce((s,r)=>s+(Number(r.financed_count)||0),0),
-            producao:rowsAnalista.reduce((s,r)=>s+(Number(r.production_value)||0),0),
-            retorno:rowsAnalista.reduce((s,r)=>s+(Number(r.return_value)||0),0),
-            spf:rowsAnalista.reduce((s,r)=>s+(Number(r.spf_value)||0),0),
-            spfQty:rowsAnalista.reduce((s,r)=>s+(Number(r.spf_count)||0),0),
-            items:[]
-          };
-          const cAnalista=commissionCalc('ANALISTA',mAnalista,'analyst');
+          // Incidente 5.2/5.3: comissão do Analista é a SOMA da comissão de
+          // cada linha (mesma regra já homologada em operationalAnalystRowHtml()
+          // e calcularPreviewFechamentoCompetenciaSegura()) — nunca
+          // commissionCalc sobre métricas consolidadas, porque a faixa
+          // (3,5%/4,5%) depende de um limiar de share que muda de resultado
+          // conforme se calcula por linha ou sobre o total agregado.
+          const comissaoAnalistaTotal=rowsAnalista.reduce(
+            (s,r)=>s+(commissionCalc('ANALISTA',operationalMetricFromRow(r),'analyst').comissaoTotal||0),
+            0
+          );
           const dsr=calcDsrMes();
-          const valorDsr=(cAnalista.comissaoTotal||0)*(dsr.pct||0);
-          const comissaoComDsrVisual=(cAnalista.comissaoTotal||0)+valorDsr;
+          const valorDsr=comissaoAnalistaTotal*(dsr.pct||0);
+          const comissaoComDsrVisual=comissaoAnalistaTotal+valorDsr;
           kpis.innerHTML+=`
-      <div class="card"><div class="k">Comissão (Analista)</div><div class="v">${fmtMoney(cAnalista.comissaoTotal||0)}</div></div>
+      <div class="card"><div class="k">Comissão (Analista)</div><div class="v">${fmtMoney(comissaoAnalistaTotal)}</div></div>
       <div class="card"><div class="k">DSR do mês</div><div class="v">${fmtPct2(dsr.pct||0)}</div>${dsrInfoHtml(dsr,valorDsr)}</div>
       <div class="card comissaoCard dsrTotalCard"><div class="k">Comissão + DSR</div><div class="v">${fmtMoney(comissaoComDsrVisual)}</div></div>`;
-          kpis.setAttribute('data-dsr-validacao',`DSR: ${fmtPct2(dsr.pct||0)}; Comissão base: ${fmtMoney(cAnalista.comissaoTotal||0)}; Valor DSR: ${fmtMoney(valorDsr)}; Comissão + DSR: ${fmtMoney(comissaoComDsrVisual)}`);
+          kpis.setAttribute('data-dsr-validacao',`DSR: ${fmtPct2(dsr.pct||0)}; Comissão base: ${fmtMoney(comissaoAnalistaTotal)}; Valor DSR: ${fmtMoney(valorDsr)}; Comissão + DSR: ${fmtMoney(comissaoComDsrVisual)}`);
         }
       }
       return;
