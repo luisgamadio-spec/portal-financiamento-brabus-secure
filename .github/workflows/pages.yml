@@ -1,0 +1,69 @@
+name: Deploy Portal to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Artifact é montado num diretório separado, nunca a raiz do repo —
+      # supabase/ (backend versionado), scripts/ e qualquer outro arquivo
+      # de desenvolvimento NUNCA são copiados para cá, mesmo que existam
+      # no commit. Só a allowlist explícita abaixo entra no site publicado.
+      - name: Montar artifact (somente frontend)
+        run: |
+          set -e
+          mkdir -p _pages_dist
+
+          for f in index.html primeiro-acesso.html verificar-email.html verificar-acesso.html .nojekyll; do
+            if [ -f "$f" ]; then
+              cp "$f" "_pages_dist/$f"
+            fi
+          done
+
+          if [ -d assets ]; then
+            mkdir -p _pages_dist/assets
+            cp -r assets/. _pages_dist/assets/
+          fi
+
+          if [ -d modules ]; then
+            mkdir -p _pages_dist/modules
+            cp -r modules/. _pages_dist/modules/
+          fi
+
+          echo "Conteúdo do artifact a ser publicado:"
+          find _pages_dist -type f | sort
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload do artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _pages_dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
