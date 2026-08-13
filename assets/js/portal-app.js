@@ -2150,6 +2150,291 @@ async function enviarVerificacaoMigracaoEmail(isReenvio){
   }
 }
 
+// ===================== Fase 4.1 — ATIVAR MEU ACESSO =====================
+// Fluxo público, pré-login, isolado do fluxo de migração de e-mail acima:
+// tabela (ativacoes_acesso_usuario), tokens e Edge Functions próprias e
+// deliberadamente separadas (não misturar). Nesta fase o fluxo para em
+// EMAIL_VERIFICADO — não altera Auth, não altera usuarios.
+let ATIVACAO_CPF='';
+let ATIVACAO_ULTIMO_ENVIO_EM=0;
+async function obtainTurnstileTokenParaAtivacao(){
+  const sitekey=PORTAL_RUNTIME_CONFIG.turnstileSiteKey;
+  if(!sitekey)return '';
+  const api=await loadTurnstileScript();
+  return new Promise((resolve,reject)=>{
+    const host=document.createElement('div');
+    host.setAttribute('aria-label','Verificação de segurança');
+    Object.assign(host.style,{position:'fixed',right:'18px',bottom:'18px',zIndex:'2147483647'});
+    document.body.appendChild(host);
+    let widgetId=null;
+    let finished=false;
+    const cleanup=()=>{
+      if(widgetId!==null){try{api.remove(widgetId)}catch(_){}}
+      host.remove();
+    };
+    const finish=(error,token='')=>{
+      if(finished)return;
+      finished=true;
+      clearTimeout(timer);
+      cleanup();
+      if(error)reject(error);else resolve(token);
+    };
+    const timer=setTimeout(()=>finish(new Error('A verificação de segurança expirou. Tente novamente.')),120000);
+    try{
+      widgetId=api.render(host,{
+        sitekey,
+        theme:'dark',
+        appearance:'interaction-only',
+        execution:'execute',
+        callback:token=>finish(null,token),
+        'error-callback':()=>finish(new Error('A verificação de segurança falhou. Tente novamente.')),
+        'expired-callback':()=>finish(new Error('A verificação de segurança expirou. Tente novamente.'))
+      });
+      api.execute(widgetId);
+    }catch(error){finish(error)}
+  });
+}
+function ativacaoResetParaCpf(){
+  ATIVACAO_CPF='';
+  document.getElementById('ativEtapaCpf')?.classList.remove('hidden');
+  document.getElementById('ativEtapaGenerica')?.classList.add('hidden');
+  document.getElementById('ativEtapaForm')?.classList.add('hidden');
+  document.getElementById('ativEtapaEnviado')?.classList.add('hidden');
+  const cpfInput=document.getElementById('ativCpfInput'); if(cpfInput)cpfInput.value='';
+  const msg=document.getElementById('ativCpfMsg'); if(msg){msg.textContent='';msg.className='authMsg'}
+}
+function ativacaoAbrirTela(){
+  document.getElementById('loginBox')?.classList.add('hidden');
+  document.getElementById('migracaoEmailScreen')?.classList.add('hidden');
+  document.getElementById('ativarAcessoScreen')?.classList.remove('hidden');
+  ativacaoResetParaCpf();
+}
+function ativacaoVoltarLogin(){
+  document.getElementById('ativarAcessoScreen')?.classList.add('hidden');
+  document.getElementById('loginBox')?.classList.remove('hidden');
+  ativacaoResetParaCpf();
+}
+async function ativacaoIdentificar(){
+  const msgEl=document.getElementById('ativCpfMsg');
+  const setMsg=(t,err)=>{if(msgEl){msgEl.textContent=t||'';msgEl.className='authMsg'+(err?' err':'')}};
+  const cpf=(document.getElementById('ativCpfInput')?.value||'').replace(/\D/g,'');
+  if(cpf.length!==11){setMsg('Digite um CPF válido (somente números).',true);return}
+  const btn=document.getElementById('ativBtnIdentificar');
+  if(btn)btn.disabled=true;
+  setMsg('Verificando...');
+  try{
+    let captchaToken='';
+    try{
+      captchaToken=await obtainTurnstileTokenParaAtivacao();
+    }catch(captchaErr){
+      setMsg('Não foi possível concluir a verificação de segurança. Tente novamente.',true);
+      return;
+    }
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/activation-lookup`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY},
+      body:JSON.stringify({cpf,captchaToken})
+    });
+    if(resp.status===403){setMsg('A verificação de segurança falhou. Tente novamente.',true);return}
+    if(resp.status===429){setMsg('Muitas tentativas. Aguarde alguns minutos e tente novamente.',true);return}
+    const result=await resp.json().catch(()=>({elegivel:false}));
+    setMsg('');
+    if(result?.elegivel===true){
+      ATIVACAO_CPF=cpf;
+      const nomeEl=document.getElementById('ativNomeMascarado');
+      if(nomeEl)nomeEl.value=result.nomeMascarado||'';
+      document.getElementById('ativEtapaCpf')?.classList.add('hidden');
+      document.getElementById('ativEtapaForm')?.classList.remove('hidden');
+    }else{
+      document.getElementById('ativEtapaCpf')?.classList.add('hidden');
+      document.getElementById('ativEtapaGenerica')?.classList.remove('hidden');
+    }
+  }catch(e){
+    setMsg('Falha ao verificar: '+String(e?.message||e),true);
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+const ATIVACAO_ERRO_MENSAGENS={
+  CPF_INVALIDO:'CPF inválido.',
+  NAO_ELEGIVEL:'Este CPF não está elegível para ativação no momento.',
+  EMAIL_INVALIDO:'Digite um e-mail válido.',
+  EMAIL_FICTICIO_NAO_PERMITIDO:'Use seu e-mail real — não um e-mail interno/fictício.',
+  EMAIL_JA_EM_USO:'Este e-mail já está em uso por outra conta ou ativação.',
+  CELULAR_INVALIDO:'Digite um celular válido, com DDD.',
+  LOJA_INVALIDA:'Selecione uma loja válida.',
+  NBS_INVALIDO:'Login NBS inválido.',
+  ATIVACAO_EM_ESTADO_NAO_EDITAVEL:'Esta ativação já avançou para uma etapa seguinte e não pode mais ser editada aqui.',
+  AGUARDE_COOLDOWN:'Aguarde antes de reenviar.',
+  RATE_LIMIT:'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+  CAPTCHA_INVALIDO:'A verificação de segurança falhou. Tente novamente.',
+  FALHA_ENVIO_EMAIL:'Não foi possível enviar o e-mail agora. Tente novamente em instantes.'
+};
+async function ativacaoEnviarVerificacao(isReenvio){
+  const msgEl=document.getElementById(isReenvio?'ativEnviadoMsg':'ativFormMsg');
+  const setMsg=(t,err)=>{if(msgEl){msgEl.textContent=t||'';msgEl.className='authMsg'+(err?' err':'')}};
+  if(!ATIVACAO_CPF){setMsg('Sessão de identificação expirada. Reinicie a ativação.',true);return}
+  const email=(document.getElementById('ativEmailInput')?.value||'').trim().toLowerCase();
+  const celular=(document.getElementById('ativCelularInput')?.value||'').replace(/\D/g,'');
+  const loja=document.getElementById('ativLojaSel')?.value||'';
+  const nbs=(document.getElementById('ativNbsInput')?.value||'').trim();
+  if(!isReenvio){
+    if(!email){setMsg('Informe o e-mail.',true);return}
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){setMsg('Digite um e-mail válido.',true);return}
+  }
+  const cooldownRestante=60-Math.floor((Date.now()-ATIVACAO_ULTIMO_ENVIO_EM)/1000);
+  if(ATIVACAO_ULTIMO_ENVIO_EM && cooldownRestante>0){
+    setMsg(`Aguarde ${cooldownRestante}s antes de tentar novamente.`,true);
+    return;
+  }
+  const btn=document.getElementById(isReenvio?'ativBtnReenviar':'ativBtnEnviar');
+  if(btn)btn.disabled=true;
+  setMsg('Enviando verificação...');
+  try{
+    let captchaToken='';
+    try{
+      captchaToken=await obtainTurnstileTokenParaAtivacao();
+    }catch(captchaErr){
+      setMsg('Não foi possível concluir a verificação de segurança. Tente novamente.',true);
+      return;
+    }
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/activation-request`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY},
+      body:JSON.stringify({cpf:ATIVACAO_CPF,captchaToken,email,celular,loja,nbs})
+    });
+    const result=await resp.json().catch(()=>({success:false}));
+    if(!resp.ok || result?.success!==true){
+      setMsg(ATIVACAO_ERRO_MENSAGENS[result?.codigo]||'Não foi possível enviar a verificação.',true);
+      return;
+    }
+    ATIVACAO_ULTIMO_ENVIO_EM=Date.now();
+    document.getElementById('ativEtapaForm')?.classList.add('hidden');
+    document.getElementById('ativEtapaEnviado')?.classList.remove('hidden');
+    setMsg('');
+  }catch(e){
+    setMsg('Falha ao enviar verificação: '+String(e?.message||e),true);
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+// Fase 4.1.1 — máscara puramente visual: (XX) X XXXX XXXX. O payload
+// enviado ao backend (ativacaoEnviarVerificacao) já limpa com
+// .replace(/\D/g,'') antes de montar o corpo da requisição — a máscara
+// aqui não altera esse comportamento, só o que aparece no campo.
+function ativacaoFormatarCelular(digits){
+  const d=String(digits||'').replace(/\D/g,'').slice(0,11);
+  let out='';
+  if(d.length>0)out+='('+d.slice(0,2);
+  if(d.length>=2)out+=') ';
+  else return out;
+  if(d.length>2)out+=d.slice(2,3);
+  if(d.length>3)out+=' '+d.slice(3,7);
+  if(d.length>7)out+=' '+d.slice(7,11);
+  return out;
+}
+function ativacaoAplicarMascaraCelular(input){
+  if(!input)return;
+  const cursorNoFinal=input.selectionStart===input.value.length;
+  input.value=ativacaoFormatarCelular(input.value);
+  if(cursorNoFinal)input.setSelectionRange(input.value.length,input.value.length);
+}
+function ativacaoUsarOutroEmail(){
+  document.getElementById('ativEtapaEnviado')?.classList.add('hidden');
+  document.getElementById('ativEtapaForm')?.classList.remove('hidden');
+  const emailInput=document.getElementById('ativEmailInput'); if(emailInput)emailInput.value='';
+  const msg=document.getElementById('ativFormMsg'); if(msg){msg.textContent='';msg.className='authMsg'}
+}
+function ativacaoReenviar(){ativacaoEnviarVerificacao(true)}
+// Fase 4.2 — CRIAR NOVA SENHA / ATIVAR ACESSO.
+// O continuation token só existe em memória (variável de módulo) nesta
+// aba — nunca é regravado na URL/histórico depois de lido do fragmento.
+let ATIVACAO_CONTINUATION_TOKEN='';
+function ativacaoTogglePwd(inputId,btn){
+  const input=document.getElementById(inputId);
+  if(!input)return;
+  const mostrando=input.type==='text';
+  input.type=mostrando?'password':'text';
+  if(btn)btn.textContent=mostrando?'mostrar':'ocultar';
+}
+function ativacaoValidarSenhaLocal(senha){
+  if(senha.length<8)return 'A senha deve ter no mínimo 8 caracteres.';
+  if(!/[a-zA-Z]/.test(senha)||!/[0-9]/.test(senha))return 'A senha deve conter letras e números.';
+  return '';
+}
+Object.assign(ATIVACAO_ERRO_MENSAGENS,{
+  SENHA_CURTA:'A senha deve ter no mínimo 8 caracteres.',
+  SENHA_FRACA:'A senha deve conter letras e números.',
+  SENHAS_NAO_COINCIDEM:'As senhas não coincidem.',
+  TOKEN_JA_USADO:'Este link já foi utilizado. Reabra o e-mail de confirmação mais recente.',
+  USUARIO_NAO_ELEGIVEL:'Esta ativação não está mais disponível.',
+  IDENTIDADE_INCONSISTENTE:'Não foi possível concluir por inconsistência de cadastro. Contate o administrador.',
+  FALHA_AO_ATIVAR:'Não foi possível ativar seu acesso agora. Tente novamente em instantes.',
+  FINALIZACAO_PENDENTE:'Sua senha foi definida, mas a conclusão está pendente. Tente novamente em instantes.',
+  EM_PROCESSAMENTO:'Esta ativação já está sendo processada. Aguarde um instante e tente novamente.'
+});
+async function ativacaoConcluir(){
+  const msgEl=document.getElementById('ativSenhaMsg');
+  const setMsg=(t,err)=>{if(msgEl){msgEl.textContent=t||'';msgEl.className='authMsg'+(err?' err':'')}};
+  if(!ATIVACAO_CONTINUATION_TOKEN){setMsg('Sessão de ativação expirada. Reabra o link recebido por e-mail.',true);return}
+  const senha=document.getElementById('ativSenhaNova')?.value||'';
+  const confirmar=document.getElementById('ativSenhaConfirmar')?.value||'';
+  if(senha!==confirmar){setMsg('As senhas não coincidem.',true);return}
+  const erroLocal=ativacaoValidarSenhaLocal(senha);
+  if(erroLocal){setMsg(erroLocal,true);return}
+  const btn=document.getElementById('ativBtnAtivar');
+  if(btn)btn.disabled=true;
+  setMsg('Ativando acesso...');
+  try{
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/activation-complete`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY},
+      body:JSON.stringify({continuationToken:ATIVACAO_CONTINUATION_TOKEN,novaSenha:senha,confirmarSenha:confirmar})
+    });
+    const result=await resp.json().catch(()=>({success:false}));
+    if(result?.success===true || result?.codigo==='JA_CONCLUIDA'){
+      ATIVACAO_CONTINUATION_TOKEN='';
+      document.getElementById('ativEtapaSenha')?.classList.add('hidden');
+      document.getElementById('ativEtapaConcluido')?.classList.remove('hidden');
+      setMsg('');
+      return;
+    }
+    setMsg(ATIVACAO_ERRO_MENSAGENS[result?.codigo]||'Não foi possível concluir a ativação.',true);
+  }catch(e){
+    setMsg('Falha ao concluir: '+String(e?.message||e),true);
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+// Botão "Ativar meu acesso" fica oculto por padrão — só aparece com
+// ?ativacao=1 na URL, para não expor o fluxo globalmente antes da
+// homologação (Fase 4.1). Não depende de localhost: a ativação de fato
+// (Fase 4.2+) precisa funcionar em produção também, só não pode ficar
+// visível/descoberta por acaso antes de autorizado.
+(function initAtivarAcessoGate(){
+  document.addEventListener('DOMContentLoaded',()=>{
+    const params=new URLSearchParams(location.search);
+    if(params.get('ativacao')==='1'){
+      document.getElementById('ativarAcessoBox')?.classList.remove('hidden');
+    }
+    // Retorno de verificar-acesso.html com token de continuação —
+    // abre direto na etapa de criar senha, independente do gate acima.
+    const hash=location.hash||'';
+    const match=hash.match(/(?:^#|&)continuar=([^&]+)/);
+    if(match){
+      ATIVACAO_CONTINUATION_TOKEN=decodeURIComponent(match[1]);
+      history.replaceState(null,'',location.pathname+location.search);
+      document.getElementById('loginBox')?.classList.add('hidden');
+      document.getElementById('migracaoEmailScreen')?.classList.add('hidden');
+      document.getElementById('ativarAcessoScreen')?.classList.remove('hidden');
+      ['ativEtapaCpf','ativEtapaGenerica','ativEtapaForm','ativEtapaEnviado','ativEtapaConcluido'].forEach(id=>{
+        document.getElementById(id)?.classList.add('hidden');
+      });
+      document.getElementById('ativEtapaSenha')?.classList.remove('hidden');
+    }
+  });
+})();
+
 // Preview LOCAL, só visual — não chama request-email-migration, não toca
 // Auth/banco, não envia Postmark. Só existe em localhost/127.0.0.1 com
 // ?emailMigrationPreview=1 na URL. Documentado na entrega da Fase 3.6.
@@ -2626,6 +2911,9 @@ let MASTER_PANEL_OPEN=false;
 let MASTER_TAB='usuarios';
 let MASTER_SEARCH='';
 let ADMIN_MODAL_STATE=null;
+// Fase 4.3 — Revisões Cadastrais (Ativação de Acesso).
+let MASTER_REVISOES_PENDENTES=0;
+let MASTER_REVISOES_FILTRO='PENDENTE';
 
 function toggleMasterAdmin(){
   MASTER_PANEL_OPEN=!MASTER_PANEL_OPEN;
@@ -2635,6 +2923,109 @@ function toggleMasterAdmin(){
 }
 function setMasterTab(tab){MASTER_TAB=tab;renderMasterAdmin();}
 function setMasterSearch(v){MASTER_SEARCH=(v||'').toUpperCase();renderMasterAdmin();}
+
+// ---------------- Fase 4.3 — Revisões Cadastrais (Ativação de Acesso) ----------------
+// Divergências (Loja/Login NBS) aceitas durante o novo Primeiro Acesso,
+// já aplicadas em usuarios pela conclusão da ativação (Fase 4.2) — esta
+// aba é só revisão administrativa pós-fato, nunca bloqueia o usuário.
+function setRevisoesFiltro(f){MASTER_REVISOES_FILTRO=f;renderMasterAdmin();}
+async function renderRevisoesCadastraisHtml(){
+  let payload=null;
+  try{
+    const {data,error}=await supabaseClient.rpc('master_list_revisoes_cadastrais',{p_status:MASTER_REVISOES_FILTRO});
+    if(error) throw error;
+    payload=data;
+  }catch(e){
+    return `<h2>Revisões Cadastrais</h2><p class="note" style="color:#ff6b61">Não foi possível carregar as revisões: ${escapeOperationalHtml(String(e?.message||e))}</p>`;
+  }
+  const linhas=payload?.rows||[];
+  const filtros=[['PENDENTE','Pendentes'],['APROVADO','Aprovadas'],['CORRIGIDO','Corrigidas'],['TODAS','Todas']];
+  const badgeStatus=s=>({PENDENTE:'warn',APROVADO:'ok',CORRIGIDO:'ok'}[s]||'warn');
+  const rows=linhas.map(r=>{
+    const acoes=r.status==='PENDENTE'?`
+      <div class="adminActions">
+        <button class="adminActionBtn good" onclick="aprovarRevisaoCadastralAction('${r.revisao_id}','${escapeOperationalHtml(r.campo)}','${escapeOperationalHtml(String(r.valor_novo||''))}','${escapeOperationalHtml(r.usuario_nome||'')}')">Aprovar</button>
+        <button class="adminActionBtn warn" onclick="abrirCorrigirRevisaoModal('${r.revisao_id}','${escapeOperationalHtml(r.campo)}','${escapeOperationalHtml(String(r.valor_novo||''))}','${escapeOperationalHtml(r.usuario_nome||'')}')">Corrigir</button>
+      </div>`:'<span class="note">—</span>';
+    return `<tr>
+      <td>${escapeOperationalHtml(r.usuario_nome||'')}</td>
+      <td>${escapeOperationalHtml(r.campo||'')}</td>
+      <td class="revisaoValorAnterior">${escapeOperationalHtml(r.valor_anterior==null?'(vazio)':String(r.valor_anterior))}</td>
+      <td class="revisaoValorNovo">${escapeOperationalHtml(String(r.valor_novo||''))}</td>
+      <td>${r.criado_em?new Date(r.criado_em).toLocaleString('pt-BR'):'-'}</td>
+      <td><span class="adminStatus ${badgeStatus(r.status)}">${escapeOperationalHtml(r.status||'')}</span></td>
+      <td>${acoes}</td>
+    </tr>`;
+  }).join('');
+  return `<h2>Revisões Cadastrais</h2>
+    <div class="revisaoInfoBox">Divergências cadastrais informadas durante <b>Ativar Meu Acesso</b> (Primeiro Acesso). O valor informado já está em uso pelo usuário — <b>Aprovar</b> só confirma administrativamente; <b>Corrigir</b> substitui pelo valor correto. Nenhuma ação bloqueia o usuário, altera e-mail/senha ou desativa a conta.</div>
+    <div class="revisaoFiltros">${filtros.map(f=>`<button class="${MASTER_REVISOES_FILTRO===f[0]?'active':''}" onclick="setRevisoesFiltro('${f[0]}')">${f[1]}</button>`).join('')}</div>
+    <div id="adminMsg" class="adminMsg"></div>
+    <div class="tableWrap"><table class="adminTable">
+      <thead><tr><th>Usuário</th><th>Campo</th><th>Valor anterior</th><th>Valor informado</th><th>Data</th><th>Status</th><th>Ações</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="7">Nenhuma revisão encontrada para este filtro.</td></tr>'}</tbody>
+    </table></div>`;
+}
+function aprovarRevisaoCadastralAction(revisaoId,campo,valorNovo,usuarioNome){
+  openAdminModal({
+    title:'Aprovar revisão cadastral',
+    text:`Aprovar a alteração de <b>${campo}</b> para <b>${valorNovo}</b> — usuário <b>${usuarioNome}</b>?<br><span class="note">O valor já está em uso; esta ação só confirma administrativamente.</span>`,
+    confirmText:'Aprovar',
+    onConfirm:async()=>{
+      try{
+        const {data,error}=await supabaseClient.rpc('master_aprovar_revisao_cadastral',{p_revisao_id:revisaoId});
+        if(error) throw error;
+        if(data?.ok!==true){setAdminModalMsg(data?.mensagem||'Não foi possível aprovar esta revisão.',true);return;}
+        closeAdminModal();
+        toastAdmin('Revisão aprovada.');
+        renderMasterAdmin();
+      }catch(e){
+        setAdminModalMsg('Erro ao aprovar: '+(e.message||e),true);
+      }
+    }
+  });
+}
+function abrirCorrigirRevisaoModal(revisaoId,campo,valorInformado,usuarioNome){
+  let fieldHtml='';
+  if(campo==='LOJA'){
+    fieldHtml=`<div class="revisaoImpactoAviso">Esta alteração modifica a loja cadastrada e poderá alterar o escopo de informações visualizadas pelo usuário.</div>
+      <label>Loja correta</label><select id="corrigirValorInput">${lojasOptions()}</select>`;
+  }else if(campo==='LOGIN_NBS'){
+    fieldHtml=`<label>Login NBS correto</label><input id="corrigirValorInput" placeholder="Login NBS">`;
+  }else{
+    fieldHtml=`<label>Valor correto</label><input id="corrigirValorInput" placeholder="Valor correto">`;
+  }
+  openAdminModal({
+    title:'Corrigir revisão cadastral',
+    text:`Usuário <b>${usuarioNome}</b> — campo <b>${campo}</b><br>Valor informado: <b>${valorInformado}</b>`,
+    fieldHtml,
+    confirmText:'Corrigir',
+    onConfirm:async()=>{
+      const valor=(document.getElementById('corrigirValorInput')?.value||'').trim();
+      if(!valor){setAdminModalMsg('Informe o valor correto.',true);return;}
+      try{
+        const {data,error}=await supabaseClient.rpc('master_corrigir_revisao_cadastral',{p_revisao_id:revisaoId,p_valor_correto:valor,p_observacao:`Corrigido via Painel Master (valor informado: ${valorInformado}).`});
+        if(error) throw error;
+        if(data?.ok!==true){
+          const mensagens={
+            LOJA_INVALIDA:'Selecione uma loja válida da lista oficial.',
+            NBS_NAO_ENCONTRADO:'Login NBS não encontrado no diretório de vendedores.',
+            NBS_VINCULADO_OUTRO_USUARIO:'Este Login NBS já está vinculado a outro usuário.',
+            NBS_CPF_DIVERGENTE:'O CPF do Login NBS não corresponde ao cadastro deste usuário.',
+            JA_PROCESSADA:'Esta revisão já foi processada.'
+          };
+          setAdminModalMsg(mensagens[data?.codigo]||'Não foi possível corrigir esta revisão.',true);
+          return;
+        }
+        closeAdminModal();
+        toastAdmin('Revisão corrigida.');
+        renderMasterAdmin();
+      }catch(e){
+        setAdminModalMsg('Erro ao corrigir: '+(e.message||e),true);
+      }
+    }
+  });
+}
 function adminMsg(msg,err=false){
   const el=document.getElementById('adminMsg');
   if(el){el.textContent=msg||'';el.className='adminMsg '+(err?'err':'ok');}
@@ -3427,8 +3818,11 @@ function salvarParametroModal(chave,titulo,descricao){
 }
 
 function adminTabsHtml(){
-  const tabs=[['usuarios','Usuários'],['senhas','Senhas'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
-  return `<div class="masterSide">${tabs.map(t=>`<button class="${MASTER_TAB===t[0]?'active':''}" onclick="setMasterTab('${t[0]}')">${t[1]}</button>`).join('')}</div>`;
+  const tabs=[['usuarios','Usuários'],['senhas','Senhas'],['revisoes','Revisões Cadastrais'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
+  return `<div class="masterSide">${tabs.map(t=>{
+    const badge=(t[0]==='revisoes'&&MASTER_REVISOES_PENDENTES>0)?`<span class="masterTabBadge">${MASTER_REVISOES_PENDENTES}</span>`:'';
+    return `<button class="${MASTER_TAB===t[0]?'active':''}" onclick="setMasterTab('${t[0]}')">${t[1]}${badge}</button>`;
+  }).join('')}</div>`;
 }
 function filtroUsuarios(list){
   const q=MASTER_SEARCH;
@@ -4348,8 +4742,18 @@ async function renderMasterAdminContent(renderSequence){
   box.classList.remove('hidden');
   box.innerHTML='<h2>Painel Master</h2><p class="note">Carregando informações do Supabase...</p>';
 
+  // Fase 4.3 — contagem de pendentes para o badge da aba, atualizada a
+  // cada render do painel (independente de qual aba está ativa).
+  try{
+    const {data:revisoesBadge}=await supabaseClient.rpc('master_list_revisoes_cadastrais',{p_status:'PENDENTE'});
+    MASTER_REVISOES_PENDENTES=revisoesBadge?.total_pendentes||0;
+  }catch(e){ MASTER_REVISOES_PENDENTES=0; }
+  if(renderSequence!==MASTER_RENDER_SEQUENCE) return;
+
   let body='';
-  if(MASTER_TAB==='usuarios' || MASTER_TAB==='senhas'){
+  if(MASTER_TAB==='revisoes'){
+    body=await renderRevisoesCadastraisHtml();
+  }else if(MASTER_TAB==='usuarios' || MASTER_TAB==='senhas'){
     const usuarios=filtroUsuarios(await carregarUsuariosSupabase());
     const total=usuarios.length, ativos=usuarios.filter(u=>u.ativo).length, primeiro=usuarios.filter(u=>u.primeiro_acesso).length, bloqueados=usuarios.filter(u=>!u.ativo).length;
     const rows=usuarios.map(u=>{

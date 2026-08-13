@@ -264,6 +264,36 @@ table.compactMain td.commValue{
 .loginInfoExampleLabel{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
 .loginInfoExampleRow{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#ddd;padding:2px 0}
 .loginInfoNote{margin:8px 0 0;font-size:12px;color:var(--muted)}
+.ativarAcessoBox{margin:22px 0 0;padding-top:18px;border-top:1px solid rgba(201,173,100,.20);text-align:center;max-width:860px}
+.ativarAcessoDivider{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;font-weight:800}
+.ativarAcessoBtn{display:inline-block;min-width:280px;height:52px;border-radius:12px;
+  background:linear-gradient(180deg,#1c1a12,#0d0c08);border:1.5px solid #c9ad64;color:#f4dfa0;
+  font-weight:950;letter-spacing:.04em;text-transform:uppercase;font-size:14px;cursor:pointer;
+  transition:all .15s ease;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.ativarAcessoBtn:hover{background:linear-gradient(180deg,#26221a,#14120c);border-color:#f4dfa0;color:#fff;transform:translateY(-1px)}
+#ativarAcessoScreen{max-width:640px}
+.ativFormGrid{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;row-gap:14px;margin-top:8px}
+.ativField{display:flex;flex-direction:column;min-width:0}
+.ativField label{display:block;margin:0 0 6px 0}
+.ativField input,.ativField select{width:100%;box-sizing:border-box;margin:0}
+.ativFieldFull{grid-column:1 / -1}
+.ativFormActions{display:flex;gap:12px;margin-top:18px}
+.ativFormActions button{flex:1;margin:0}
+@media(max-width:640px){
+  .ativFormGrid{grid-template-columns:1fr}
+  .ativFormActions{flex-direction:column}
+  .ativarAcessoBtn{width:100%;min-width:0}
+}
+.ativSenhaWrap{position:relative;display:flex;align-items:stretch}
+.ativSenhaWrap input{flex:1;padding-right:76px}
+.ativTogglePwd{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  height:32px;padding:0 12px;border-radius:8px;border:1px solid rgba(201,173,100,.3);
+  background:#151515;color:#c9ad64;font-size:11px;text-transform:uppercase;
+  letter-spacing:.03em;cursor:pointer;font-weight:800}
+.ativTogglePwd:hover{border-color:#c9ad64;color:#f4dfa0}
+.backBtnAtivacao{height:48px;border-radius:12px;border:none;background:#c9ad64;color:#111;
+  font-weight:800;letter-spacing:.03em;cursor:pointer;text-transform:uppercase;width:100%;margin-top:8px}
+.backBtnAtivacao:hover{background:#f4dfa0}
 </style>
 
 
@@ -276,6 +306,14 @@ table.compactMain td.commValue{
 .masterSide{background:#101010;border:1px solid var(--line);border-radius:18px;padding:12px;display:grid;gap:8px;position:sticky;top:12px}
 .masterSide button{width:100%;text-align:left;background:#181818;border:1px solid rgba(255,255,255,.08);box-shadow:none;padding:12px;border-radius:12px}
 .masterSide button.active{background:linear-gradient(180deg,#5c1220,#3c0b15)!important;border-color:rgba(145,41,59,.70)}
+.masterTabBadge{display:inline-block;margin-left:8px;min-width:20px;padding:2px 7px;border-radius:99px;background:#c9ad64;color:#111;font-size:11px;font-weight:950;text-align:center;line-height:1.4}
+.revisaoInfoBox{margin:12px 0 16px;padding:14px 16px;border:1px solid rgba(201,173,100,.3);border-radius:14px;background:rgba(201,173,100,.06);color:#ddd;font-size:13px;line-height:1.5}
+.revisaoFiltros{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.revisaoFiltros button{padding:8px 14px!important;border-radius:10px!important;font-size:12px!important;background:#181818!important;box-shadow:none!important;border:1px solid rgba(255,255,255,.08)!important}
+.revisaoFiltros button.active{background:linear-gradient(180deg,#5c1220,#3c0b15)!important;border-color:rgba(145,41,59,.70)!important}
+.revisaoValorAnterior{color:#ff8a8a}
+.revisaoValorNovo{color:#7cd992;font-weight:800}
+.revisaoImpactoAviso{margin:10px 0;padding:10px 12px;border-radius:10px;border:1px solid rgba(246,196,83,.35);background:rgba(246,196,83,.08);color:#f6c453;font-size:12px;line-height:1.5}
 .masterBody{min-width:0}
 .adminToolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:12px 0}
 .adminToolbar input{min-width:280px}
@@ -871,6 +909,9 @@ body{background:
 #migracaoEmailScreen{max-width:520px;}
 #migracaoEmailScreen h3{font-size:18px;text-transform:uppercase;letter-spacing:.06em;margin:0 0 14px;color:#fff;}
 #migracaoEmailScreen label{display:block;font-size:12px;color:#c9ad64;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.04em;}
+#ativarAcessoScreen label{display:block;font-size:12px;color:#c9ad64;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.04em;}
+#ativarAcessoScreen h3{font-size:18px;text-transform:uppercase;letter-spacing:.06em;margin:0 0 14px;color:#fff;}
+#ativarAcessoScreen .ativField label{margin-top:0;}
 .migEmailTexto{color:#b9b9b9;font-size:14px;line-height:1.5;margin:0 0 10px;}
 #migEmailEtapaEnviado button.secondary{margin-top:12px;}
 .safraLoginLogo{height:38px;max-width:180px;object-fit:contain;filter:drop-shadow(0 8px 18px rgba(0,0,0,.42));}
@@ -1022,6 +1063,10 @@ body{background:
     </div>
   </div>
   <div class="passwordHint">No primeiro acesso, informe o CPF, digite uma senha com no mínimo 6 caracteres e clique em <b>Primeiro acesso</b>.</div>
+  <div id="ativarAcessoBox" class="ativarAcessoBox hidden">
+    <div class="ativarAcessoDivider">Primeiro acesso?</div>
+    <button type="button" id="ativarAcessoLink" class="ativarAcessoBtn" onclick="ativacaoAbrirTela()">ATIVAR MEU ACESSO</button>
+  </div>
   <p id="authMsg" class="authMsg note"></p>
   <p id="autoLoadStatus" class="note"><b>Carregando bases do GitHub...</b></p>
   </form>
@@ -1052,6 +1097,92 @@ body{background:
     <div id="migEmailMsgReenvio" class="authMsg"></div>
     <button type="button" id="migEmailBtnReenviar" onclick="enviarVerificacaoMigracaoEmail(true)">REENVIAR VERIFICAÇÃO</button>
     <button type="button" class="secondary" onclick="usarOutroEmailMigracao()">Usar outro e-mail</button>
+  </div>
+</div>
+<div class="login hidden" id="ativarAcessoScreen">
+  <h2>ATIVAR MEU ACESSO</h2>
+  <div id="ativEtapaCpf">
+    <p class="migEmailTexto">Informe seu CPF para localizar seu cadastro. O CPF não é usado para entrar — apenas para identificar seu acesso.</p>
+    <label for="ativCpfInput">CPF</label>
+    <input id="ativCpfInput" inputmode="numeric" autocomplete="off" placeholder="Somente números">
+    <div id="ativCpfMsg" class="authMsg"></div>
+    <button type="button" id="ativBtnIdentificar" onclick="ativacaoIdentificar()">IDENTIFICAR</button>
+    <button type="button" class="secondary" onclick="ativacaoVoltarLogin()">Voltar ao login</button>
+  </div>
+  <div id="ativEtapaGenerica" class="hidden">
+    <p class="migEmailTexto">Se este CPF pertencer a um cadastro elegível para ativação, você verá os próximos passos aqui.</p>
+    <p class="migEmailTexto">Se você já possui acesso com e-mail, utilize <b>Entrar</b> ou <b>Esqueci minha senha</b>.</p>
+    <button type="button" class="secondary" onclick="ativacaoVoltarLogin()">Voltar ao login</button>
+  </div>
+  <div id="ativEtapaForm" class="hidden">
+    <div class="ativFormGrid">
+      <div class="ativField">
+        <label>Nome identificado</label>
+        <input id="ativNomeMascarado" readonly disabled>
+      </div>
+      <div class="ativField">
+        <label for="ativLojaSel">Loja</label>
+        <select id="ativLojaSel">
+          <option value="">Selecione</option>
+          <option value="ABC">ABC</option>
+          <option value="ALPHAVILLE">ALPHAVILLE</option>
+          <option value="ANALIA FRANCO">ANALIA FRANCO</option>
+          <option value="BANDEIRANTES">BANDEIRANTES</option>
+          <option value="BARRA FUNDA">BARRA FUNDA</option>
+          <option value="EUROPA">EUROPA</option>
+          <option value="GASTAO">GASTAO</option>
+          <option value="NACOES">NACOES</option>
+        </select>
+      </div>
+      <div class="ativField">
+        <label for="ativEmailInput">E-mail</label>
+        <input id="ativEmailInput" type="email" autocomplete="email" placeholder="seuemail@exemplo.com">
+      </div>
+      <div class="ativField">
+        <label for="ativCelularInput">Celular</label>
+        <input id="ativCelularInput" inputmode="numeric" autocomplete="tel" placeholder="(11) 9 9999 9999" oninput="ativacaoAplicarMascaraCelular(this)">
+      </div>
+      <div class="ativField ativFieldFull">
+        <label for="ativNbsInput">Login NBS</label>
+        <input id="ativNbsInput" autocomplete="off" placeholder="Login NBS (se souber)">
+      </div>
+    </div>
+    <div id="ativFormMsg" class="authMsg"></div>
+    <div class="ativFormActions">
+      <button type="button" id="ativBtnEnviar" onclick="ativacaoEnviarVerificacao()">ENVIAR VERIFICAÇÃO</button>
+      <button type="button" class="secondary" onclick="ativacaoVoltarLogin()">Cancelar</button>
+    </div>
+  </div>
+  <div id="ativEtapaEnviado" class="hidden">
+    <h3>VERIFIQUE SEU E-MAIL</h3>
+    <p class="migEmailTexto">Enviamos uma mensagem de confirmação para o e-mail informado.</p>
+    <p class="migEmailTexto">Clique no link recebido para confirmar o endereço. O link expira em 30 minutos.</p>
+    <p class="migEmailTexto" style="font-size:12px;color:#888">Não encontrou a mensagem? Verifique também sua pasta de Spam ou Lixo Eletrônico.</p>
+    <div id="ativEnviadoMsg" class="authMsg"></div>
+    <button type="button" id="ativBtnReenviar" onclick="ativacaoReenviar()">REENVIAR VERIFICAÇÃO</button>
+    <button type="button" class="secondary" onclick="ativacaoUsarOutroEmail()">Usar outro e-mail</button>
+  </div>
+  <div id="ativEtapaSenha" class="hidden">
+    <h3>CRIAR NOVA SENHA</h3>
+    <p class="migEmailTexto">Defina a senha que você usará para acessar o Portal F&amp;I a partir de agora.</p>
+    <label for="ativSenhaNova">Nova senha</label>
+    <div class="ativSenhaWrap">
+      <input id="ativSenhaNova" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres, com letras e números">
+      <button type="button" class="ativTogglePwd" onclick="ativacaoTogglePwd('ativSenhaNova',this)">mostrar</button>
+    </div>
+    <label for="ativSenhaConfirmar">Confirmar nova senha</label>
+    <div class="ativSenhaWrap">
+      <input id="ativSenhaConfirmar" type="password" autocomplete="new-password" placeholder="Repita a senha">
+      <button type="button" class="ativTogglePwd" onclick="ativacaoTogglePwd('ativSenhaConfirmar',this)">mostrar</button>
+    </div>
+    <div id="ativSenhaMsg" class="authMsg"></div>
+    <button type="button" id="ativBtnAtivar" onclick="ativacaoConcluir()">ATIVAR MEU ACESSO</button>
+  </div>
+  <div id="ativEtapaConcluido" class="hidden">
+    <h3>ACESSO ATIVADO</h3>
+    <p class="migEmailTexto">Seu acesso ao Portal F&amp;I foi ativado com sucesso.</p>
+    <p class="migEmailTexto">A partir de agora, utilize seu e-mail e sua nova senha.</p>
+    <button type="button" class="backBtnAtivacao" onclick="ativacaoVoltarLogin()">IR PARA O LOGIN</button>
   </div>
 </div>
 <div id="portalHome" class="hidden portalHomeWrap"></div>
