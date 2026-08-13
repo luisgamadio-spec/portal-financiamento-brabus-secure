@@ -357,7 +357,7 @@ window.GS_SIMULADORES = {
 // produção do GitHub Pages, upload -> parser próprio -> dry-run -> prévia com
 // comparação contra a base ACTIVE -> confirmação explícita (nunca automática).
 
-const GS_PRODUCTION_HOSTS = ['luisgamadio-spec.github.io'];
+const GS_PRODUCTION_HOSTS = ['luisgamadio-spec.github.io', 'brabus.blistiq.com.br'];
 function gsIsProductionHost() {
   const h = ((typeof location !== 'undefined' && location.hostname) || '').toLowerCase();
   return GS_PRODUCTION_HOSTS.includes(h);

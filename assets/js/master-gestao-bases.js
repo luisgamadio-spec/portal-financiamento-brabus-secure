@@ -30,7 +30,7 @@
   // "lembrar" de checar. Só o hostname exato do GitHub Pages é tratado como
   // produção; qualquer outro host (localhost, IP, file://, futuro domínio não
   // previsto) cai em homologação por padrão.
-  const GB_PRODUCTION_HOSTS = ['luisgamadio-spec.github.io'];
+  const GB_PRODUCTION_HOSTS = ['luisgamadio-spec.github.io', 'brabus.blistiq.com.br'];
   function gbIsProductionHost() {
     const h = ((typeof location !== 'undefined' && location.hostname) || '').toLowerCase();
     return GB_PRODUCTION_HOSTS.includes(h);
