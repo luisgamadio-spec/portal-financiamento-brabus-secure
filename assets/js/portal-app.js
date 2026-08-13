@@ -1348,11 +1348,43 @@ function operationalAnalystRowHtml(row){
     <td data-label="Detalhes" style="text-align:center">${operationalDetailButton(detailIndex)}</td>
   </tr>`;
 }
+// Incidente 5.6 — Parte B: a lista principal de lojas vem de
+// operational_commission_metrics (VENDEDOR), deliberadamente restrita à
+// loja cadastral do Analista por segurança — por isso lojas de cobertura
+// (férias/ausência em outra loja) nunca apareciam aqui, mesmo já vindo
+// prontas em OPERATIONAL_ANALYST_METRICS_STATE.rows. Esta seção é
+// SEPARADA e usa EXCLUSIVAMENTE essas rows já autorizadas — nunca amplia
+// a lista principal de lojas nem expõe Vendedor/Gerente de outra loja.
+function operationalAnalystCoverageSectionHtml(){
+  if(!USER||USER.tipo!=='ANALISTA') return '';
+  const keyAnalista=operationalMetricsKey();
+  const rowsCobertura=(OPERATIONAL_ANALYST_METRICS_STATE.key===keyAnalista?OPERATIONAL_ANALYST_METRICS_STATE.rows:[])
+    .filter(r=>norm(r.analyst_name||'')===norm(USER.nome||'')&&r.transfer===true);
+  if(!rowsCobertura.length) return '';
+  const stores=[...new Set(rowsCobertura.map(r=>String(r.store||'SEM LOJA')))]
+    .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  let html='<h3 class="coberturaSectionTitle">Coberturas — Férias/Ausências</h3>';
+  html+=stores.map(store=>{
+    const storeRows=rowsCobertura.filter(r=>String(r.store||'SEM LOJA')===store);
+    let block=`<div class="store coberturaStore">${escapeOperationalHtml(store)}</div>`;
+    block+='<div class="tableWrap"><table class="compactMain main10 analystMain"><thead><tr><th>Nome</th><th>Vend.</th><th>Fin.</th><th>Share</th><th>Retorno</th><th>70% SPF</th><th>Rentab. Total</th><th>Faixa</th><th>Com. Total</th><th>Detalhes</th></tr></thead><tbody>';
+    storeRows.forEach(row=>{block+=operationalAnalystRowHtml(row)});
+    block+='</tbody></table></div>';
+    return block;
+  }).join('');
+  html+='<p class="note"><b>Fonte:</b> API segura · visão agregada, sem CPF, cliente, chassi ou NBS. Somente as linhas atribuídas a você.</p>';
+  return html;
+}
 function renderOperationalSecureContent(){
   OPERATIONAL_AGGREGATE_DETAIL_STATE=[];
   const rows=operationalAuthorizedRows();
+  // Calculado antes do early-return abaixo: uma Analista sem nenhum
+  // indicador de VENDEDOR na própria loja no período (ex.: loja parada)
+  // ainda pode ter linhas de cobertura para mostrar — a seção não pode
+  // desaparecer só porque a tabela principal ficou vazia.
+  const coberturaHtml=operationalAnalystCoverageSectionHtml();
   if(!rows.length){
-    return '<div class="panel"><b>API SEGURA:</b> nenhum indicador autorizado foi encontrado para este período e loja.</div>';
+    return '<div class="panel"><b>API SEGURA:</b> nenhum indicador autorizado foi encontrado para este período e loja.</div>'+coberturaHtml;
   }
   const analystRows=operationalAuthorizedAnalystRows();
   const podeVerAnalista=USER.tipo==='MASTER'||USER.tipo==='ANALISTA'||isDiretorComissao(USER);
@@ -1400,7 +1432,7 @@ function renderOperationalSecureContent(){
     }
     html+='<p class="note"><b>Fonte:</b> API segura · visão agregada, sem CPF, cliente, chassi ou NBS.</p>';
     return html;
-  }).join('');
+  }).join('') + coberturaHtml;
 }
 
 function renderOperationalSecureState(){
