@@ -256,16 +256,10 @@ table.compactMain td.commValue{
 .authMsg{margin-top:10px;font-weight:800}
 .authMsg.err{color:#ff8a8a!important}
 .authMsg.ok{color:#8ff0c6!important}
-.passwordHint{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}
-.loginInfoBox{margin:0 0 18px;padding:14px 16px;border:1px solid rgba(201,173,100,.35);border-radius:14px;background:rgba(201,173,100,.08)}
-.loginInfoTitle{margin:0 0 8px;font-size:12px;font-weight:900;letter-spacing:.04em;color:#c9ad64;text-transform:uppercase}
-.loginInfoBox ul{margin:0;padding-left:18px;color:#ddd;font-size:13px;line-height:1.5}
-.loginInfoExample{margin-top:10px;padding-top:10px;border-top:1px solid rgba(201,173,100,.2)}
-.loginInfoExampleLabel{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
-.loginInfoExampleRow{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:#ddd;padding:2px 0}
-.loginInfoNote{margin:8px 0 0;font-size:12px;color:var(--muted)}
 .ativarAcessoBox{margin:22px 0 0;padding-top:18px;border-top:1px solid rgba(201,173,100,.20);text-align:center;max-width:860px}
 .ativarAcessoDivider{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;font-weight:800}
+.ativarAcessoDivider.loginAreaLabelTop{margin:0 0 14px;padding:0;border-top:none;text-align:left}
+.ativarAcessoText{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 14px}
 .ativarAcessoBtn{display:inline-block;min-width:280px;height:52px;border-radius:12px;
   background:linear-gradient(180deg,#1c1a12,#0d0c08);border:1.5px solid #c9ad64;color:#f4dfa0;
   font-weight:950;letter-spacing:.04em;text-transform:uppercase;font-size:14px;cursor:pointer;
@@ -463,19 +457,6 @@ table.compactMain td.commValue{
   margin:0!important;
   box-sizing:border-box!important;
   white-space:nowrap!important;
-}
-.firstAccessBtn{
-  background:linear-gradient(180deg,#242424,#151515)!important;
-  border:1px solid rgba(180,31,50,.72)!important;
-  color:#d83b4d!important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.08)!important;
-  font-weight:950!important;
-}
-.firstAccessBtn:hover{
-  background:linear-gradient(180deg,#2e2e2e,#1b1b1b)!important;
-  color:#ff5a6d!important;
-  border-color:rgba(216,59,77,.9)!important;
-  transform:translateY(-1px);
 }
 @media(max-width:980px){
   .loginRowPremium{
@@ -902,9 +883,9 @@ body{background:
 .login input{height:52px!important;border-radius:16px!important;border:1px solid rgba(201,173,100,.24)!important;background:rgba(0,0,0,.62)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05);}
 .login input:focus{outline:none;border-color:rgba(244,223,155,.70)!important;box-shadow:0 0 0 3px rgba(201,173,100,.14)!important;}
 .login button{border-radius:16px!important;box-shadow:0 16px 36px rgba(227,6,19,.20);}
-.firstAccessBtn,.login button.secondary{background:linear-gradient(135deg,#262626,#111)!important;border:1px solid rgba(201,173,100,.20)!important;}
+.login button.secondary{background:linear-gradient(135deg,#262626,#111)!important;border:1px solid rgba(201,173,100,.20)!important;}
 .forgotLinkBtn{background:transparent!important;border:0!important;box-shadow:none!important;color:#d9c077!important;padding:7px 0 0!important;text-align:left;}
-.passwordHint,.authMsg,#autoLoadStatus{position:relative;z-index:1;}
+.authMsg,#autoLoadStatus{position:relative;z-index:1;}
 .loginBrandFooter{position:relative;z-index:1;display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.08);color:#9d9d9d;font-size:11px;text-transform:uppercase;font-weight:900;letter-spacing:.10em;}
 #migracaoEmailScreen{max-width:520px;}
 #migracaoEmailScreen h3{font-size:18px;text-transform:uppercase;letter-spacing:.06em;margin:0 0 14px;color:#fff;}
@@ -1033,24 +1014,12 @@ body{background:
 <main>
 <div class="login" id="loginBox">
   <h2>FAÇA SEU LOGIN PARA ACESSAR O PORTAL F&I</h2>
-  <div class="loginInfoBox">
-    <p class="loginInfoTitle">Para o primeiro acesso à atualização de e-mail</p>
-    <ul>
-      <li>No campo de e-mail, digite: <b>SEUCPF@portalfi.brabus</b></li>
-      <li>Sua senha continua a mesma.</li>
-    </ul>
-    <div class="loginInfoExample">
-      <span class="loginInfoExampleLabel">Exemplo</span>
-      <div class="loginInfoExampleRow"><span>CPF</span><b>123.456.789-00</b></div>
-      <div class="loginInfoExampleRow"><span>Login</span><b>12345678900@portalfi.brabus</b></div>
-      <p class="loginInfoNote">Informe o CPF somente com números, sem pontos ou traço.</p>
-    </div>
-  </div>
+  <div class="ativarAcessoDivider loginAreaLabelTop">Já possui acesso?</div>
   <form id="loginForm" onsubmit="event.preventDefault();login()">
   <div class="loginRowPremium">
     <div class="loginField">
-      <label>CPF</label>
-      <input id="cpfInput" name="cpf" inputmode="numeric" autocomplete="username" placeholder="Digite o CPF">
+      <label>E-mail</label>
+      <input id="cpfInput" name="cpf" type="email" autocomplete="username" placeholder="Digite seu e-mail">
     </div>
     <div class="loginField senhaWrap">
       <label>Senha</label>
@@ -1059,12 +1028,11 @@ body{background:
     </div>
     <div class="authActions">
       <button type="submit">Entrar</button>
-      <button type="button" class="firstAccessBtn" onclick="primeiroAcesso()">Primeiro acesso</button>
     </div>
   </div>
-  <div class="passwordHint">No primeiro acesso, informe o CPF, digite uma senha com no mínimo 6 caracteres e clique em <b>Primeiro acesso</b>.</div>
-  <div id="ativarAcessoBox" class="ativarAcessoBox hidden">
+  <div id="ativarAcessoBox" class="ativarAcessoBox">
     <div class="ativarAcessoDivider">Primeiro acesso?</div>
+    <p class="ativarAcessoText">Ative seu acesso ao Portal F&amp;I utilizando seu CPF.</p>
     <button type="button" id="ativarAcessoLink" class="ativarAcessoBtn" onclick="ativacaoAbrirTela()">ATIVAR MEU ACESSO</button>
   </div>
   <p id="authMsg" class="authMsg note"></p>

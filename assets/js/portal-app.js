@@ -2258,6 +2258,7 @@ async function ativacaoIdentificar(){
 const ATIVACAO_ERRO_MENSAGENS={
   CPF_INVALIDO:'CPF inválido.',
   NAO_ELEGIVEL:'Este CPF não está elegível para ativação no momento.',
+  ATIVACAO_INDISPONIVEL:'Este CPF não está elegível para ativação no momento.',
   EMAIL_INVALIDO:'Digite um e-mail válido.',
   EMAIL_FICTICIO_NAO_PERMITIDO:'Use seu e-mail real — não um e-mail interno/fictício.',
   EMAIL_JA_EM_USO:'Este e-mail já está em uso por outra conta ou ativação.',
@@ -2406,19 +2407,16 @@ async function ativacaoConcluir(){
     if(btn)btn.disabled=false;
   }
 }
-// Botão "Ativar meu acesso" fica oculto por padrão — só aparece com
-// ?ativacao=1 na URL, para não expor o fluxo globalmente antes da
-// homologação (Fase 4.1). Não depende de localhost: a ativação de fato
-// (Fase 4.2+) precisa funcionar em produção também, só não pode ficar
-// visível/descoberta por acaso antes de autorizado.
+// Fase 4.8: botão "Ativar meu acesso" é visível normalmente na tela de
+// login (não depende mais de ?ativacao=1 — esse parâmetro controlava só
+// a exibição do botão durante a homologação da Fase 4.1–4.7, nunca foi
+// um mecanismo de segurança). Quem decide se um usuário real consegue
+// de fato iniciar a ativação é sempre o backend
+// (ativacao_acesso_global), nunca o frontend.
 (function initAtivarAcessoGate(){
   document.addEventListener('DOMContentLoaded',()=>{
-    const params=new URLSearchParams(location.search);
-    if(params.get('ativacao')==='1'){
-      document.getElementById('ativarAcessoBox')?.classList.remove('hidden');
-    }
     // Retorno de verificar-acesso.html com token de continuação —
-    // abre direto na etapa de criar senha, independente do gate acima.
+    // abre direto na etapa de criar senha.
     const hash=location.hash||'';
     const match=hash.match(/(?:^#|&)continuar=([^&]+)/);
     if(match){
