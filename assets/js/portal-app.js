@@ -3136,6 +3136,42 @@ async function renderConvitesSection(){
     <tbody>${rows}</tbody></table></div>`;
 }
 
+// Incidente 12.1 (Parte A) — perfis cujo departamento operacional
+// (NOVOS/SEMINOVOS) precisa ser escolhido no convite, porque
+// operational_current_scope() deriva o escopo de usuarios.status por
+// texto para esses perfis. DIRETOR NOVOS/SEMINOVOS e MASTER resolvem
+// o departamento automaticamente; RH não tem departamento aplicável.
+const CONVITE_PERFIS_DEPARTAMENTO_OBRIGATORIO=['VENDEDOR','GERENTE','ANALISTA'];
+function atualizarCampoDepartamentoConvite(){
+  const perfil=(document.getElementById('convitePerfil')?.value||'').trim();
+  const wrap=document.getElementById('conviteDepartamentoWrap');
+  const select=document.getElementById('conviteDepartamento');
+  const hint=document.getElementById('conviteDepartamentoHint');
+  if(!wrap||!select) return;
+  if(CONVITE_PERFIS_DEPARTAMENTO_OBRIGATORIO.includes(perfil)){
+    wrap.style.display='';
+    select.disabled=false;
+    if(!['NOVOS','SEMINOVOS','NOVOS/SEMINOVOS'].includes(select.value)) select.value='';
+    if(hint) hint.textContent='Obrigatório para este cargo.';
+  }else if(perfil==='DIRETOR NOVOS'){
+    wrap.style.display='';
+    select.disabled=true;
+    select.value='NOVOS';
+    if(hint) hint.textContent='Definido automaticamente pelo cargo.';
+  }else if(perfil==='DIRETOR SEMINOVOS'){
+    wrap.style.display='';
+    select.disabled=true;
+    select.value='SEMINOVOS';
+    if(hint) hint.textContent='Definido automaticamente pelo cargo.';
+  }else{
+    // MASTER, RH/RECURSOS HUMANOS, ou nenhum cargo selecionado ainda —
+    // departamento não se aplica, campo fica oculto.
+    wrap.style.display='none';
+    select.disabled=true;
+    select.value='';
+  }
+}
+
 function abrirConvidarUsuarioModal(){
   const perfilOptions=CONVITE_PERFIS.map(p=>`<option value="${p}">${p}</option>`).join('');
   const lojaOptions=`<option value="">(nenhuma / não vinculado a loja)</option>`+CONVITE_LOJAS.map(l=>`<option value="${l}">${l}</option>`).join('');
@@ -3146,7 +3182,17 @@ function abrirConvidarUsuarioModal(){
       <div class="adminModalForm">
         <label>CPF</label><input id="conviteCpf" inputmode="numeric" placeholder="Somente números">
         <label>Nome</label><input id="conviteNome" placeholder="Nome completo">
-        <label>Cargo/Perfil</label><select id="convitePerfil"><option value="">Selecione</option>${perfilOptions}</select>
+        <label>Cargo/Perfil</label><select id="convitePerfil" onchange="atualizarCampoDepartamentoConvite()"><option value="">Selecione</option>${perfilOptions}</select>
+        <div id="conviteDepartamentoWrap" style="display:none">
+          <label>Departamento</label>
+          <select id="conviteDepartamento">
+            <option value="">Selecione</option>
+            <option value="NOVOS">Novos</option>
+            <option value="SEMINOVOS">Seminovos</option>
+            <option value="NOVOS/SEMINOVOS">Novos / Seminovos</option>
+          </select>
+          <p class="note" id="conviteDepartamentoHint" style="margin:2px 0 0"></p>
+        </div>
         <label>Loja</label><select id="conviteLoja">${lojaOptions}</select>
         <label>E-mail real</label><input id="conviteEmail" type="email" placeholder="nome@dominio.com">
         <label>Login NBS (opcional)</label><input id="conviteNbs" placeholder="Deixe em branco se não aplicável">
@@ -3160,14 +3206,19 @@ async function confirmarConviteUsuario(){
   const cpf=(document.getElementById('conviteCpf')?.value||'').trim();
   const nome=(document.getElementById('conviteNome')?.value||'').trim();
   const perfil=(document.getElementById('convitePerfil')?.value||'').trim();
+  const departamento=(document.getElementById('conviteDepartamento')?.value||'').trim();
   const loja=(document.getElementById('conviteLoja')?.value||'').trim();
   const email=(document.getElementById('conviteEmail')?.value||'').trim();
   const nbs=(document.getElementById('conviteNbs')?.value||'').trim();
   if(!cpf||!nome||!perfil||!email){ setAdminModalMsg('Preencha CPF, nome, perfil e e-mail.',true); return; }
+  if(CONVITE_PERFIS_DEPARTAMENTO_OBRIGATORIO.includes(perfil) && !departamento){
+    setAdminModalMsg('Selecione o departamento do usuário.',true);
+    return;
+  }
   setAdminModalMsg('Validando e criando o convite...');
   try{
     const {data,error}=await supabaseClient.rpc('master_convidar_usuario',{
-      p_cpf:cpf,p_nome:nome,p_perfil:perfil,p_loja:loja||null,p_email:email,p_nbs:nbs||null
+      p_cpf:cpf,p_nome:nome,p_perfil:perfil,p_loja:loja||null,p_email:email,p_nbs:nbs||null,p_status:departamento||null
     });
     if(error) throw error;
     const conviteId=data?.convite_id;
