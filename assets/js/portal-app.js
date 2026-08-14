@@ -3848,7 +3848,7 @@ function salvarParametroModal(chave,titulo,descricao){
 }
 
 function adminTabsHtml(){
-  const tabs=[['usuarios','Usuários'],['senhas','Senhas'],['revisoes','Revisões Cadastrais'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
+  const tabs=[['usuarios','Usuários'],['senhas','Senhas'],['acessosModulos','Acessos aos Módulos'],['revisoes','Revisões Cadastrais'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
   return `<div class="masterSide">${tabs.map(t=>{
     const badge=(t[0]==='revisoes'&&MASTER_REVISOES_PENDENTES>0)?`<span class="masterTabBadge">${MASTER_REVISOES_PENDENTES}</span>`:'';
     return `<button class="${MASTER_TAB===t[0]?'active':''}" onclick="setMasterTab('${t[0]}')">${t[1]}${badge}</button>`;
@@ -4929,6 +4929,10 @@ async function renderMasterAdminContent(renderSequence){
       await Promise.allSettled([carregarUsuariosSupabase(), loadOperationalCommissionMetrics()]);
     }
     body=renderFechamentoCompetenciaPreview();
+  }else if(MASTER_TAB==='acessosModulos'){
+    body = typeof renderAcessosModulosTab==='function'
+      ? await renderAcessosModulosTab()
+      : '<h2>Acessos aos Módulos</h2><p class="note" style="color:#ff6b61">Módulo não carregado (assets/js/master-acessos-modulos.js).</p>';
   }else if(MASTER_TAB==='bases'){
     body = typeof renderGestaoBasesTab==='function'
       ? await renderGestaoBasesTab()
