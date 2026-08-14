@@ -1408,7 +1408,7 @@ body.portal-module-open{overflow:hidden!important}
   const previousOpen=window.openPortalModule || (typeof openPortalModule==='function'?openPortalModule:null);
   window.openPortalModule=openPortalModule=function(id){ if(IFRAME_MODULES[id]) return showPortalIframeModule(id); hideUniversalView(); if(previousOpen) return previousOpen.apply(this,arguments); };
   function labelFor(m){ if(m.id==='painelAnalistaFi')return 'Abrir Painel'; if(m.id==='comissoes')return 'Abrir Minha Comissão'; if(m.id==='coparticipadoPortal')return 'Abrir Coparticipados'; if(m.id==='analiseScoreVendedores')return 'Abrir Score'; if(m.id==='simuladorSeminovos'||m.id==='simuladorCompleto')return 'Abrir Simulador'; return 'Abrir Módulo'; }
-  window.renderPortalHome=function(){APP_VIEW='home'; hideUniversalView(); const home=document.getElementById('portalHome'); if(!home)return; document.getElementById('app')?.classList.add('hidden'); document.getElementById('painelAnalistaFi')?.classList.add('hidden'); document.getElementById('centralFiGestor')?.classList.add('hidden'); if(typeof MASTER_PANEL_OPEN!=='undefined')MASTER_PANEL_OPEN=false; document.getElementById('masterAdmin')?.classList.add('hidden'); document.getElementById('masterAdminBackBar')?.classList.add('hidden'); home.classList.remove('hidden'); const viewUser=(typeof currentPortalUser==='function'?currentPortalUser():getUser()); const allowed=portalAllowedModules(viewUser); const groups=[...new Set(PORTAL_MODULES.filter(m=>allowed.includes(m.id)).map(m=>m.grupo))]; const sections=groups.map(g=>{const cards=PORTAL_MODULES.filter(m=>m.grupo===g&&allowed.includes(m.id)).map(m=>`<div class="portalModuleCard"><div><div class="portalModuleIcon">${m.icon||'📌'}</div><h3>${m.title}</h3><p>${m.desc||''}</p></div>${m.internal?`<button class="portalModuleBtn" onclick="openPortalModule('${m.id}')">${labelFor(m)}</button>`:`<a class="portalModuleBtn ${m.id==='dashbi'?'secondaryPortal':''}" href="${m.url}" target="_blank" rel="noopener">Abrir Análise</a>`}</div>`).join('');return`<div class="portalSectionTitle">${g}</div><div class="portalModuleGrid">${cards}</div>`;}).join(''); home.innerHTML=`<div class="portalHero"><div class="portalHeroTop"><div><div class="portalEyebrow">Grupo Brabus Mitsubishi</div><div class="portalTitle">Portal F&I — Grupo Brabus Mitsubishi</div><div class="portalSubtitle">Central única para simuladores, dashboards, gestão operacional, incentivos e acompanhamento de comissões. Os módulos são liberados conforme perfil e STATUS.</div></div><div class="portalUserPill"><div class="k">Usuário conectado</div><div class="v">${(window.REAL_USER||window.USER||viewUser)?.nome||''}</div><div class="note">${(window.REAL_USER||window.USER||viewUser)?.tipo||''} · ${(window.REAL_USER||window.USER||viewUser)?.status||''} · ${(window.REAL_USER||window.USER||viewUser)?.loja||'Todas'}</div><button class="portalModuleBtn secondaryPortal" style="margin-top:12px" onclick="logout()">Sair</button></div></div>${typeof renderHomologacaoBanner==='function'?renderHomologacaoBanner(viewUser):''}<div class="portalMetrics"><div class="portalMetricCard"><div class="k">Bem-vindo</div><div class="v">${viewUser?.nome||''}</div></div><div class="portalMetricCard"><div class="k">Perfil visualizado</div><div class="v">${viewUser?.tipo||''}</div></div><div class="portalMetricCard"><div class="k">STATUS</div><div class="v">${viewUser?.status||''}</div></div><div class="portalMetricCard"><div class="k">Módulos liberados</div><div class="v">${allowed.length}</div></div></div>${typeof renderHomologacaoCard==='function'?renderHomologacaoCard():''}${sections||'<div class="empty">Nenhum módulo disponível para este perfil.</div>'}${window.BLISTIQ_FOOTER_HTML||''}</div>`; };
+  window.renderPortalHome=function(){APP_VIEW='home'; hideUniversalView(); const home=document.getElementById('portalHome'); if(!home)return; document.getElementById('app')?.classList.add('hidden'); document.getElementById('painelAnalistaFi')?.classList.add('hidden'); document.getElementById('centralFiGestor')?.classList.add('hidden'); if(typeof MASTER_PANEL_OPEN!=='undefined')MASTER_PANEL_OPEN=false; document.getElementById('masterAdmin')?.classList.add('hidden'); document.getElementById('masterAdminBackBar')?.classList.add('hidden'); home.classList.remove('hidden'); const viewUser=(typeof currentPortalUser==='function'?currentPortalUser():getUser()); const allowed=PORTAL_MODULES.filter(m=>canAccessModule(m.id,viewUser)).map(m=>m.id); const groups=[...new Set(PORTAL_MODULES.filter(m=>allowed.includes(m.id)).map(m=>m.grupo))]; const sections=groups.map(g=>{const cards=PORTAL_MODULES.filter(m=>m.grupo===g&&allowed.includes(m.id)).map(m=>`<div class="portalModuleCard"><div><div class="portalModuleIcon">${m.icon||'📌'}</div><h3>${m.title}</h3><p>${m.desc||''}</p></div>${m.internal?`<button class="portalModuleBtn" onclick="openPortalModule('${m.id}')">${labelFor(m)}</button>`:`<a class="portalModuleBtn ${m.id==='dashbi'?'secondaryPortal':''}" href="${m.url}" target="_blank" rel="noopener">Abrir Análise</a>`}</div>`).join('');return`<div class="portalSectionTitle">${g}</div><div class="portalModuleGrid">${cards}</div>`;}).join(''); home.innerHTML=`<div class="portalHero"><div class="portalHeroTop"><div><div class="portalEyebrow">Grupo Brabus Mitsubishi</div><div class="portalTitle">Portal F&I — Grupo Brabus Mitsubishi</div><div class="portalSubtitle">Central única para simuladores, dashboards, gestão operacional, incentivos e acompanhamento de comissões. Os módulos são liberados conforme perfil e STATUS.</div></div><div class="portalUserPill"><div class="k">Usuário conectado</div><div class="v">${(window.REAL_USER||window.USER||viewUser)?.nome||''}</div><div class="note">${(window.REAL_USER||window.USER||viewUser)?.tipo||''} · ${(window.REAL_USER||window.USER||viewUser)?.status||''} · ${(window.REAL_USER||window.USER||viewUser)?.loja||'Todas'}</div><button class="portalModuleBtn secondaryPortal" style="margin-top:12px" onclick="logout()">Sair</button></div></div>${typeof renderHomologacaoBanner==='function'?renderHomologacaoBanner(viewUser):''}<div class="portalMetrics"><div class="portalMetricCard"><div class="k">Bem-vindo</div><div class="v">${viewUser?.nome||''}</div></div><div class="portalMetricCard"><div class="k">Perfil visualizado</div><div class="v">${viewUser?.tipo||''}</div></div><div class="portalMetricCard"><div class="k">STATUS</div><div class="v">${viewUser?.status||''}</div></div><div class="portalMetricCard"><div class="k">Módulos liberados</div><div class="v">${allowed.length}</div></div></div>${typeof renderHomologacaoCard==='function'?renderHomologacaoCard():''}${sections||'<div class="empty">Nenhum módulo disponível para este perfil.</div>'}${window.BLISTIQ_FOOTER_HTML||''}</div>`; };
   ['showComissoesModule','showPainelAnalistaFi','showCentralAtendimentoFi'].forEach(function(fn){const old=window[fn]; if(typeof old==='function'){window[fn]=function(){hideUniversalView(); return old.apply(this,arguments);};}});
   window.addEventListener('message',function(ev){ if(ev && ev.origin===window.location.origin && ev.data==='portal:back'){ if(typeof renderPortalHome==='function')renderPortalHome(); else hideUniversalView(); }});
 })();
@@ -1432,6 +1432,247 @@ body.portal-module-open{overflow:hidden!important}
     if(r==='DIRETOR SEMINOVOS') return ['simuladorSeminovos','simuladorCompleto','dashbi','comissoes'];
     return typeof previous==='function' ? previous(u) : ['comissoes'];
   };
+})();
+</script>
+
+
+
+<script id="fase94-dynamic-engine-v001">
+(function(){
+  // ===========================================================
+  // Fase 9.4 (B) — motor dinâmico de permissões de módulos.
+  //
+  // Dois motores mutuamente exclusivos, nunca combinados:
+  //   flag permissoes_modulos_dinamicas = FALSE -> legacy (hardcoded)
+  //   flag permissoes_modulos_dinamicas = TRUE  -> dynamic (RPC)
+  // Nunca legacy como fallback de uma falha do motor dynamic.
+  //
+  // Checkpoint 3: motor legado capturado por referência, sem alterar
+  // sua regra. window.portalAllowedModules, neste ponto do documento,
+  // já é o resultado final das 4 camadas de hotfix anteriores.
+  // ===========================================================
+  window.portalAllowedModulesLegacy = window.portalAllowedModules;
+
+  // Checkpoint 12: fonte única dos IDs configuráveis (evita duplicar
+  // a lista em múltiplos pontos do frontend).
+  window.PORTAL_CONFIGURABLE_MODULE_IDS = Object.freeze([
+    'simuladorCompleto','simuladorSeminovos','dashbi','gestao',
+    'coparticipadoPortal','analiseScoreVendedores','comissoes'
+  ]);
+  // Checkpoint 13: módulos estruturais/MASTER-only NUNCA passam pelo
+  // novo guard configurável — continuam 100% pela regra legada.
+  // (painelAnalistaFi, centralAtendimentoFi, painelMaster e as telas
+  // internas de Gestão de Bases/Simuladores não estão nesta lista.)
+
+  // Checkpoint 4: estado em memória, nunca localStorage.
+  window.PORTAL_MODULE_PERMISSIONS_STATE = {
+    loaded: false,
+    mode: 'legacy',
+    allowed: new Set(),
+    error: null
+  };
+
+  window.resetPortalModulePermissionsState = function(){
+    const s = window.PORTAL_MODULE_PERMISSIONS_STATE;
+    s.loaded = false; s.mode = 'legacy'; s.allowed = new Set(); s.error = null;
+  };
+
+  // Checkpoint 17: harness estritamente localhost, nunca em produção.
+  // Ativado apenas setando window.__PORTAL_DYNAMIC_TEST_OVERRIDE__=true
+  // manualmente via console/CDP em http://127.0.0.1 ou http://localhost.
+  // Não existe parâmetro de URL nem chave pública equivalente.
+  function isLocalhostDynamicTestOverride(){
+    try{
+      const h = window.location.hostname;
+      return (h === 'localhost' || h === '127.0.0.1') && window.__PORTAL_DYNAMIC_TEST_OVERRIDE__ === true;
+    }catch(e){ return false; }
+  }
+
+  // Checkpoint 5/6 (Fase 9.5): resolver a flag ANTES de decidir o
+  // motor, a partir da interface segura oficial já usada pelo
+  // frontend para configurações — operational_portal_config().
+  // Auditoria (Fase 9.5, Checkpoint 2): seu único consumidor atual,
+  // carregarParametrosPortal() em portal-app.js, filtra as linhas por
+  // hasOwnProperty contra um objeto com só as 13 chaves numéricas de
+  // comissão — uma chave nova é silenciosamente ignorada por ele, sem
+  // qualquer efeito colateral. Não há SELECT direto em
+  // public.configuracoes (authenticated continua sem GRANT de
+  // tabela); a leitura passa inteiramente pela RPC SECURITY DEFINER.
+  async function readPermissoesModulosDinamicasFlag(){
+    try{
+      if (typeof supabaseClient === 'undefined' || !supabaseClient) throw new Error('Cliente Supabase indisponível.');
+      const { data, error } = await supabaseClient.rpc('operational_portal_config');
+      if (error) throw error;
+      const rows = Array.isArray(data?.rows) ? data.rows : [];
+      const row = rows.find(r => r && r.chave === 'permissoes_modulos_dinamicas');
+      if (!row) return { ok:false, value:false };
+      return { ok:true, value: parsePermissoesModulosDinamicasValue(row.valor) };
+    }catch(e){
+      return { ok:false, value:false, error:e };
+    }
+  }
+
+  // Checkpoint 7: trata true/false/"true"/"false" (formatos possíveis
+  // de public.configuracoes.valor, que é texto). Qualquer valor fora
+  // desse conjunto é tratado como FALSE — nunca como erro que propaga.
+  function parsePermissoesModulosDinamicasValue(v){
+    if (v === true) return true;
+    if (v === false) return false;
+    if (typeof v === 'string') {
+      const s = v.trim().toLowerCase();
+      if (s === 'true') return true;
+      if (s === 'false') return false;
+    }
+    return false;
+  }
+
+  async function resolveDynamicFlag(){
+    // Checkpoint 11/17 (revisado na Fase 9.5): o harness local
+    // substitui SOMENTE a origem da flag, nunca a RPC de permissões —
+    // portal_modulos_permitidos() abaixo continua sempre real, contra
+    // a matriz real. Nunca ativo fora de localhost/127.0.0.1.
+    if (isLocalhostDynamicTestOverride()) return true;
+
+    // Checkpoint 8 — CRÍTICO: se não for possível determinar a flag
+    // com segurança (RPC falhou, sessão ausente, chave ausente,
+    // valor fora do formato esperado), usar LEGACY. A flag é
+    // mecanismo de rollout: na dúvida, não ativamos o motor novo.
+    // Isto é uma decisão diferente do Checkpoint 9 (falha do motor
+    // dynamic DEPOIS da flag já ter sido validamente resolvida como
+    // TRUE, que é default-deny, nunca legacy — ver loadDynamicPermissions).
+    const r = await readPermissoesModulosDinamicasFlag();
+    if (!r.ok) {
+      console.warn('[Fase9.5] não foi possível resolver permissoes_modulos_dinamicas; usando legacy.', r.error);
+      return false;
+    }
+    return r.value === true;
+  }
+
+  // Checkpoint 6: motor dinâmico — sem parâmetros, sem enviar
+  // perfil/departamento/usuario_id/loja/status. Identidade 100%
+  // resolvida no backend via auth.uid().
+  async function loadDynamicPermissions(){
+    try{
+      if (typeof supabaseClient === 'undefined' || !supabaseClient) throw new Error('Cliente Supabase indisponível.');
+      const { data, error } = await supabaseClient.rpc('portal_modulos_permitidos');
+      if (error) throw error;
+      if (!Array.isArray(data)) throw new Error('Retorno inválido da RPC portal_modulos_permitidos.');
+      return { ok:true, allowed: new Set(data) };
+    }catch(e){
+      return { ok:false, allowed: new Set(), error:e };
+    }
+  }
+
+  // Orquestrador — chamado antes de cada renderização do Portal Home.
+  // Checkpoint 29: mede o custo da resolução para o relatório de
+  // performance (visível apenas no console, nunca para o usuário).
+  window.loadPortalModulePermissions = async function(){
+    const t0 = (typeof performance!=='undefined') ? performance.now() : Date.now();
+    const state = window.PORTAL_MODULE_PERMISSIONS_STATE;
+    const dynamic = await resolveDynamicFlag();
+
+    if (!dynamic){
+      state.mode = 'legacy';
+      state.allowed = new Set(); // não usado no modo legacy (canAccessModule delega direto)
+      state.error = null;
+      state.loaded = true;
+      const t1 = (typeof performance!=='undefined') ? performance.now() : Date.now();
+      console.debug('[Fase9.4] permissões (legacy) resolvidas em', Math.round(t1-t0), 'ms');
+      return state;
+    }
+
+    state.mode = 'dynamic';
+    const r = await loadDynamicPermissions();
+    if (!r.ok){
+      // Checkpoint 7 — CRÍTICO: falha do motor dinâmico NUNCA cai
+      // para o legado. Default deny: nenhum módulo configurável.
+      state.allowed = new Set();
+      state.error = r.error;
+      console.warn('[Fase9.4] falha ao carregar portal_modulos_permitidos(); default deny aplicado.', r.error);
+    } else {
+      state.allowed = r.allowed;
+      state.error = null;
+    }
+    state.loaded = true;
+    const t1 = (typeof performance!=='undefined') ? performance.now() : Date.now();
+    console.debug('[Fase9.4] permissões (dynamic) resolvidas em', Math.round(t1-t0), 'ms');
+    return state;
+  };
+
+  // Checkpoint 8: guard central único. Todo ponto que decide abrir um
+  // módulo configurável deve passar por aqui — nada de novos
+  // if(USER.tipo...) espalhados pelo código.
+  window.canAccessModule = function(moduleId, user){
+    user = user || ((typeof currentPortalUser==='function') ? currentPortalUser() : ((typeof visualUser==='function') ? visualUser() : null));
+    const legacyIds = (typeof portalAllowedModulesLegacy==='function') ? (portalAllowedModulesLegacy(user)||[]) : [];
+
+    if (!window.PORTAL_CONFIGURABLE_MODULE_IDS.includes(moduleId)) {
+      // Checkpoint 13: módulo estrutural — sempre pela regra legada.
+      return legacyIds.includes(moduleId);
+    }
+
+    const state = window.PORTAL_MODULE_PERMISSIONS_STATE;
+    if (state.mode === 'dynamic') {
+      // Checkpoint 25: nunca liberar antes do carregamento terminar.
+      if (!state.loaded) return false;
+      return state.allowed.has(moduleId);
+    }
+    // legacy (flag FALSE, caminho real de produção hoje): delega 100%
+    // ao motor hardcoded já existente — resultado byte-a-byte idêntico
+    // ao comportamento atual.
+    return legacyIds.includes(moduleId);
+  };
+
+  // Checkpoint 9 + 25: carregar permissões ANTES de renderizar,
+  // nunca "mostrar tudo e depois esconder".
+  const previousRenderPortalHomeF94 = window.renderPortalHome;
+  window.renderPortalHome = async function(){
+    await loadPortalModulePermissions();
+    return previousRenderPortalHomeF94.apply(this, arguments);
+  };
+
+  // Checkpoint 10: guard em openPortalModule ANTES de abrir qualquer
+  // módulo configurável.
+  const previousOpenPortalModuleF94 = window.openPortalModule;
+  window.openPortalModule = function(id){
+    if (window.PORTAL_CONFIGURABLE_MODULE_IDS.includes(id) && !canAccessModule(id)) {
+      alert('Você não possui acesso a este módulo.');
+      return;
+    }
+    return previousOpenPortalModuleF94.apply(this, arguments);
+  };
+
+  // Checkpoint 11: guard independente em showPortalIframeModule — não
+  // confiar que openPortalModule() é sempre o chamador (bloqueia
+  // também chamada manual via console/código interno).
+  const previousShowPortalIframeModuleF94 = window.showPortalIframeModule;
+  if (typeof previousShowPortalIframeModuleF94 === 'function') {
+    window.showPortalIframeModule = function(id){
+      if (window.PORTAL_CONFIGURABLE_MODULE_IDS.includes(id) && !canAccessModule(id)) {
+        alert('Você não possui acesso a este módulo.');
+        return true;
+      }
+      return previousShowPortalIframeModuleF94.apply(this, arguments);
+    };
+  }
+
+  // Checkpoint 26: nunca reutilizar permissões do usuário anterior.
+  const previousLogoutF94 = window.logout;
+  if (typeof previousLogoutF94 === 'function') {
+    window.logout = async function(){
+      const r = await previousLogoutF94.apply(this, arguments);
+      resetPortalModulePermissionsState();
+      return r;
+    };
+  }
+
+  // Checkpoint 15 (limitação arquitetural registrada, não corrigida
+  // nesta fase): modules/*.html continuam publicados como arquivos
+  // estáticos no GitHub Pages. Não há tentativa de transformar Pages
+  // em servidor autenticado. A proteção real permanece sendo sessão
+  // Supabase + RPC backend (RLS/SECURITY DEFINER) + estes guards de
+  // frontend — os guards impedem NAVEGAÇÃO indevida dentro do Portal,
+  // não o acesso direto a uma URL de módulo por quem já tem a URL.
 })();
 </script>
 
