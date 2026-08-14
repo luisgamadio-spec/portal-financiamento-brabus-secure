@@ -3122,14 +3122,34 @@ async function renderConvitesSection(){
   }
   if(!convites.length) return `<h3 style="margin-top:24px">Convites de novo usuário</h3><p class="note">Nenhum convite registrado ainda.</p>`;
   const badge=s=>({PENDENTE:'warn',ENVIADO:'ok',FALHA:'bad',ACEITO:'ok',EXPIRADO:'bad'}[s]||'warn');
-  const rows=convites.map(c=>`<tr>
+  // Incidente 13.2 — dois mecanismos de reenvio distintos, escolhidos por
+  // elegibilidade server-side (o mesmo dado que o backend valida de novo):
+  // sem Auth ainda (usuario_auth_user_id ausente) -> caminho já existente
+  // (master_reenviar_convite + admin-invite-user, Cenário A, cria o Auth
+  // pela primeira vez). Com Auth já criada e ainda não confirmada
+  // (ativo=false, primeiro_acesso=true) -> novo mecanismo
+  // (admin-resend-user-invite, generateLink, reaproveita a identidade).
+  // Usuário já ativo (usuario_ativo=true) nunca recebe nenhum botão —
+  // reenvio não se aplica e a conta já ativada não pode ser afetada.
+  const rows=convites.map(c=>{
+    let acao='';
+    if(c.status!=='ACEITO'){
+      if(c.usuario_ativo){
+        acao='';
+      }else if(c.usuario_auth_user_id && c.usuario_primeiro_acesso){
+        acao=`<button class="adminActionBtn warn" onclick="abrirReenvioConviteConfirm('${c.usuario_id}','${escapeOperationalHtml(c.email||'')}')">Reenviar convite</button>`;
+      }else{
+        acao=`<button class="adminActionBtn warn" onclick="reenviarConvite('${c.id}')">Reenviar</button>`;
+      }
+    }
+    return `<tr>
     <td>${escapeOperationalHtml(c.nome||'')}<br><span class="note">${escapeOperationalHtml(c.cpf||'')}</span></td>
     <td>${escapeOperationalHtml(c.email||'')}</td>
     <td>${escapeOperationalHtml(c.perfil||'')}</td><td>${escapeOperationalHtml(c.loja||'')}</td>
     <td><span class="adminStatus ${badge(c.status)}">${escapeOperationalHtml(c.status||'')}</span>${c.erro_mensagem?`<br><span class="note" style="color:#ff6b61">${escapeOperationalHtml(c.erro_mensagem)}</span>`:''}</td>
     <td>${c.convidado_em?new Date(c.convidado_em).toLocaleString('pt-BR'):'-'}</td>
-    <td>${c.status!=='ACEITO'?`<button class="adminActionBtn warn" onclick="reenviarConvite('${c.id}')">Reenviar</button>`:''}</td>
-  </tr>`).join('');
+    <td>${acao}</td>
+  </tr>`;}).join('');
   return `<h3 style="margin-top:24px">Convites de novo usuário</h3>
     <div class="tableWrap"><table class="adminTable">
     <thead><tr><th>Nome / CPF</th><th>E-mail</th><th>Perfil</th><th>Loja</th><th>Status</th><th>Convidado em</th><th>Ações</th></tr></thead>
@@ -3243,6 +3263,62 @@ async function confirmarConviteUsuario(){
     renderMasterAdmin();
   }catch(e){
     setAdminModalMsg(String(e?.message||e),true);
+  }
+}
+
+// Incidente 13.2 — reenvio para conta Auth já existente e ainda não
+// confirmada (usuario_ativo=false, usuario_primeiro_acesso=true).
+// Máscara e-mail só para a confirmação visual — nunca revela detalhes
+// internos (token, Auth, etc.), consistente com a mensagem final da
+// Edge Function.
+function maskEmailParaConfirmacao(email){
+  const s=String(email||'');
+  const at=s.indexOf('@');
+  if(at<2) return s;
+  return s.slice(0,2)+'***'+s.slice(at);
+}
+let REENVIO_CONVITE_EM_ANDAMENTO=false;
+function abrirReenvioConviteConfirm(usuarioId,email){
+  const masked=maskEmailParaConfirmacao(email);
+  openAdminModal({
+    title:'Reenviar convite',
+    text:`Reenviar o convite de acesso para ${masked}? Um novo link de ativação será enviado.`,
+    confirmText:'Reenviar convite',
+    onConfirm: ()=>executarReenvioConvite(usuarioId)
+  });
+}
+async function executarReenvioConvite(usuarioId){
+  if(REENVIO_CONVITE_EM_ANDAMENTO) return;
+  REENVIO_CONVITE_EM_ANDAMENTO=true;
+  const btn=document.querySelector('#adminModalOverlay .adminModalActions button:not(.secondary)');
+  const textoOriginal=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Enviando...';}
+  setAdminModalMsg('Enviando...');
+  try{
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(!session) throw new Error('Sessão expirada — entre novamente.');
+    const redirectTo=`${location.origin}${location.pathname.replace(/[^/]*$/,'')}primeiro-acesso.html`;
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/admin-resend-user-invite`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({usuario_id:usuarioId,redirect_to:redirectTo})
+    });
+    const result=await resp.json().catch(()=>({}));
+    if(!resp.ok||result.error){
+      toastAdmin('Não foi possível reenviar o convite.','err');
+      setAdminModalMsg(String(result.error||'Falha ao reenviar.'),true);
+      if(btn){btn.disabled=false;btn.textContent=textoOriginal;}
+      REENVIO_CONVITE_EM_ANDAMENTO=false;
+      return;
+    }
+    toastAdmin('Convite reenviado com sucesso.','ok');
+    closeAdminModal();
+    renderMasterAdmin();
+  }catch(e){
+    setAdminModalMsg(String(e?.message||e),true);
+    if(btn){btn.disabled=false;btn.textContent=textoOriginal;}
+  }finally{
+    REENVIO_CONVITE_EM_ANDAMENTO=false;
   }
 }
 
