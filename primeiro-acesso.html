@@ -38,7 +38,7 @@
     </div>
 
     <div id="formState" class="hidden">
-      <h1>Criar minha senha</h1>
+      <h1 id="formTitle">Criar minha senha</h1>
       <p class="sub" id="welcomeText">Defina a senha que você usará para acessar o Portal F&amp;I.</p>
       <label for="senha1">Nova senha</label>
       <input id="senha1" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres">
@@ -54,7 +54,7 @@
     </div>
 
     <div id="successState" class="hidden">
-      <h1>Conta ativada</h1>
+      <h1 id="successTitle">Conta ativada</h1>
       <p class="sub" id="successText">Sua senha foi definida. Você já pode entrar no portal.</p>
       <a class="backLink" href="index.html">Ir para o login →</a>
     </div>
@@ -89,15 +89,48 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
 
   let sessaoValida=false;
 
+  // Incidente 12.4 — distingue CONVITE (primeiro acesso) de RECUPERAÇÃO DE
+  // SENHA. Antes desta correção os dois caminhos caíam no mesmo formulário
+  // e SEMPRE chamavam concluir_convite_usuario() ao confirmar — correto
+  // para convite, mas gerava auditoria factualmente errada ("Primeiro
+  // acesso concluído") para quem só estava redefinindo a senha de uma
+  // conta já ativa (achado do Incidente 12.3).
+  //
+  // Sinal primário: o evento PASSWORD_RECOVERY é emitido pelo Supabase
+  // Auth especificamente para link de recuperação, nunca para convite —
+  // não há ambiguidade documentada nesse evento. Como reforço, o hash da
+  // própria URL de recuperação já traz type=recovery, capturado aqui antes
+  // do supabase-js consumir/limpar o hash. SIGNED_IN sem nenhum sinal de
+  // recovery é tratado como convite: é o único outro jeito de chegar nesta
+  // página com sessão válida, e é o comportamento já homologado que não
+  // pode regredir (Checkpoint 4/5 do Incidente 12.4).
+  let modoAcesso='convite';
+  if(/[#&]type=recovery(&|$)/.test(location.hash)) modoAcesso='recovery';
+
+  function aplicarTextosModo(){
+    if(modoAcesso==='recovery'){
+      document.getElementById('formTitle').textContent='Redefinir senha';
+      document.getElementById('welcomeText').textContent='Defina a nova senha que você usará para acessar o Portal F&I.';
+      document.getElementById('btnConfirmar').textContent='Salvar nova senha';
+    }else{
+      document.getElementById('formTitle').textContent='Criar minha senha';
+      document.getElementById('welcomeText').textContent='Defina a senha que você usará para acessar o Portal F&I.';
+      document.getElementById('btnConfirmar').textContent='Criar minha senha';
+    }
+  }
+
   client.auth.onAuthStateChange((event, session)=>{
-    // O link de convite do Supabase autentica automaticamente o usuário ao
-    // carregar a página (token na URL) e dispara SIGNED_IN/PASSWORD_RECOVERY
-    // com uma sessão válida, porém "provisória" — só serve para definir a
-    // senha, não para navegar no portal.
+    // O link de convite/recuperação do Supabase autentica automaticamente
+    // o usuário ao carregar a página (token na URL) e dispara
+    // SIGNED_IN/PASSWORD_RECOVERY com uma sessão válida, porém
+    // "provisória" — só serve para definir a senha, não para navegar no
+    // portal.
+    if(event==='PASSWORD_RECOVERY') modoAcesso='recovery';
     if((event==='SIGNED_IN'||event==='PASSWORD_RECOVERY') && session){
       sessaoValida=true;
+      aplicarTextosModo();
       const nome=session.user?.user_metadata?.nome;
-      if(nome) document.getElementById('welcomeText').textContent=`Olá, ${nome}. Defina a senha que você usará para acessar o Portal F&I.`;
+      if(nome && modoAcesso==='convite') document.getElementById('welcomeText').textContent=`Olá, ${nome}. Defina a senha que você usará para acessar o Portal F&I.`;
       show('formState');
     }
   });
@@ -107,7 +140,7 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
   setTimeout(async ()=>{
     if(sessaoValida) return;
     const {data:{session}}=await client.auth.getSession();
-    if(session){ sessaoValida=true; show('formState'); }
+    if(session){ sessaoValida=true; aplicarTextosModo(); show('formState'); }
     else show('errorState');
   }, 2500);
 
@@ -122,10 +155,19 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
     try{
       const {error:updErr}=await client.auth.updateUser({password:s1});
       if(updErr) throw updErr;
-      const {error:rpcErr}=await client.rpc('concluir_convite_usuario');
-      if(rpcErr) throw rpcErr;
-      await client.auth.signOut();
-      document.getElementById('successText').textContent='Sua senha foi definida e sua conta está ativa. Entre novamente com seu e-mail e a nova senha.';
+      if(modoAcesso==='recovery'){
+        // Recuperação de senha: NÃO é conclusão de convite — não chamar
+        // concluir_convite_usuario() (Incidente 12.4).
+        await client.auth.signOut();
+        document.getElementById('successTitle').textContent='Senha redefinida';
+        document.getElementById('successText').textContent='Sua senha foi redefinida com sucesso. Entre novamente com seu e-mail e a nova senha.';
+      }else{
+        const {error:rpcErr}=await client.rpc('concluir_convite_usuario');
+        if(rpcErr) throw rpcErr;
+        await client.auth.signOut();
+        document.getElementById('successTitle').textContent='Conta ativada';
+        document.getElementById('successText').textContent='Sua senha foi definida e sua conta está ativa. Entre novamente com seu e-mail e a nova senha.';
+      }
       show('successState');
     }catch(e){
       setMsg(String(e?.message||e),true);
