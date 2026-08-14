@@ -1889,7 +1889,7 @@ async function showPainelAnalistaFi(viewUser=currentPortalUser()){
   if(!box)return;
   box.classList.remove('hidden');
   const u=REAL_USER||USER;
-  box.innerHTML=`<div class="painelAnalistaHero"><div class="painelAnalistaTop"><div><div class="portalEyebrow">Atendimento F&I Brabus</div><div class="painelAnalistaTitle">Painel do Analista F&I</div><div class="painelAnalistaSub">Controle sua disponibilidade na fila de atendimento. Somente status <b>ONLINE</b> recebe novos chamados do botão FALAR COM UM ANALISTA.</div></div><div class="statusAtualBox"><div class="k">Analista conectado</div><div class="v">${u?.nome||''}</div><div class="note">${u?.tipo||''} · ${u?.loja||'Todas'}</div><div id="painelAnalistaStatusPill" class="statusAtualPill">Carregando...</div></div></div><div class="painelStatusGrid"><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('ONLINE')"><span>🟢</span><b>ONLINE</b></button><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('OCUPADO')"><span>🟡</span><b>OCUPADO</b></button><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('ALMOÇO')"><span>🍽️</span><b>ALMOÇO</b></button><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('FÉRIAS')"><span>🌴</span><b>FÉRIAS</b></button><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('OFFLINE')"><span>⚫</span><b>OFFLINE</b></button></div><div class="painelAnalistaCards"><div class="painelAnalistaCard"><div class="k">Atendimentos hoje</div><div class="v" id="painelAtendimentosHoje">-</div></div><div class="painelAnalistaCard"><div class="k">Último atendimento</div><div class="v" id="painelUltimoAtendimento">-</div></div><div class="painelAnalistaCard"><div class="k">Última atualização de status</div><div class="v" id="painelUltimoStatus">-</div></div></div><div id="painelAnalistaFiMsg" class="painelAnalistaMsg"></div><div class="painelAnalistaBack"><button onclick="renderPortalHome()">Voltar ao Portal</button><button onclick="logout()">Sair</button></div></div>`;
+  box.innerHTML=`<div class="painelAnalistaHero"><div class="painelAnalistaTop"><div><div class="portalEyebrow">Atendimento F&I Brabus</div><div class="painelAnalistaTitle">Painel do Analista F&I</div><div class="painelAnalistaSub">Controle sua disponibilidade na fila de atendimento. Somente status <b>ONLINE</b> recebe novos chamados do botão FALAR COM UM ANALISTA.</div></div><div class="statusAtualBox"><div class="k">Analista conectado</div><div class="v">${u?.nome||''}</div><div class="note">${u?.tipo||''} · ${u?.loja||'Todas'}</div><div id="painelAnalistaStatusPill" class="statusAtualPill">Carregando...</div></div></div><div class="painelStatusGrid"><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('ONLINE')"><span>🟢</span><b>ONLINE</b></button><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('OCUPADO')"><span>🟡</span><b>OCUPADO</b></button><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('ALMOÇO')"><span>🍽️</span><b>ALMOÇO</b></button><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('FÉRIAS')"><span>🌴</span><b>FÉRIAS</b></button><button class="statusBtnFi" onclick="alterarMeuStatusAnalistaFi('OFFLINE')"><span>⚫</span><b>OFFLINE</b></button></div><div class="painelAnalistaCards"><div class="painelAnalistaCard"><div class="k">Atendimentos hoje</div><div class="v" id="painelAtendimentosHoje">-</div></div><div class="painelAnalistaCard"><div class="k">Último atendimento</div><div class="v" id="painelUltimoAtendimento">-</div></div><div class="painelAnalistaCard"><div class="k">Última atualização de status</div><div class="v" id="painelUltimoStatus">-</div></div></div><div id="painelAnalistaFiMsg" class="painelAnalistaMsg"></div><div class="painelAnalistaBack"><button onclick="renderPortalHome()">Voltar ao Portal</button><button onclick="logout()">Sair</button></div>${window.BLISTIQ_FOOTER_HTML||''}</div>`;
   await atualizarResumoPainelAnalistaFi();
 }
 function fmtDataHoraFi(v){
@@ -4761,7 +4761,7 @@ async function renderMasterAdmin(){
     const detail=String(error?.message||'Falha não identificada.').slice(0,240);
     console.error('Falha no Painel Master:',error);
     box.classList.remove('hidden');
-    box.innerHTML=`<div class="masterAdminLayout"><div></div><div class="masterBody"><h2>Painel Master</h2><p class="note" style="color:#ff6b61">Não foi possível carregar esta seção: ${detail}</p><button onclick="renderMasterAdmin()">Tentar novamente</button></div></div>`;
+    box.innerHTML=`<div class="masterAdminLayout"><div></div><div class="masterBody"><h2>Painel Master</h2><p class="note" style="color:#ff6b61">Não foi possível carregar esta seção: ${detail}</p><button onclick="renderMasterAdmin()">Tentar novamente</button></div></div>${window.BLISTIQ_FOOTER_HTML||''}`;
   }
 }
 
@@ -4949,7 +4949,7 @@ async function renderMasterAdminContent(renderSequence){
     </div>`;
   }
   if(renderSequence!==MASTER_RENDER_SEQUENCE) return;
-  box.innerHTML=`<div class="masterAdminLayout">${adminTabsHtml()}<div class="masterBody">${body}</div></div>`;
+  box.innerHTML=`<div class="masterAdminLayout">${adminTabsHtml()}<div class="masterBody">${body}</div></div>${window.BLISTIQ_FOOTER_HTML||''}`;
 }
 
 

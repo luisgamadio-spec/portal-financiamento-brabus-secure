@@ -1165,6 +1165,9 @@
       }
     }
 
+    .blistiqFooter{margin:28px auto 0;padding-top:16px;max-width:1500px;border-top:1px solid rgba(255,255,255,.08);text-align:center;color:#8a8a8a;font-size:11px;font-weight:400;letter-spacing:.02em}
+    .blistiqFooter b{color:#b5b5b5;font-weight:700;letter-spacing:.03em}
+
   </style>
 
 
@@ -1308,35 +1311,6 @@ button[onclick*="exportarResumoCSV"]{
   border-radius:20px;
 }
 </style>
-
-<style id="dashboard-version-box-style">
-.dashboardVersionBox {
-  position: fixed;
-  right: 14px;
-  bottom: 12px;
-  z-index: 9999;
-  padding: 7px 11px;
-  border-radius: 12px;
-  background: rgba(0,0,0,.62);
-  border: 1px solid rgba(255,255,255,.14);
-  color: rgba(255,255,255,.72);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .2px;
-  backdrop-filter: blur(6px);
-  pointer-events: none;
-}
-@media(max-width:640px){
-  .dashboardVersionBox{
-    right: 10px;
-    bottom: 10px;
-    font-size: 10px;
-    padding: 6px 9px;
-    max-width: calc(100vw - 24px);
-  }
-}
-</style>
-
 
 <style id="analise-vendedor-plano-destaque-v010108">
 .planoBadge{
@@ -1896,6 +1870,7 @@ html body #kpis.cards > .card::after{
   <div class="footer">
     Regras embutidas: Base 01/02 históricas fixas até 31/05/2026; Base 01/02 novas a partir de 01/06/2026; Base 03 permanece dinâmica e complementar; Balão = coluna “Op Fin - Balão PMT (R$)” preenchida; Linear = vazia. Gestores e atacado excluídos antes dos cálculos.
   </div>
+  <div class="blistiqFooter">Desenvolvido por <b>BLISTIQ</b> em 2026.</div>
 </main>
 
 <script>
@@ -5544,10 +5519,6 @@ window.processar = carregarBasesAutomaticamente;
 
 // Bootstrap legado desativado: a versão segura usa somente RPCs autorizadas.
 </script>
-
-<div class="dashboardVersionBox">
-  Dashboard F&I Brabus · Versão V01.01.38 · Atualizado em 08/07/2026 às 15h28</div>
-
 
 <script id="portal-iframe-helper-v224">
 (function(){window.portalBack=function(){try{parent.postMessage('portal:back','*')}catch(e){history.back();}};})();
