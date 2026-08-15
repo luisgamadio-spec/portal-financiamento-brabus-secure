@@ -5,24 +5,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // QUEM está chamando; adminClient (service_role, nunca exposto ao
 // navegador) para consultar usuarios com privilégio e operar o Auth Admin.
 // A service_role só existe aqui, como variável de ambiente da função.
-// Whitelist por ORIGIN + PATH exato — uma página arbitrária dentro do
-// mesmo origin autorizado não pode ser usada como destino do token de
-// convite, só a página de primeiro acesso.
-const ALLOWED_REDIRECTS = [
-  "http://127.0.0.1:8080/primeiro-acesso.html",
-  "http://localhost:8080/primeiro-acesso.html",
-  "https://luisgamadio-spec.github.io/portal-financiamento-brabus-secure/primeiro-acesso.html",
-  "https://brabus.blistiq.com.br/primeiro-acesso.html"
-];
-function isAllowedRedirect(url) {
-  try {
-    const u = new URL(url);
-    const normalized = `${u.origin}${u.pathname}`;
-    return ALLOWED_REDIRECTS.includes(normalized);
-  } catch  {
-    return false;
-  }
-}
+// Incidente 15.1 — callback de convite real nunca mais decidido pelo
+// cliente. Antes desta correção, o redirect vinha de location.origin do
+// navegador de quem clicava "convidar", validado só contra uma allowlist
+// que incluía localhost para desenvolvimento — um MASTER operando o
+// Painel a partir de 127.0.0.1:8080 gerava, sem querer, um convite real
+// com link quebrado (casos Bruno/Rodrigo). Agora o callback de produção
+// é uma constante fixa no backend; nada vindo do corpo da requisição,
+// de Origin ou de Referer jamais participa dessa decisão.
+const PRODUCTION_INVITE_REDIRECT = "https://brabus.blistiq.com.br/primeiro-acesso.html";
 serve(async (req)=>{
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -87,18 +78,9 @@ serve(async (req)=>{
     }
     const body = await req.json();
     const conviteId = String(body.convite_id || "");
-    const redirectTo = String(body.redirect_to || "");
     if (!conviteId) {
       return new Response(JSON.stringify({
         error: "convite_id obrigatório"
-      }), {
-        status: 400,
-        headers: corsHeaders
-      });
-    }
-    if (!redirectTo || !isAllowedRedirect(redirectTo)) {
-      return new Response(JSON.stringify({
-        error: "URL de retorno não autorizada"
       }), {
         status: 400,
         headers: corsHeaders
@@ -170,7 +152,7 @@ serve(async (req)=>{
     //    via Supabase Auth Admin. Único ponto do sistema inteiro que usa
     //    service_role para isso.
     const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(convite.email, {
-      redirectTo,
+      redirectTo: PRODUCTION_INVITE_REDIRECT,
       data: {
         nome: convite.nome,
         perfil: convite.perfil,

@@ -13,21 +13,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // userClient (anon + JWT do chamador) só identifica quem está
 // chamando; adminClient (service_role, nunca exposto ao navegador)
 // consulta usuarios com privilégio e opera o Auth Admin.
-const ALLOWED_REDIRECTS = [
-  "http://127.0.0.1:8080/primeiro-acesso.html",
-  "http://localhost:8080/primeiro-acesso.html",
-  "https://luisgamadio-spec.github.io/portal-financiamento-brabus-secure/primeiro-acesso.html",
-  "https://brabus.blistiq.com.br/primeiro-acesso.html"
-];
-function isAllowedRedirect(url) {
-  try {
-    const u = new URL(url);
-    const normalized = `${u.origin}${u.pathname}`;
-    return ALLOWED_REDIRECTS.includes(normalized);
-  } catch {
-    return false;
-  }
-}
+// Incidente 15.1 — callback de convite real nunca mais decidido pelo
+// cliente (mesma correção aplicada em admin-invite-user). Antes, o
+// redirect vinha de location.origin do navegador de quem clicava
+// "reenviar"; um MASTER operando o Painel a partir de 127.0.0.1:8080
+// gerava, sem querer, um reenvio real com link quebrado (caso Bruno).
+// Agora o callback de produção é uma constante fixa no backend; nada
+// vindo do corpo da requisição, de Origin ou de Referer participa.
+const PRODUCTION_INVITE_REDIRECT = "https://brabus.blistiq.com.br/primeiro-acesso.html";
 // Template institucional — mesmo conteúdo aprovado no Incidente 12.7
 // (mailer_templates_invite_content), reproduzido aqui porque
 // generateLink() não passa pelo motor de template do Supabase Auth.
@@ -108,12 +101,8 @@ serve(async (req)=>{
     }
     const body = await req.json();
     const usuarioId = String(body.usuario_id || "");
-    const redirectTo = String(body.redirect_to || "");
     if (!usuarioId) {
       return new Response(JSON.stringify({ error: "usuario_id obrigatório" }), { status: 400, headers: corsHeaders });
-    }
-    if (!redirectTo || !isAllowedRedirect(redirectTo)) {
-      return new Response(JSON.stringify({ error: "URL de retorno não autorizada" }), { status: 400, headers: corsHeaders });
     }
     // Default deny — releitura completa do usuário-alvo a partir do banco,
     // nunca de dados soltos vindos do payload (Parte B/C).
@@ -165,7 +154,7 @@ serve(async (req)=>{
       type: "invite",
       email: alvo.email_auth,
       options: {
-        redirectTo,
+        redirectTo: PRODUCTION_INVITE_REDIRECT,
         data: { nome: alvo.nome, perfil: alvo.perfil, loja: alvo.loja, cpf: alvo.cpf }
       }
     });
