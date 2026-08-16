@@ -1162,8 +1162,66 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
 @media(max-width:700px){.amTable{min-width:680px}}
 </style>
 
+<style id="master-usuarios-redesign-style">
+/* Incidente 16.2 — Gerenciamento de Usuários: lista compacta + ficha
+   administrativa (drawer), no lugar da tabela horizontal larga. */
+.adminGrid{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.adminCard{background:#151515;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:12px 18px;flex:1 1 150px;min-width:130px}
+.adminCard .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800}
+.adminCard .v{font-size:24px;font-weight:950;margin-top:4px;color:#fff}
+
+.userFiltros{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px}
+.userFiltros button{padding:7px 14px!important;border-radius:999px!important;font-size:12px!important;background:#181818!important;box-shadow:none!important;border:1px solid rgba(255,255,255,.1)!important;white-space:nowrap}
+.userFiltros button.active{background:linear-gradient(180deg,#5c1220,#3c0b15)!important;border-color:rgba(145,41,59,.7)!important}
+
+.userListWrap{display:grid;gap:8px}
+.userRow{display:grid;grid-template-columns:1.5fr .9fr .9fr .8fr 1.2fr auto;gap:14px;align-items:center;background:#151515;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 16px}
+.userRow .userName{font-weight:900;font-size:14px;color:#fff}
+.userRow .userMetaMobile{display:none;font-size:12px;color:var(--muted);margin-top:2px}
+.userRow .userColSituacao{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.userRow .userColAcao{text-align:right}
+@media(max-width:1180px){
+  .userRow{grid-template-columns:1.5fr .8fr .8fr 1.1fr auto}
+  .userRow .userColLoja{display:none}
+  .userRow .userMetaMobile{display:block}
+}
+@media(max-width:760px){
+  .userRow{grid-template-columns:1fr;gap:8px}
+  .userRow .userColPerfil,.userRow .userColStatus{display:none}
+  .userRow .userMetaMobile{display:block}
+  .userRow .userColSituacao{flex-direction:row;flex-wrap:wrap}
+  .userRow .userColAcao{text-align:left}
+  .userRow .userColAcao button{width:100%}
+}
+
+.userDrawerOverlay{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9997;display:none}
+.userDrawerOverlay.show{display:block}
+.userDrawer{position:fixed;top:0;right:0;height:100vh;width:min(480px,100%);background:#111;border-left:1px solid rgba(255,255,255,.14);box-shadow:-24px 0 70px rgba(0,0,0,.6);overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;padding:20px}
+.userDrawerOverlay.show .userDrawer{transform:translateX(0)}
+@media(max-width:640px){.userDrawer{width:100%}}
+.userDrawerHeader{position:relative;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.1)}
+.userDrawerClose{position:absolute;top:-6px;right:-6px;width:34px;height:34px;border-radius:999px;background:#1c1c1c!important;border:1px solid rgba(255,255,255,.14);font-size:18px;line-height:1;box-shadow:none!important}
+.userDrawerNome{font-size:19px;font-weight:950;color:#fff;padding-right:36px}
+.userDrawer .userMeta{font-size:12.5px;color:var(--muted);margin-top:4px}
+.userSituacaoBadges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.userDrawerBody h4{margin:20px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.userDrawerBody h4:first-child{margin-top:0}
+.userDrawerBody h4.fichaAcoesSensiveis{margin-top:24px;padding-top:14px;border-top:1px dashed rgba(255,255,255,.14);color:#ffb454}
+.fichaList{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:0}
+.fichaList dt{color:var(--muted);white-space:nowrap}
+.fichaList dd{margin:0;color:#fff;text-align:right}
+@media(max-width:420px){
+  .fichaList{grid-template-columns:1fr}
+  .fichaList dd{text-align:left}
+}
+</style>
+
 <div id="adminModalOverlay" class="adminModalOverlay"></div>
 <div id="adminToastWrap" class="adminToastWrap"></div>
+<!-- Incidente 16.2 — ficha administrativa do usuário (drawer lateral). -->
+<div id="userDrawerOverlay" class="userDrawerOverlay" onclick="if(event.target===this) fecharFichaUsuario()">
+  <div id="userDrawer" class="userDrawer"></div>
+</div>
 
 
 

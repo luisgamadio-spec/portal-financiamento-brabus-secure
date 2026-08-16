@@ -2941,6 +2941,13 @@ let MASTER_PANEL_OPEN=false;
 let MASTER_TAB='usuarios';
 let MASTER_SEARCH='';
 let ADMIN_MODAL_STATE=null;
+// Incidente 16.2 — redesign de Gerenciamento de Usuários (lista compacta +
+// ficha administrativa). Filtro client-side sobre o mesmo dataset já
+// autorizado (nenhuma RPC nova); ficha aberta guarda só o id do usuário,
+// os dados vêm do cache já carregado (sem N+1).
+let MASTER_USUARIOS_FILTRO='TODOS';
+let MASTER_USUARIOS_CACHE=[];
+let FICHA_USUARIO_ABERTA_ID=null;
 // Fase 4.3 — Revisões Cadastrais (Ativação de Acesso).
 let MASTER_REVISOES_PENDENTES=0;
 let MASTER_REVISOES_FILTRO='PENDENTE';
@@ -3307,6 +3314,109 @@ function renderEmailAcessoCelula(u){
     return `<span class="note">***@${escapeOperationalHtml(dominioEmailAcesso(u.email_auth))}</span><br><span class="adminStatus warn">⚠ E-mail legado</span>${divergenciaHtml}`;
   }
   return `${escapeOperationalHtml(u.email_auth)}${divergenciaHtml}`;
+}
+
+// Incidente 16.2 — redesign de Gerenciamento de Usuários. A regra de
+// negócio (quem está ativo/pendente/bloqueado) é exatamente a mesma já
+// usada na Fase 16.1 — aqui só derivamos uma apresentação visual amigável
+// a partir dos mesmos campos (ativo/primeiro_acesso), sem nenhuma lógica
+// nova de elegibilidade.
+function situacaoUsuarioInfo(u){
+  if(!u.ativo && u.primeiro_acesso) return {emoji:'🟡',label:'AGUARDANDO ATIVAÇÃO',classe:'warn'};
+  if(!u.ativo) return {emoji:'🔴',label:'BLOQUEADO',classe:'bad'};
+  return {emoji:'🟢',label:'ATIVO',classe:'ok'};
+}
+function renderSituacaoBadges(u){
+  const s=situacaoUsuarioInfo(u);
+  let html=`<span class="adminStatus ${s.classe}">${s.emoji} ${s.label}</span>`;
+  if(u.email_auth && ehEmailAcessoLegado(u.email_auth)) html+=`<span class="adminStatus warn">⚠ E-MAIL LEGADO</span>`;
+  return html;
+}
+function usuarioCombinaFiltro(u,filtro){
+  if(filtro==='TODOS') return true;
+  if(filtro==='ATIVOS') return !!u.ativo && !u.primeiro_acesso;
+  if(filtro==='AGUARDANDO') return !u.ativo && !!u.primeiro_acesso;
+  if(filtro==='BLOQUEADOS') return !u.ativo && !u.primeiro_acesso;
+  if(filtro==='LEGADO') return !!(u.email_auth && ehEmailAcessoLegado(u.email_auth));
+  return true;
+}
+function setMasterUsuariosFiltro(f){MASTER_USUARIOS_FILTRO=f;renderMasterAdmin();}
+function maskCpfFicha(cpf){
+  const s=String(cpf||'').replace(/\D/g,'');
+  if(s.length<4) return s;
+  return s.slice(0,3)+'.***.***-**';
+}
+
+// ---------------- Ficha administrativa do usuário (Incidente 16.2) ----------------
+// Reaproveita o dataset MASTER já carregado (nenhuma consulta nova por
+// usuário) e as MESMAS funções de ação já existentes e homologadas —
+// convite, link manual (Fase 16.1), edição de perfil/loja/status, senha.
+function abrirFichaUsuario(usuarioId){
+  const u=MASTER_USUARIOS_CACHE.find(x=>x.id===usuarioId);
+  if(!u) return;
+  FICHA_USUARIO_ABERTA_ID=usuarioId;
+  const overlay=document.getElementById('userDrawerOverlay');
+  const painel=document.getElementById('userDrawer');
+  if(!overlay||!painel) return;
+  painel.innerHTML=renderFichaUsuarioHtml(u);
+  overlay.classList.add('show');
+}
+function fecharFichaUsuario(){
+  FICHA_USUARIO_ABERTA_ID=null;
+  const overlay=document.getElementById('userDrawerOverlay');
+  if(overlay) overlay.classList.remove('show');
+}
+function renderFichaUsuarioHtml(u){
+  const nomeSeguro=escapeOperationalHtml(u.nome||'').replace(/'/g,"\\'");
+  let acaoAcesso='';
+  if(u.tem_auth){
+    if(!u.ativo && u.primeiro_acesso){
+      acaoAcesso=`
+        <button class="adminActionBtn warn" onclick="abrirReenvioConviteConfirm('${u.id}','${escapeOperationalHtml(u.email_auth||'').replace(/'/g,"\\'")}')">Reenviar convite</button>
+        <button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${nomeSeguro}','activation')">Gerar link de ativação</button>`;
+    }else if(u.ativo && !u.primeiro_acesso){
+      acaoAcesso=`<button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${nomeSeguro}','recovery')">Gerar link de recuperação</button>`;
+    }
+  }
+  return `
+    <div class="userDrawerHeader">
+      <button class="userDrawerClose" type="button" onclick="fecharFichaUsuario()" aria-label="Fechar">×</button>
+      <div class="userDrawerNome">${escapeOperationalHtml(u.nome||'')}</div>
+      <div class="userMeta">${escapeOperationalHtml(u.perfil||'')} • ${escapeOperationalHtml(u.loja||'—')} • ${escapeOperationalHtml(u.status||'—')}</div>
+      <div class="userSituacaoBadges">${renderSituacaoBadges(u)}</div>
+    </div>
+    <div class="userDrawerBody">
+      <h4>Dados do usuário</h4>
+      <dl class="fichaList">
+        <dt>Nome</dt><dd>${escapeOperationalHtml(u.nome||'')}</dd>
+        <dt>CPF</dt><dd>${maskCpfFicha(u.cpf)}</dd>
+        <dt>Perfil</dt><dd>${escapeOperationalHtml(u.perfil||'—')}</dd>
+        <dt>Loja</dt><dd>${escapeOperationalHtml(u.loja||'—')}</dd>
+        <dt>Departamento/Status</dt><dd>${escapeOperationalHtml(u.status||'—')}</dd>
+        <dt>Login NBS</dt><dd>${u.login_nbs?escapeOperationalHtml(u.login_nbs):'Não disponível'}</dd>
+        <dt>E-mail de acesso</dt><dd>${renderEmailAcessoCelula(u)}</dd>
+      </dl>
+      <h4>Segurança e acesso</h4>
+      <dl class="fichaList">
+        <dt>Situação da conta</dt><dd>${renderSituacaoBadges(u)}</dd>
+        <dt>Auth vinculado</dt><dd>${u.tem_auth?'Sim':'Não'}</dd>
+        <dt>Primeiro acesso</dt><dd>${u.primeiro_acesso?'Pendente':'Concluído'}</dd>
+        <dt>Último login</dt><dd>${u.ultimo_login?new Date(u.ultimo_login).toLocaleString('pt-BR'):'Nunca'}</dd>
+      </dl>
+      ${acaoAcesso?`<div class="adminActions" style="justify-content:flex-start;margin-top:6px">${acaoAcesso}</div>`:''}
+      <h4>Dados cadastrais</h4>
+      <div class="adminActions" style="justify-content:flex-start">
+        <button class="adminActionBtn wine" onclick="editarUsuarioModal('${u.cpf}','perfil','${u.perfil||''}')">Editar Perfil</button>
+        <button class="adminActionBtn wine" onclick="editarUsuarioModal('${u.cpf}','loja','${u.loja||''}')">Editar Loja</button>
+        <button class="adminActionBtn wine" onclick="editarUsuarioModal('${u.cpf}','status','${u.status||''}')">Editar STATUS</button>
+      </div>
+      <h4 class="fichaAcoesSensiveis">Ações administrativas</h4>
+      <div class="adminActions" style="justify-content:flex-start">
+        <button class="adminActionBtn warn" onclick="resetarSenhaUsuario('${u.cpf}')">Redefinir senha</button>
+        <button class="adminActionBtn warn" onclick="forcarTrocaSenha('${u.cpf}')">Forçar troca</button>
+        ${u.ativo?`<button class="adminActionBtn danger" onclick="bloquearUsuario('${u.cpf}')">Bloquear</button>`:`<button class="adminActionBtn good" onclick="desbloquearUsuario('${u.cpf}')">Desbloquear</button>`}
+      </div>
+    </div>`;
 }
 
 // ---------------- Link manual de acesso (Incidente 16.1) ----------------
@@ -5026,62 +5136,70 @@ async function renderMasterAdminContent(renderSequence){
   let body='';
   if(MASTER_TAB==='revisoes'){
     body=await renderRevisoesCadastraisHtml();
-  }else if(MASTER_TAB==='usuarios' || MASTER_TAB==='senhas'){
+  }else if(MASTER_TAB==='usuarios'){
+    // Incidente 16.2 — lista compacta + ficha administrativa (drawer),
+    // substituindo a tabela horizontal larga. Mesma regra de negócio,
+    // mesmo dataset MASTER já carregado (sem RPC nova, sem N+1).
     const usuarios=filtroUsuarios(await carregarUsuariosSupabase());
-    const total=usuarios.length, ativos=usuarios.filter(u=>u.ativo).length, primeiro=usuarios.filter(u=>u.primeiro_acesso).length, bloqueados=usuarios.filter(u=>!u.ativo).length;
-    const rows=usuarios.map(u=>{
-      const situacao=u.ativo?'<span class="adminStatus ok">ATIVO</span>':'<span class="adminStatus bad">BLOQUEADO</span>';
-      const primeiroBadge=u.primeiro_acesso?'<span class="adminStatus warn">PENDENTE</span>':'<span class="adminStatus ok">OK</span>';
-      // Incidente 16.1 — link manual só aparece quando o estado do usuário
-      // realmente permite (mesma elegibilidade validada de novo no
-      // backend): ativação para quem aguarda primeiro acesso, recuperação
-      // para quem já está ativo. Nunca as duas ao mesmo tempo.
-      let linkAcessoBtn='';
-      if(MASTER_TAB==='usuarios' && u.tem_auth){
-        if(!u.ativo && u.primeiro_acesso){
-          linkAcessoBtn=`<button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${escapeOperationalHtml(u.nome||'').replace(/'/g,"\\'")}','activation')">Gerar link de ativação</button>`;
-        }else if(u.ativo && !u.primeiro_acesso){
-          linkAcessoBtn=`<button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${escapeOperationalHtml(u.nome||'').replace(/'/g,"\\'")}','recovery')">Gerar link de recuperação</button>`;
-        }
-      }
-      const userActions=MASTER_TAB==='usuarios'?`
-        <div class="adminActions">
-          <button class="adminActionBtn wine" onclick="editarUsuarioModal('${u.cpf}','perfil','${u.perfil||''}')">Editar Perfil</button>
-          <button class="adminActionBtn wine" onclick="editarUsuarioModal('${u.cpf}','loja','${u.loja||''}')">Editar Loja</button>
-          <button class="adminActionBtn wine" onclick="editarUsuarioModal('${u.cpf}','status','${u.status||''}')">Editar STATUS</button>
-          ${linkAcessoBtn}
-        </div>`:'';
-      const passActions=MASTER_TAB==='senhas'?`
-        <div class="adminActions">
-          <button class="adminActionBtn warn" onclick="resetarSenhaUsuario('${u.cpf}')">Redefinir senha</button>
-          <button class="adminActionBtn warn" onclick="forcarTrocaSenha('${u.cpf}')">Forçar troca</button>
-          ${u.ativo?`<button class="adminActionBtn danger" onclick="bloquearUsuario('${u.cpf}')">Bloquear</button>`:`<button class="adminActionBtn good" onclick="desbloquearUsuario('${u.cpf}')">Desbloquear</button>`}
-        </div>`:'';
-      return `<tr>
-        <td>${u.nome||''}<br><span class="note">${u.cpf||''}</span></td>
-        <td>${u.perfil||''}</td><td>${u.loja||''}</td><td>${u.status||''}</td>
-        <td>${renderEmailAcessoCelula(u)}</td>
-        <td>${u.ultimo_login?new Date(u.ultimo_login).toLocaleString('pt-BR'):'-'}</td>
-        <td>${situacao}</td><td>${primeiroBadge}</td>
-        <td>${userActions}${passActions}</td>
-      </tr>`;
-    }).join('');
+    MASTER_USUARIOS_CACHE=usuarios;
+    const total=usuarios.length, ativos=usuarios.filter(u=>u.ativo && !u.primeiro_acesso).length, primeiro=usuarios.filter(u=>u.primeiro_acesso).length, bloqueados=usuarios.filter(u=>!u.ativo && !u.primeiro_acesso).length;
+    const filtroChips=[['TODOS','Todos'],['ATIVOS','Ativos'],['AGUARDANDO','Aguardando ativação'],['BLOQUEADOS','Bloqueados'],['LEGADO','E-mail legado']]
+      .map(([chave,label])=>`<button class="${MASTER_USUARIOS_FILTRO===chave?'active':''}" onclick="setMasterUsuariosFiltro('${chave}')">${label}</button>`).join('');
+    const usuariosVisiveis=usuarios.filter(u=>usuarioCombinaFiltro(u,MASTER_USUARIOS_FILTRO));
+    const rows=usuariosVisiveis.map(u=>`
+      <div class="userRow">
+        <div class="userMain">
+          <div class="userName">${escapeOperationalHtml(u.nome||'')}</div>
+          <div class="userMetaMobile">${escapeOperationalHtml(u.perfil||'')} • ${escapeOperationalHtml(u.loja||'—')}</div>
+        </div>
+        <div class="userCol userColPerfil">${escapeOperationalHtml(u.perfil||'—')}</div>
+        <div class="userCol userColLoja">${escapeOperationalHtml(u.loja||'—')}</div>
+        <div class="userCol userColStatus">${escapeOperationalHtml(u.status||'—')}</div>
+        <div class="userCol userColSituacao">${renderSituacaoBadges(u)}</div>
+        <div class="userCol userColAcao"><button class="adminActionBtn wine" onclick="abrirFichaUsuario('${u.id}')">Ver detalhes</button></div>
+      </div>`).join('');
     body=`
-      <h2>${MASTER_TAB==='usuarios'?'Gerenciamento de Usuários':'Gerenciamento de Senhas'}</h2>
+      <h2>Gerenciamento de Usuários</h2>
       <div class="adminGrid">
         <div class="adminCard"><div class="k">Usuários</div><div class="v">${total}</div></div>
         <div class="adminCard"><div class="k">Ativos</div><div class="v">${ativos}</div></div>
         <div class="adminCard"><div class="k">Primeiro acesso</div><div class="v">${primeiro}</div></div>
         <div class="adminCard"><div class="k">Bloqueados</div><div class="v">${bloqueados}</div></div>
       </div>
+      <div class="adminToolbar"><div><label>Pesquisar usuário...</label><br><input class="adminSearch" oninput="setMasterSearch(this.value)" value="${MASTER_SEARCH}" placeholder="Nome, CPF, loja ou e-mail de acesso"></div>
+        <div><button class="adminActionBtn good" onclick="abrirConvidarUsuarioModal()">+ Convidar novo usuário</button></div>
+      </div>
+      <div class="userFiltros">${filtroChips}</div>
+      <div id="adminMsg" class="adminMsg"></div>
+      <div class="userListWrap">${rows||'<p class="note" style="padding:16px">Nenhum usuário encontrado.</p>'}</div>
+      ${await renderConvitesSection()}`;
+  }else if(MASTER_TAB==='senhas'){
+    const usuarios=filtroUsuarios(await carregarUsuariosSupabase());
+    const rows=usuarios.map(u=>{
+      const situacao=u.ativo?'<span class="adminStatus ok">ATIVO</span>':'<span class="adminStatus bad">BLOQUEADO</span>';
+      const primeiroBadge=u.primeiro_acesso?'<span class="adminStatus warn">PENDENTE</span>':'<span class="adminStatus ok">OK</span>';
+      const passActions=`
+        <div class="adminActions">
+          <button class="adminActionBtn warn" onclick="resetarSenhaUsuario('${u.cpf}')">Redefinir senha</button>
+          <button class="adminActionBtn warn" onclick="forcarTrocaSenha('${u.cpf}')">Forçar troca</button>
+          ${u.ativo?`<button class="adminActionBtn danger" onclick="bloquearUsuario('${u.cpf}')">Bloquear</button>`:`<button class="adminActionBtn good" onclick="desbloquearUsuario('${u.cpf}')">Desbloquear</button>`}
+        </div>`;
+      return `<tr>
+        <td>${u.nome||''}<br><span class="note">${u.cpf||''}</span></td>
+        <td>${u.perfil||''}</td><td>${u.loja||''}</td><td>${u.status||''}</td>
+        <td>${u.ultimo_login?new Date(u.ultimo_login).toLocaleString('pt-BR'):'-'}</td>
+        <td>${situacao}</td><td>${primeiroBadge}</td>
+        <td>${passActions}</td>
+      </tr>`;
+    }).join('');
+    body=`
+      <h2>Gerenciamento de Senhas</h2>
       <div class="adminToolbar"><div><label>Pesquisar por nome, CPF, loja ou e-mail de acesso</label><br><input class="adminSearch" oninput="setMasterSearch(this.value)" value="${MASTER_SEARCH}" placeholder="Digite para pesquisar"></div>
-        ${MASTER_TAB==='usuarios'?'<div><button class="adminActionBtn good" onclick="abrirConvidarUsuarioModal()">+ Convidar novo usuário</button></div>':''}
       </div>
       <div id="adminMsg" class="adminMsg"></div>
       <div class="tableWrap" style="margin-top:12px"><table class="adminTable">
-      <thead><tr><th>Nome / CPF</th><th>Perfil</th><th>Loja</th><th>Status</th><th>E-mail de Acesso</th><th>Último login</th><th>Situação</th><th>Primeiro acesso</th><th>AÇÕES</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="9">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div>
-      ${MASTER_TAB==='usuarios'?await renderConvitesSection():''}`;
+      <thead><tr><th>Nome / CPF</th><th>Perfil</th><th>Loja</th><th>Status</th><th>Último login</th><th>Situação</th><th>Primeiro acesso</th><th>AÇÕES</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="8">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div>`;
   }else if(MASTER_TAB==='config'){
     await carregarParametrosPortal();
     body=`
