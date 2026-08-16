@@ -3090,6 +3090,10 @@ function closeAdminModal(){
   ov.classList.remove('show');
   ov.innerHTML='';
   ADMIN_MODAL_STATE=null;
+  // Incidente 16.1 — qualquer link de acesso gerado só pode existir
+  // enquanto o modal que o exibe estiver aberto; fechar por qualquer via
+  // (Cancelar, F5, troca de aba) sempre limpa a referência em memória.
+  if(typeof limparLinkAcessoGerado==='function') limparLinkAcessoGerado();
 }
 async function confirmAdminModal(){
   const fn=ADMIN_MODAL_STATE?.onConfirm;
@@ -3277,6 +3281,118 @@ function maskEmailParaConfirmacao(email){
   if(at<2) return s;
   return s.slice(0,2)+'***'+s.slice(at);
 }
+
+// Incidente 16.1 — coluna "E-mail de Acesso" no Painel Master. Identidades
+// legadas (criadas antes do fluxo de convite atual) usam um e-mail
+// sintético {CPF}@portalfi.brabus como identificador de login no Supabase
+// Auth — nunca uma caixa postal real. Mascaramos essa parte sintética
+// (que contém o CPF) e mostramos só o domínio, com um aviso "E-mail
+// legado"; e-mails reais são exibidos por completo ao MASTER, pois a
+// finalidade aqui é justamente permitir conferir o endereço cadastrado.
+const EMAIL_ACESSO_DOMINIOS_LEGADOS=['portalfi.brabus','brabus-fi.local'];
+function dominioEmailAcesso(email){
+  const s=String(email||'');
+  const at=s.lastIndexOf('@');
+  return at<0?'':s.slice(at+1).toLowerCase();
+}
+function ehEmailAcessoLegado(email){
+  return EMAIL_ACESSO_DOMINIOS_LEGADOS.includes(dominioEmailAcesso(email));
+}
+function renderEmailAcessoCelula(u){
+  if(!u.email_auth){
+    return '<span class="note">Não cadastrado</span>';
+  }
+  const divergenciaHtml=u.email_divergente?'<br><span class="adminStatus bad">⚠ Divergência de e-mail</span>':'';
+  if(ehEmailAcessoLegado(u.email_auth)){
+    return `<span class="note">***@${escapeOperationalHtml(dominioEmailAcesso(u.email_auth))}</span><br><span class="adminStatus warn">⚠ E-mail legado</span>${divergenciaHtml}`;
+  }
+  return `${escapeOperationalHtml(u.email_auth)}${divergenciaHtml}`;
+}
+
+// ---------------- Link manual de acesso (Incidente 16.1) ----------------
+// Contingência para quando o e-mail de convite/recuperação não pode ser
+// entregue (limite do provedor, identidade legada sem caixa postal real
+// etc.). O MASTER gera o link pela Edge Function admin-generate-user-
+// access-link (MASTER-only, callback de produção fixo no backend — mesmo
+// hardening do Incidente 15.1) e o copia para entregar manualmente. O
+// link nunca é persistido: fica só na variável abaixo, limpa ao fechar o
+// modal, e nunca é gravado em auditoria/log.
+let LINK_ACESSO_GERADO_TEMP=null;
+function abrirGerarLinkAcessoConfirm(usuarioId,nome,tipo){
+  const tituloTipo=tipo==='activation'?'ativação':'recuperação';
+  openAdminModal({
+    title:`Gerar link de ${tituloTipo}`,
+    text:`Gerar novo link de ${tituloTipo} para ${escapeOperationalHtml(nome||'')}?`,
+    fieldHtml:`<p class="note" style="margin-top:8px">Este link permitirá que o usuário ${tipo==='activation'?'defina sua senha de acesso':'redefina sua senha'}. Compartilhe-o somente com o próprio usuário.${tipo==='activation'?' Gerar um novo link invalida qualquer link anterior ainda não utilizado.':' Gerar um novo link invalida qualquer link de recuperação anterior ainda não utilizado.'}</p>`,
+    confirmText:`Gerar link de ${tituloTipo}`,
+    onConfirm: ()=>executarGerarLinkAcesso(usuarioId,nome,tipo)
+  });
+}
+let GERAR_LINK_ACESSO_EM_ANDAMENTO=false;
+async function executarGerarLinkAcesso(usuarioId,nome,tipo){
+  if(GERAR_LINK_ACESSO_EM_ANDAMENTO) return;
+  GERAR_LINK_ACESSO_EM_ANDAMENTO=true;
+  const btn=document.querySelector('#adminModalOverlay .adminModalActions button:not(.secondary)');
+  if(btn){btn.disabled=true;btn.textContent='Gerando...';}
+  setAdminModalMsg('Gerando link...');
+  try{
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(!session) throw new Error('Sessão expirada — entre novamente.');
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/admin-generate-user-access-link`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({usuario_id:usuarioId,tipo})
+    });
+    const result=await resp.json().catch(()=>({}));
+    if(!resp.ok||result.error||!result.link){
+      setAdminModalMsg(result.error||'Não foi possível gerar o link.',true);
+      GERAR_LINK_ACESSO_EM_ANDAMENTO=false;
+      if(btn){btn.disabled=false;btn.textContent=tipo==='activation'?'Gerar link de ativação':'Gerar link de recuperação';}
+      return;
+    }
+    closeAdminModal();
+    LINK_ACESSO_GERADO_TEMP=result.link;
+    abrirModalLinkGerado(tipo);
+  }catch(e){
+    setAdminModalMsg(String(e?.message||e),true);
+  }finally{
+    GERAR_LINK_ACESSO_EM_ANDAMENTO=false;
+  }
+}
+function abrirModalLinkGerado(tipo){
+  const tituloTipo=tipo==='activation'?'ativação':'recuperação';
+  openAdminModal({
+    title:'Link gerado com sucesso',
+    text:`Link de ${tituloTipo} pronto para ser compartilhado. Este link é confidencial e será exibido somente agora — feche esta janela após compartilhá-lo (clique em "Cancelar" para fechar).`,
+    fieldHtml:`
+      <div class="adminModalForm">
+        <label>Link (confidencial)</label>
+        <input id="linkAcessoGeradoCampo" readonly value="${escapeOperationalHtml(LINK_ACESSO_GERADO_TEMP||'')}" onclick="this.select()">
+        <p class="note" id="linkAcessoCopiadoMsg" style="margin-top:8px"></p>
+      </div>`,
+    confirmText:'Copiar link',
+    onConfirm: copiarLinkAcessoGerado
+  });
+}
+async function copiarLinkAcessoGerado(){
+  if(!LINK_ACESSO_GERADO_TEMP) return;
+  try{
+    await navigator.clipboard.writeText(LINK_ACESSO_GERADO_TEMP);
+    const msg=document.getElementById('linkAcessoCopiadoMsg');
+    if(msg) msg.textContent='Link copiado.';
+  }catch(e){
+    const msg=document.getElementById('linkAcessoCopiadoMsg');
+    if(msg) msg.textContent='Não foi possível copiar automaticamente — selecione e copie manualmente.';
+  }
+}
+function limparLinkAcessoGerado(){
+  // Nunca persistido em localStorage/sessionStorage/cookie — só existia
+  // nesta variável de módulo, removida ao fechar o modal, trocar de aba
+  // ou recarregar a página.
+  LINK_ACESSO_GERADO_TEMP=null;
+}
+window.addEventListener('beforeunload',limparLinkAcessoGerado);
+
 let REENVIO_CONVITE_EM_ANDAMENTO=false;
 function abrirReenvioConviteConfirm(usuarioId,email){
   const masked=maskEmailParaConfirmacao(email);
@@ -3984,7 +4100,7 @@ function adminTabsHtml(){
 function filtroUsuarios(list){
   const q=MASTER_SEARCH;
   if(!q) return list;
-  return list.filter(u=>`${u.nome||''} ${u.cpf||''} ${u.loja||''} ${u.perfil||''} ${u.status||''}`.toUpperCase().includes(q));
+  return list.filter(u=>`${u.nome||''} ${u.cpf||''} ${u.loja||''} ${u.perfil||''} ${u.status||''} ${u.email_auth||''}`.toUpperCase().includes(q));
 }
 function parametroCard(chave,titulo,descricao,tipo='number'){
   const val=cfgNum(chave);
@@ -4916,11 +5032,24 @@ async function renderMasterAdminContent(renderSequence){
     const rows=usuarios.map(u=>{
       const situacao=u.ativo?'<span class="adminStatus ok">ATIVO</span>':'<span class="adminStatus bad">BLOQUEADO</span>';
       const primeiroBadge=u.primeiro_acesso?'<span class="adminStatus warn">PENDENTE</span>':'<span class="adminStatus ok">OK</span>';
+      // Incidente 16.1 — link manual só aparece quando o estado do usuário
+      // realmente permite (mesma elegibilidade validada de novo no
+      // backend): ativação para quem aguarda primeiro acesso, recuperação
+      // para quem já está ativo. Nunca as duas ao mesmo tempo.
+      let linkAcessoBtn='';
+      if(MASTER_TAB==='usuarios' && u.tem_auth){
+        if(!u.ativo && u.primeiro_acesso){
+          linkAcessoBtn=`<button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${escapeOperationalHtml(u.nome||'').replace(/'/g,"\\'")}','activation')">Gerar link de ativação</button>`;
+        }else if(u.ativo && !u.primeiro_acesso){
+          linkAcessoBtn=`<button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${escapeOperationalHtml(u.nome||'').replace(/'/g,"\\'")}','recovery')">Gerar link de recuperação</button>`;
+        }
+      }
       const userActions=MASTER_TAB==='usuarios'?`
         <div class="adminActions">
           <button class="adminActionBtn wine" onclick="editarUsuarioModal('${u.cpf}','perfil','${u.perfil||''}')">Editar Perfil</button>
           <button class="adminActionBtn wine" onclick="editarUsuarioModal('${u.cpf}','loja','${u.loja||''}')">Editar Loja</button>
           <button class="adminActionBtn wine" onclick="editarUsuarioModal('${u.cpf}','status','${u.status||''}')">Editar STATUS</button>
+          ${linkAcessoBtn}
         </div>`:'';
       const passActions=MASTER_TAB==='senhas'?`
         <div class="adminActions">
@@ -4931,6 +5060,7 @@ async function renderMasterAdminContent(renderSequence){
       return `<tr>
         <td>${u.nome||''}<br><span class="note">${u.cpf||''}</span></td>
         <td>${u.perfil||''}</td><td>${u.loja||''}</td><td>${u.status||''}</td>
+        <td>${renderEmailAcessoCelula(u)}</td>
         <td>${u.ultimo_login?new Date(u.ultimo_login).toLocaleString('pt-BR'):'-'}</td>
         <td>${situacao}</td><td>${primeiroBadge}</td>
         <td>${userActions}${passActions}</td>
@@ -4944,13 +5074,13 @@ async function renderMasterAdminContent(renderSequence){
         <div class="adminCard"><div class="k">Primeiro acesso</div><div class="v">${primeiro}</div></div>
         <div class="adminCard"><div class="k">Bloqueados</div><div class="v">${bloqueados}</div></div>
       </div>
-      <div class="adminToolbar"><div><label>Pesquisar por nome, CPF ou loja</label><br><input class="adminSearch" oninput="setMasterSearch(this.value)" value="${MASTER_SEARCH}" placeholder="Digite para pesquisar"></div>
+      <div class="adminToolbar"><div><label>Pesquisar por nome, CPF, loja ou e-mail de acesso</label><br><input class="adminSearch" oninput="setMasterSearch(this.value)" value="${MASTER_SEARCH}" placeholder="Digite para pesquisar"></div>
         ${MASTER_TAB==='usuarios'?'<div><button class="adminActionBtn good" onclick="abrirConvidarUsuarioModal()">+ Convidar novo usuário</button></div>':''}
       </div>
       <div id="adminMsg" class="adminMsg"></div>
       <div class="tableWrap" style="margin-top:12px"><table class="adminTable">
-      <thead><tr><th>Nome / CPF</th><th>Perfil</th><th>Loja</th><th>Status</th><th>Último login</th><th>Situação</th><th>Primeiro acesso</th><th>AÇÕES</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="8">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div>
+      <thead><tr><th>Nome / CPF</th><th>Perfil</th><th>Loja</th><th>Status</th><th>E-mail de Acesso</th><th>Último login</th><th>Situação</th><th>Primeiro acesso</th><th>AÇÕES</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="9">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div>
       ${MASTER_TAB==='usuarios'?await renderConvitesSection():''}`;
   }else if(MASTER_TAB==='config'){
     await carregarParametrosPortal();
