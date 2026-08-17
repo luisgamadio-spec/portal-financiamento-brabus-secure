@@ -1804,34 +1804,42 @@ body.portal-module-open{overflow:hidden!important}
 <script id="fase182-telemetria-portal-pai-v001">
 (function(){
   'use strict';
-  // Fase 18.2 — ciclo de vida da sessão de telemetria, SOMENTE para
-  // simuladorCompleto (Simulador de Novos). Identidade sempre resolvida
-  // pelo backend via auth.uid() (RPCs da Fase 18.1) — este script nunca
-  // envia usuario_id/nome/loja/perfil, mesmo em modo HOMOLOGATION_USER
-  // (que só existe em memória do frontend e nunca é lido aqui). Enquanto
+  // Fase 18.2 (Novos) + Fase 18.3 (Seminovos) — ciclo de vida da sessão de
+  // telemetria, para os dois simuladores. Identidade sempre resolvida pelo
+  // backend via auth.uid() (RPCs da Fase 18.1) — este script nunca envia
+  // usuario_id/nome/loja/perfil, mesmo em modo HOMOLOGATION_USER (que só
+  // existe em memória do frontend e nunca é lido aqui). Enquanto
   // telemetria_simuladores_ativa=FALSE, toda RPC responde {ok:true,
   // enabled:false} sem gravar nada — nenhuma lógica de flag no frontend.
   // Fire-and-forget: nenhuma chamada aqui é aguardada pelo fluxo real de
   // abrir/fechar módulo, e toda falha é engolida em silêncio.
-  const TELEMETRY_MODULE_ID = 'simuladorCompleto';
+  //
+  // Fase 18.3 — generalização MÍNIMA (Parte D): uma sessão "atual" com seu
+  // module_id, em vez de duas implementações independentes por simulador.
+  // Mesmas 5 funções/hooks da Fase 18.2, só trocando a constante fixa por
+  // um Set de dois ids e guardando qual módulo está com sessão aberta.
+  const TELEMETRY_MODULE_IDS = new Set(['simuladorCompleto', 'simuladorSeminovos']);
   let sessionId = null; // SOMENTE memória — nunca localStorage/sessionStorage/cookie/URL/query string.
+  let sessionModuleId = null;
 
   // supabaseClient é declarado com "let" no escopo global de portal-app.js
   // — visível como identificador solto em qualquer <script> clássico desta
   // página, mas NUNCA vira propriedade de window (por isso não usamos
   // window.supabaseClient aqui, ficaria sempre undefined).
-  async function iniciarSessaoNovos(){
+  async function iniciarSessaoSimulador(moduleId){
     try{
       if(typeof supabaseClient==='undefined' || !supabaseClient) return;
-      const {data, error} = await supabaseClient.rpc('portal_telemetry_start_session', {p_module_id: TELEMETRY_MODULE_ID});
+      const {data, error} = await supabaseClient.rpc('portal_telemetry_start_session', {p_module_id: moduleId});
       if(error || !data || data.ok!==true || !data.session_id) return;
       sessionId = data.session_id;
+      sessionModuleId = moduleId;
     }catch(e){ /* telemetria nunca pode afetar o Portal */ }
   }
-  async function encerrarSessaoNovos(reason){
+  async function encerrarSessaoSimulador(reason){
     const alvo = sessionId;
     if(!alvo) return;
     sessionId = null;
+    sessionModuleId = null;
     try{
       if(typeof supabaseClient==='undefined' || !supabaseClient) return;
       await supabaseClient.rpc('portal_telemetry_end_session', {p_session_id: alvo, p_reason: reason});
@@ -1839,6 +1847,8 @@ body.portal-module-open{overflow:hidden!important}
   }
 
   // Ponte same-origin chamada pelo iframe (mesmo padrão de simuladorGetBase).
+  // Também alcançável via window.top pelos iframes ANINHADOS dentro do
+  // Simulador de Seminovos (srcdoc same-origin) — ver Fase 18.3, Parte H.
   window.simuladorTelemetriaHeartbeat = async function(){
     try{
       if(!sessionId || typeof supabaseClient==='undefined' || !supabaseClient) return;
@@ -1853,22 +1863,23 @@ body.portal-module-open{overflow:hidden!important}
   };
 
   // Abertura real (Fase 18.0, Parte C) — showPortalIframeModule é o único
-  // ponto onde o iframe é de fato criado/exibido. Sessão só inicia para
-  // simuladorCompleto; Seminovos e demais módulos ficam fora desta fase.
+  // ponto onde o iframe é de fato criado/exibido. Sessão só inicia para os
+  // dois simuladores; demais módulos ficam fora desta fase.
   const previousShowPortalIframeModule182 = window.showPortalIframeModule;
   if (typeof previousShowPortalIframeModule182 === 'function') {
     window.showPortalIframeModule = function(id){
       const r = previousShowPortalIframeModule182.apply(this, arguments);
-      if(id === TELEMETRY_MODULE_ID){ iniciarSessaoNovos(); }
+      if(TELEMETRY_MODULE_IDS.has(id)){ iniciarSessaoSimulador(id); }
       return r;
     };
   }
 
-  // Trocar de módulo enquanto Novos está aberto.
+  // Trocar de módulo (inclusive Novos<->Seminovos) enquanto uma sessão de
+  // simulador está aberta.
   const previousOpenPortalModule182 = window.openPortalModule;
   if (typeof previousOpenPortalModule182 === 'function') {
     window.openPortalModule = function(id){
-      if(sessionId && id !== TELEMETRY_MODULE_ID){ encerrarSessaoNovos('switch_module'); }
+      if(sessionId && id !== sessionModuleId){ encerrarSessaoSimulador('switch_module'); }
       return previousOpenPortalModule182.apply(this, arguments);
     };
   }
@@ -1878,7 +1889,7 @@ body.portal-module-open{overflow:hidden!important}
   const previousRenderPortalHome182 = window.renderPortalHome;
   if (typeof previousRenderPortalHome182 === 'function') {
     window.renderPortalHome = function(){
-      if(sessionId){ encerrarSessaoNovos('back'); }
+      if(sessionId){ encerrarSessaoSimulador('back'); }
       return previousRenderPortalHome182.apply(this, arguments);
     };
   }
@@ -1887,7 +1898,7 @@ body.portal-module-open{overflow:hidden!important}
   const previousLogout182 = window.logout;
   if (typeof previousLogout182 === 'function') {
     window.logout = async function(){
-      if(sessionId){ await encerrarSessaoNovos('logout'); }
+      if(sessionId){ await encerrarSessaoSimulador('logout'); }
       return previousLogout182.apply(this, arguments);
     };
   }
@@ -1896,7 +1907,7 @@ body.portal-module-open{overflow:hidden!important}
   // real — o timeout no backend (Fase 18.1: 5min inatividade / 8h máximo)
   // é quem garante integridade quando isto não chega a disparar.
   window.addEventListener('pagehide', function(){
-    if(sessionId){ encerrarSessaoNovos('pagehide'); }
+    try{ if(sessionId){ encerrarSessaoSimulador('pagehide'); } }catch(e){ /* best-effort */ }
   });
 })();
 </script>
