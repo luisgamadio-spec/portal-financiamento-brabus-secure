@@ -7,9 +7,11 @@
 // também no servidor (a função levanta 42501 para qualquer outro perfil —
 // a aba não é a única barreira). Nenhuma RPC nova nesta fase.
 //
-// telemetria_simuladores_ativa continua FALSE durante toda a Fase 18.4 —
-// ver Fases 18.1/18.2/18.3. Em produção, com a flag desligada, o dataset
-// "desde o início" está vazio e a aba mostra o banner "ainda não iniciada".
+// Fase 18.5 — a RPC passou a devolver telemetry_enabled/telemetry_started_at
+// (estado oficial da coleta). O banner e o atalho "Desde o início" usam
+// esse estado diretamente — nunca mais inferem "coleta não iniciada" pela
+// ausência de linhas (zero sessões no período não é o mesmo que telemetria
+// desligada).
 
 const UDS_MODULOS = [
   { id: 'simuladorCompleto', label: 'Simulador de Novos' },
@@ -19,10 +21,11 @@ const UDS_LOJAS = ['ABC', 'ALPHAVILLE', 'ANALIA FRANCO', 'BARRA FUNDA', 'BANDEIR
 const UDS_DEPARTAMENTOS = ['NOVOS', 'SEMINOVOS', 'NOVOS/SEMINOVOS'];
 const UDS_PERFIS = ['VENDEDOR', 'GERENTE', 'ANALISTA', 'DIRETOR NOVOS', 'DIRETOR SEMINOVOS', 'MASTER'];
 
-// Marco "desde o início" — placeholder até a Fase 18.5 definir e persistir
-// telemetria_started_at (data zero oficial da coleta). Não é uma data real
-// de coleta: é só um limite inferior amplo o suficiente para nunca cortar
-// dado real hoje (produção está zerada). Trocar quando a data zero existir.
+// Marco "desde o início" — usado SOMENTE como limite inferior de fallback
+// antes da primeira resposta da RPC nesta sessão do navegador (que sempre
+// devolve telemetry_started_at, a data zero oficial real — Fase 18.5).
+// Depois da primeira resposta, UDS_STATE.telemetryStartedAt é a fonte de
+// verdade; esta constante nunca mais é usada na mesma sessão.
 const UDS_INICIO_TUDO_ISO = '2020-01-01T00:00:00-03:00';
 
 function udsIsLocalHost() {
@@ -36,6 +39,8 @@ let UDS_STATE = {
   linhas: [],            // dataset do período filtrado atualmente (já vindo da RPC)
   linhasLifetime: null,  // dataset "desde o início" — carregado sob demanda (banner + Nunca Utilizou)
   usuariosCache: null,   // reaproveita master_admin_security_data() já usado em Usuários (sem RPC nova)
+  telemetryEnabled: null,     // null = ainda não sabemos (nenhuma resposta da RPC ainda); Fase 18.5
+  telemetryStartedAt: null,   // ISO string ou null — data zero oficial, vinda da RPC (Fase 18.5)
   loading: false,
   erro: null,
   filtros: { preset: '30d', dtIni: '', dtFim: '', loja: '', departamento: '', modulo: '', perfil: '', busca: '' },
@@ -78,6 +83,16 @@ function udsFmtDataBR(iso) {
   try { return new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }); } catch (e) { return '—'; }
 }
 
+// Data zero efetiva para "desde o início" (Parte L): usa o instante oficial
+// já conhecido (telemetryStartedAt, vindo da RPC) sempre que disponível; só
+// recorre ao placeholder amplo antes da primeira resposta desta sessão.
+function udsDataZeroEfetivaIso() {
+  return UDS_STATE.telemetryStartedAt || UDS_INICIO_TUDO_ISO;
+}
+function udsDataZeroEfetivaYmd() {
+  return udsDataZeroEfetivaIso().slice(0, 10);
+}
+
 // ---------------- presets de período (Parte F) ----------------
 function udsAplicarPreset(preset) {
   const hoje = udsHojeSP();
@@ -87,7 +102,7 @@ function udsAplicarPreset(preset) {
   else if (preset === '30d') { dtIni = udsSomarDias(hoje, -29); dtFim = hoje; }
   else if (preset === 'mesAtual') { dtIni = udsInicioMes(hoje); dtFim = hoje; }
   else if (preset === 'mesAnterior') { dtIni = udsMesAnterior(hoje); dtFim = udsFimMesAnterior(hoje); }
-  else if (preset === 'desdeInicio') { dtIni = UDS_INICIO_TUDO_ISO.slice(0, 10); dtFim = hoje; }
+  else if (preset === 'desdeInicio') { dtIni = udsDataZeroEfetivaYmd(); dtFim = hoje; }
   UDS_STATE.filtros.preset = preset;
   UDS_STATE.filtros.dtIni = dtIni;
   UDS_STATE.filtros.dtFim = dtFim;
@@ -263,7 +278,7 @@ async function udsCarregarNuncaUtilizou() {
     UDS_STATE.usuariosCache = (typeof carregarUsuariosSupabase === 'function') ? await carregarUsuariosSupabase() : [];
   }
   if (!UDS_STATE.linhasLifetime) {
-    const resp = await udsFetchPeriodo(UDS_INICIO_TUDO_ISO, new Date().toISOString());
+    const resp = await udsFetchPeriodo(udsDataZeroEfetivaIso(), new Date().toISOString());
     UDS_STATE.linhasLifetime = resp.linhas || [];
   }
   const usados = new Set(UDS_STATE.linhasLifetime.map(l => `${l.usuario_id}|${l.module_id}`));
@@ -294,14 +309,11 @@ async function udsCarregar() {
     const endIso = f.dtFim ? udsIsoFimDia(f.dtFim) : udsIsoFimDia(udsHojeSP());
     const resp = await udsFetchPeriodo(startIso, endIso);
     UDS_STATE.linhas = resp.linhas || [];
-    // banner "coleta ainda não iniciada" (Parte G/AP): decidido por dado,
-    // não por leitura direta da flag (Parte AQ — evita expor configuração
-    // interna ao frontend). Só dispara 1 checagem lifetime extra quando o
-    // período atual já veio vazio, nunca no caminho feliz.
-    if (!UDS_STATE.linhas.length && !UDS_STATE.linhasLifetime) {
-      const lifetime = await udsFetchPeriodo(UDS_INICIO_TUDO_ISO, new Date().toISOString());
-      UDS_STATE.linhasLifetime = lifetime.linhas || [];
-    }
+    // Fase 18.5: estado oficial (ligada/desligada + data zero) agora vem
+    // diretamente da RPC — nunca mais inferido pela ausência de linhas
+    // (Parte K: zero sessões no período não significa telemetria desligada).
+    if (typeof resp.telemetry_enabled === 'boolean') UDS_STATE.telemetryEnabled = resp.telemetry_enabled;
+    if (resp.telemetry_started_at) UDS_STATE.telemetryStartedAt = resp.telemetry_started_at;
   } catch (e) {
     console.error('[Utilização dos Simuladores] Falha ao carregar:', e);
     UDS_STATE.erro = e;
@@ -318,15 +330,45 @@ function udsFiltroSelectHtml(id, label, opcoes, valorAtual, onchange) {
   return `<div><label>${label}</label><br><select id="${id}" onchange="${onchange}">${options}</select></div>`;
 }
 
+// Fase 18.5 — estado do banner decidido pelo estado OFICIAL (telemetryEnabled
+// + telemetryStartedAt, vindos da RPC a cada carga), nunca mais pela
+// ausência de linhas (Parte K). Três variações, nesta ordem de prioridade:
+// desligada > período totalmente anterior à data zero (Parte M) > período
+// parcialmente anterior (Parte N, nota discreta) > período normal (Parte H).
 function udsBannerEstado() {
-  const nuncaColetouNada = UDS_STATE.linhasLifetime && UDS_STATE.linhasLifetime.length === 0;
-  if (nuncaColetouNada && !UDS_STATE.mockAtivo) {
+  if (UDS_STATE.mockAtivo) return '';
+  if (UDS_STATE.telemetryEnabled === false) {
     return `<div class="panel" style="border-color:rgba(246,196,83,.35);background:rgba(246,196,83,.06)">
       <b>Telemetria ainda não ativada em produção.</b>
-      <p class="note" style="margin-top:6px">A coleta real de utilização dos simuladores está desligada (flag <code>telemetria_simuladores_ativa = FALSE</code>). Os indicadores abaixo ficarão zerados até a Fase 18.5 iniciar oficialmente a coleta.</p>
+      <p class="note" style="margin-top:6px">A coleta real de utilização dos simuladores está desligada (flag <code>telemetria_simuladores_ativa = FALSE</code>). Os indicadores abaixo ficarão zerados até a coleta ser iniciada oficialmente.</p>
     </div>`;
   }
-  return '';
+  if (UDS_STATE.telemetryEnabled !== true || !UDS_STATE.telemetryStartedAt) return '';
+
+  const f = UDS_STATE.filtros;
+  const inicioOficial = udsFmtDataHoraBR(UDS_STATE.telemetryStartedAt);
+  // Comparação por instante real (Date.getTime()), nunca por string ISO —
+  // o filtro usa offset fixo -03:00 e a RPC devolve timestamptz do Postgres
+  // (tipicamente +00:00); comparar como texto compararia formatos
+  // diferentes de fuso, não o instante.
+  const startedAtMs = new Date(UDS_STATE.telemetryStartedAt).getTime();
+  const fimFiltroMs = f.dtFim ? new Date(udsIsoFimDia(f.dtFim)).getTime() : null;
+  const inicioFiltroMs = f.dtIni ? new Date(udsIsoInicioDia(f.dtIni)).getTime() : null;
+  const totalmenteAntes = fimFiltroMs !== null && fimFiltroMs < startedAtMs;
+  const parcialmenteAntes = !totalmenteAntes && inicioFiltroMs !== null && inicioFiltroMs < startedAtMs;
+
+  if (totalmenteAntes) {
+    return `<div class="panel" style="border-color:rgba(246,196,83,.35);background:rgba(246,196,83,.06)">
+      <b>A coleta de utilização ainda não estava ativa neste período.</b>
+      <p class="note" style="margin-top:6px">Coleta oficial iniciada em ${inicioOficial}. O período selecionado é anterior a essa data — os indicadores abaixo não representam ausência de uso, e sim ausência de coleta.</p>
+    </div>`;
+  }
+  const notaParcial = parcialmenteAntes
+    ? `<p class="note" style="margin-top:6px">Dados disponíveis a partir de ${inicioOficial}.</p>` : '';
+  return `<div class="panel" style="border-color:rgba(54,211,153,.28);background:rgba(54,211,153,.05)">
+    <b>Coleta iniciada em ${inicioOficial}.</b>
+    ${notaParcial}
+  </div>`;
 }
 
 function udsKpiCardsHtml(kpis) {
