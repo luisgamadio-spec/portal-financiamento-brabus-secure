@@ -4394,7 +4394,7 @@ function adminTabsHtml(){
   // "Redefinir senha" e "Forçar troca" já eram código morto em modo secure
   // (sempre retornavam erro pedindo para usar o Supabase Auth diretamente,
   // em qualquer uma das duas telas) — nada foi removido do backend.
-  const tabs=[['usuarios','Usuários'],['acessosModulos','Acessos aos Módulos'],['revisoes','Revisões Cadastrais'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
+  const tabs=[['usuarios','Usuários'],['acessosModulos','Acessos aos Módulos'],['revisoes','Revisões Cadastrais'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['utilizacaoSimuladores','Utilização dos Simuladores'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
   return `<div class="masterSide">${tabs.map(t=>{
     const badge=(t[0]==='revisoes'&&MASTER_REVISOES_PENDENTES>0)?`<span class="masterTabBadge">${MASTER_REVISOES_PENDENTES}</span>`:'';
     return `<button class="${MASTER_TAB===t[0]?'active':''}" onclick="setMasterTab('${t[0]}')">${t[1]}${badge}</button>`;
@@ -5480,6 +5480,10 @@ async function renderMasterAdminContent(renderSequence){
     body=renderMudancasLojaVendedoresHtml();
   }else if(MASTER_TAB==='metricas'){
     body=renderAnalystMetricAuditHtml();
+  }else if(MASTER_TAB==='utilizacaoSimuladores'){
+    body = typeof renderUtilizacaoSimuladoresTab==='function'
+      ? await renderUtilizacaoSimuladoresTab()
+      : '<h2>Utilização dos Simuladores</h2><p class="note" style="color:#ff6b61">Módulo não carregado (assets/js/master-utilizacao-simuladores.js).</p>';
   }else if(MASTER_TAB==='historico'){
     await carregarFechamentosComissao();
     body=renderHistoricoCompetenciasHtml();
