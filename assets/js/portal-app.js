@@ -3277,6 +3277,38 @@ async function confirmarConviteUsuario(){
   }
 }
 
+// Fase 16.5 — dimensão ACESSO BLISTIQ (independente de CONTA e de EMAIL,
+// ver Fase 16.3/16.4). Fonte de verdade única: ativacoes_acesso_usuario
+// (campo ativacao_legado, adicionado ao dataset MASTER nesta fase). NÃO
+// se aplica a contas com e-mail real — essas seguem o fluxo de convite,
+// sem misturar com migração legado (Fase 16.3, Parte C).
+const ATIVACAO_STATUS_EM_ANDAMENTO=['PENDENTE_EMAIL','EMAIL_ENVIADO','EMAIL_VERIFICADO','PENDENTE_SENHA','ATIVANDO'];
+function acessoBlistiqInfo(u){
+  if(!u.email_auth || !ehEmailAcessoLegado(u.email_auth)) return null;
+  const a=u.ativacao_legado;
+  if(!a || !a.status) return {codigo:'NAO_INICIADO', emoji:'⚪', label:'NÃO INICIADO', badgeLabel:'ACESSO BLISTIQ NÃO INICIADO', classe:'neutral'};
+  if(a.status==='CONCLUIDO') return {codigo:'CONCLUIDO', emoji:'🟢', label:'CONCLUÍDO', badgeLabel:null, classe:'ok'};
+  if(ATIVACAO_STATUS_EM_ANDAMENTO.includes(a.status)){
+    return {codigo:'EM_ANDAMENTO', emoji:'🟡', label:'EM ANDAMENTO', badgeLabel:'MIGRAÇÃO PENDENTE', classe:'warn',
+      emailNovo:a.email_novo, ultimoEnvio:a.ultimo_envio_em, expiraEm:a.expira_em, status:a.status};
+  }
+  return {codigo:'INTERROMPIDO', emoji:'🟠', label:'INTERROMPIDA', badgeLabel:'MIGRAÇÃO INTERROMPIDA', classe:'warn',
+    emailNovo:a.email_novo, status:a.status};
+}
+function ativacaoStatusAmigavel(status){
+  const mapa={
+    PENDENTE_EMAIL:'Aguardando novo envio',
+    EMAIL_ENVIADO:'E-mail enviado, aguardando confirmação do usuário',
+    EMAIL_VERIFICADO:'E-mail confirmado, aguardando definição de senha',
+    PENDENTE_SENHA:'Aguardando definição de senha',
+    ATIVANDO:'Em processamento',
+    CONCLUIDO:'Migração concluída',
+    ERRO:'Interrompida por erro — pode ser reiniciada',
+    CANCELADO:'Cancelada — pode ser reiniciada'
+  };
+  return mapa[status]||status||'—';
+}
+
 // Incidente 13.2 — reenvio para conta Auth já existente e ainda não
 // confirmada (usuario_ativo=false, usuario_primeiro_acesso=true).
 // Máscara e-mail só para a confirmação visual — nunca revela detalhes
@@ -3329,7 +3361,11 @@ function situacaoUsuarioInfo(u){
 function renderSituacaoBadges(u){
   const s=situacaoUsuarioInfo(u);
   let html=`<span class="adminStatus ${s.classe}">${s.emoji} ${s.label}</span>`;
-  if(u.email_auth && ehEmailAcessoLegado(u.email_auth)) html+=`<span class="adminStatus warn">⚠ E-MAIL LEGADO</span>`;
+  const bl=acessoBlistiqInfo(u);
+  if(bl){
+    if(bl.badgeLabel) html+=`<span class="adminStatus ${bl.classe}">${bl.emoji} ${bl.badgeLabel}</span>`;
+    html+=`<span class="adminStatus warn">⚠ E-MAIL LEGADO</span>`;
+  }
   return html;
 }
 function usuarioCombinaFiltro(u,filtro){
@@ -3368,14 +3404,27 @@ function fecharFichaUsuario(){
 }
 function renderFichaUsuarioHtml(u){
   const nomeSeguro=escapeOperationalHtml(u.nome||'').replace(/'/g,"\\'");
+  const bl=acessoBlistiqInfo(u);
   let acaoAcesso='';
   if(u.tem_auth){
-    if(!u.ativo && u.primeiro_acesso){
+    if(bl){
+      // Fase 16.5 — conta legada: migração BLISTIQ é a fonte de verdade,
+      // nunca invite (rejeitado pela própria API para Auth já confirmado,
+      // Fase 16.4) nem recovery tratado como migração (Fase 16.3/16.4).
+      if(bl.codigo==='NAO_INICIADO'){
+        acaoAcesso=`<button class="adminActionBtn warn" onclick="abrirGerarLinkMigracaoConfirm('${u.id}','${nomeSeguro}',true,null)">Gerar link para primeiro acesso</button>`;
+      }else if(bl.codigo==='EM_ANDAMENTO'||bl.codigo==='INTERROMPIDO'){
+        const emailSeguro=escapeOperationalHtml(bl.emailNovo||'').replace(/'/g,"\\'");
+        acaoAcesso=`<button class="adminActionBtn warn" onclick="abrirGerarLinkMigracaoConfirm('${u.id}','${nomeSeguro}',false,'${emailSeguro}')">Gerar link para concluir acesso</button>`;
+      }else if(bl.codigo==='CONCLUIDO' && u.ativo && !u.primeiro_acesso){
+        acaoAcesso=`<button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${nomeSeguro}','recovery')">Gerar link para redefinir senha</button>`;
+      }
+    }else if(!u.ativo && u.primeiro_acesso){
       acaoAcesso=`
         <button class="adminActionBtn warn" onclick="abrirReenvioConviteConfirm('${u.id}','${escapeOperationalHtml(u.email_auth||'').replace(/'/g,"\\'")}')">Reenviar convite</button>
         <button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${nomeSeguro}','activation')">Gerar link de ativação</button>`;
     }else if(u.ativo && !u.primeiro_acesso){
-      acaoAcesso=`<button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${nomeSeguro}','recovery')">Gerar link de recuperação</button>`;
+      acaoAcesso=`<button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${nomeSeguro}','recovery')">Gerar link para redefinir senha</button>`;
     }
   }
   return `
@@ -3400,7 +3449,10 @@ function renderFichaUsuarioHtml(u){
       <dl class="fichaList">
         <dt>Situação da conta</dt><dd>${renderSituacaoBadges(u)}</dd>
         <dt>Auth vinculado</dt><dd>${u.tem_auth?'Sim':'Não'}</dd>
-        <dt>Primeiro acesso</dt><dd>${u.primeiro_acesso?'Pendente':'Concluído'}</dd>
+        ${bl?`<dt>Acesso BLISTIQ</dt><dd>${bl.emoji} ${bl.label}</dd>`:`<dt>Primeiro acesso</dt><dd>${u.primeiro_acesso?'Pendente':'Concluído'}</dd>`}
+        ${bl&&bl.emailNovo?`<dt>E-mail informado para migração</dt><dd>${escapeOperationalHtml(bl.emailNovo)}</dd>`:''}
+        ${bl&&bl.status?`<dt>Status da migração</dt><dd>${escapeOperationalHtml(ativacaoStatusAmigavel(bl.status))}</dd>`:''}
+        ${bl&&bl.ultimoEnvio?`<dt>Última tentativa</dt><dd>${new Date(bl.ultimoEnvio).toLocaleString('pt-BR')}</dd>`:''}
         <dt>Último login</dt><dd>${u.ultimo_login?new Date(u.ultimo_login).toLocaleString('pt-BR'):'Nunca'}</dd>
       </dl>
       ${acaoAcesso?`<div class="adminActions" style="justify-content:flex-start;margin-top:6px">${acaoAcesso}</div>`:''}
@@ -3470,7 +3522,10 @@ async function executarGerarLinkAcesso(usuarioId,nome,tipo){
   }
 }
 function abrirModalLinkGerado(tipo){
-  const tituloTipo=tipo==='activation'?'ativação':'recuperação';
+  const tituloTipo=tipo==='activation'?'ativação':(tipo==='migracao'?'migração BLISTIQ':'recuperação');
+  const avisoExpiracao=tipo==='migracao'
+    ?'Este link expira em 30 minutos. Gerar um novo link invalida este imediatamente.'
+    :'Gerar um novo link invalida qualquer link anterior ainda não utilizado.';
   openAdminModal({
     title:'Link gerado com sucesso',
     text:`Link de ${tituloTipo} pronto para ser compartilhado. Este link é confidencial e será exibido somente agora — feche esta janela após compartilhá-lo (clique em "Cancelar" para fechar).`,
@@ -3478,6 +3533,7 @@ function abrirModalLinkGerado(tipo){
       <div class="adminModalForm">
         <label>Link (confidencial)</label>
         <input id="linkAcessoGeradoCampo" readonly value="${escapeOperationalHtml(LINK_ACESSO_GERADO_TEMP||'')}" onclick="this.select()">
+        <p class="note" style="margin-top:8px">Este link é confidencial. Compartilhe somente com o próprio usuário. ${avisoExpiracao}</p>
         <p class="note" id="linkAcessoCopiadoMsg" style="margin-top:8px"></p>
       </div>`,
     confirmText:'Copiar link',
@@ -3502,6 +3558,84 @@ function limparLinkAcessoGerado(){
   LINK_ACESSO_GERADO_TEMP=null;
 }
 window.addEventListener('beforeunload',limparLinkAcessoGerado);
+
+// ---------------- Migração legado -> BLISTIQ (Fase 16.5) ----------------
+// Reaproveita a MESMA RPC do fluxo self-service (activation_create_request)
+// via a Edge Function admin-generate-legacy-migration-link — nunca
+// invite (Fase 16.4 provou que a API rejeita para Auth legado já
+// confirmado) e nunca recovery tratado como migração (não conclui o
+// fluxo). O link nunca é persistido — mesma disciplina do link manual
+// da Fase 16.1 (variável de módulo, limpa ao fechar modal/F5/logout).
+function abrirGerarLinkMigracaoConfirm(usuarioId,nome,precisaEmail,emailExistente){
+  const nomeSeguro=escapeOperationalHtml(nome||'');
+  if(precisaEmail){
+    openAdminModal({
+      title:'Gerar link para primeiro acesso',
+      text:`Este usuário (${nomeSeguro}) ainda não iniciou a migração para o BLISTIQ. Informe o e-mail real dele para enviar o link de migração.`,
+      fieldHtml:`
+        <div class="adminModalForm">
+          <label>E-mail real do usuário</label>
+          <input id="migracaoEmailRealCampo" type="email" placeholder="nome.sobrenome@brabus.com.br" autocomplete="off">
+          <p class="note" style="margin-top:8px">Este link permitirá que o usuário confirme o e-mail e defina sua senha de acesso ao BLISTIQ. Expira em 30 minutos. Compartilhe somente com o próprio usuário.</p>
+        </div>`,
+      confirmText:'Gerar link',
+      onConfirm: ()=>executarGerarLinkMigracao(usuarioId,true)
+    });
+  }else{
+    openAdminModal({
+      title:'Gerar link para concluir acesso',
+      text:`Gerar novo link de migração BLISTIQ para ${nomeSeguro}?`,
+      fieldHtml:`
+        <div class="adminModalForm">
+          <p class="note">E-mail para migração: <b>${escapeOperationalHtml(emailExistente||'—')}</b></p>
+          <p class="note" style="margin-top:8px">Este link permitirá que o usuário conclua a migração para o BLISTIQ a partir de onde parou. Expira em 30 minutos. Gerar um novo link invalida qualquer link de migração anterior ainda não utilizado. Compartilhe somente com o próprio usuário.</p>
+        </div>`,
+      confirmText:'Gerar link',
+      onConfirm: ()=>executarGerarLinkMigracao(usuarioId,false)
+    });
+  }
+}
+let GERAR_LINK_MIGRACAO_EM_ANDAMENTO=false;
+async function executarGerarLinkMigracao(usuarioId,precisaEmail){
+  if(GERAR_LINK_MIGRACAO_EM_ANDAMENTO) return;
+  let emailReal=null;
+  if(precisaEmail){
+    emailReal=(document.getElementById('migracaoEmailRealCampo')?.value||'').trim().toLowerCase();
+    if(!emailReal||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailReal)){
+      setAdminModalMsg('Informe um e-mail válido.',true);
+      return;
+    }
+  }
+  GERAR_LINK_MIGRACAO_EM_ANDAMENTO=true;
+  const btn=document.querySelector('#adminModalOverlay .adminModalActions button:not(.secondary)');
+  if(btn){btn.disabled=true;btn.textContent='Gerando...';}
+  setAdminModalMsg('Gerando link...');
+  try{
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(!session) throw new Error('Sessão expirada — entre novamente.');
+    const payload={usuario_id:usuarioId};
+    if(emailReal) payload.email_real=emailReal;
+    const resp=await fetch(`${SUPABASE_URL}/functions/v1/admin-generate-legacy-migration-link`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify(payload)
+    });
+    const result=await resp.json().catch(()=>({}));
+    if(!resp.ok||result.error||!result.link){
+      setAdminModalMsg(result.error||'Não foi possível gerar o link.',true);
+      GERAR_LINK_MIGRACAO_EM_ANDAMENTO=false;
+      if(btn){btn.disabled=false;btn.textContent='Gerar link';}
+      return;
+    }
+    closeAdminModal();
+    LINK_ACESSO_GERADO_TEMP=result.link;
+    abrirModalLinkGerado('migracao');
+  }catch(e){
+    setAdminModalMsg(String(e?.message||e),true);
+  }finally{
+    GERAR_LINK_MIGRACAO_EM_ANDAMENTO=false;
+  }
+}
 
 let REENVIO_CONVITE_EM_ANDAMENTO=false;
 function abrirReenvioConviteConfirm(usuarioId,email){
