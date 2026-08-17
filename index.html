@@ -1801,6 +1801,106 @@ body.portal-module-open{overflow:hidden!important}
 })();
 </script>
 
+<script id="fase182-telemetria-portal-pai-v001">
+(function(){
+  'use strict';
+  // Fase 18.2 — ciclo de vida da sessão de telemetria, SOMENTE para
+  // simuladorCompleto (Simulador de Novos). Identidade sempre resolvida
+  // pelo backend via auth.uid() (RPCs da Fase 18.1) — este script nunca
+  // envia usuario_id/nome/loja/perfil, mesmo em modo HOMOLOGATION_USER
+  // (que só existe em memória do frontend e nunca é lido aqui). Enquanto
+  // telemetria_simuladores_ativa=FALSE, toda RPC responde {ok:true,
+  // enabled:false} sem gravar nada — nenhuma lógica de flag no frontend.
+  // Fire-and-forget: nenhuma chamada aqui é aguardada pelo fluxo real de
+  // abrir/fechar módulo, e toda falha é engolida em silêncio.
+  const TELEMETRY_MODULE_ID = 'simuladorCompleto';
+  let sessionId = null; // SOMENTE memória — nunca localStorage/sessionStorage/cookie/URL/query string.
+
+  // supabaseClient é declarado com "let" no escopo global de portal-app.js
+  // — visível como identificador solto em qualquer <script> clássico desta
+  // página, mas NUNCA vira propriedade de window (por isso não usamos
+  // window.supabaseClient aqui, ficaria sempre undefined).
+  async function iniciarSessaoNovos(){
+    try{
+      if(typeof supabaseClient==='undefined' || !supabaseClient) return;
+      const {data, error} = await supabaseClient.rpc('portal_telemetry_start_session', {p_module_id: TELEMETRY_MODULE_ID});
+      if(error || !data || data.ok!==true || !data.session_id) return;
+      sessionId = data.session_id;
+    }catch(e){ /* telemetria nunca pode afetar o Portal */ }
+  }
+  async function encerrarSessaoNovos(reason){
+    const alvo = sessionId;
+    if(!alvo) return;
+    sessionId = null;
+    try{
+      if(typeof supabaseClient==='undefined' || !supabaseClient) return;
+      await supabaseClient.rpc('portal_telemetry_end_session', {p_session_id: alvo, p_reason: reason});
+    }catch(e){ /* best-effort */ }
+  }
+
+  // Ponte same-origin chamada pelo iframe (mesmo padrão de simuladorGetBase).
+  window.simuladorTelemetriaHeartbeat = async function(){
+    try{
+      if(!sessionId || typeof supabaseClient==='undefined' || !supabaseClient) return;
+      await supabaseClient.rpc('portal_telemetry_heartbeat', {p_session_id: sessionId});
+    }catch(e){ /* fire-and-forget */ }
+  };
+  window.simuladorTelemetriaSimulacao = async function(){
+    try{
+      if(!sessionId || typeof supabaseClient==='undefined' || !supabaseClient) return;
+      await supabaseClient.rpc('portal_telemetry_simulation', {p_session_id: sessionId});
+    }catch(e){ /* fire-and-forget */ }
+  };
+
+  // Abertura real (Fase 18.0, Parte C) — showPortalIframeModule é o único
+  // ponto onde o iframe é de fato criado/exibido. Sessão só inicia para
+  // simuladorCompleto; Seminovos e demais módulos ficam fora desta fase.
+  const previousShowPortalIframeModule182 = window.showPortalIframeModule;
+  if (typeof previousShowPortalIframeModule182 === 'function') {
+    window.showPortalIframeModule = function(id){
+      const r = previousShowPortalIframeModule182.apply(this, arguments);
+      if(id === TELEMETRY_MODULE_ID){ iniciarSessaoNovos(); }
+      return r;
+    };
+  }
+
+  // Trocar de módulo enquanto Novos está aberto.
+  const previousOpenPortalModule182 = window.openPortalModule;
+  if (typeof previousOpenPortalModule182 === 'function') {
+    window.openPortalModule = function(id){
+      if(sessionId && id !== TELEMETRY_MODULE_ID){ encerrarSessaoNovos('switch_module'); }
+      return previousOpenPortalModule182.apply(this, arguments);
+    };
+  }
+
+  // Voltar ao Portal (postMessage 'portal:back' já existente chama
+  // renderPortalHome(), assim como qualquer outro caminho de volta à Home).
+  const previousRenderPortalHome182 = window.renderPortalHome;
+  if (typeof previousRenderPortalHome182 === 'function') {
+    window.renderPortalHome = function(){
+      if(sessionId){ encerrarSessaoNovos('back'); }
+      return previousRenderPortalHome182.apply(this, arguments);
+    };
+  }
+
+  // Logout — best-effort, nunca bloqueia o logout real.
+  const previousLogout182 = window.logout;
+  if (typeof previousLogout182 === 'function') {
+    window.logout = async function(){
+      if(sessionId){ await encerrarSessaoNovos('logout'); }
+      return previousLogout182.apply(this, arguments);
+    };
+  }
+
+  // Fechamento best-effort (aba fechada/atualizada). Nunca é a defesa
+  // real — o timeout no backend (Fase 18.1: 5min inatividade / 8h máximo)
+  // é quem garante integridade quando isto não chega a disparar.
+  window.addEventListener('pagehide', function(){
+    if(sessionId){ encerrarSessaoNovos('pagehide'); }
+  });
+})();
+</script>
+
 
 
 </body></html>

@@ -2920,6 +2920,11 @@ function calcLinear(showOk){
   });
   const validas=itens.filter(x=>x.parcela>0); const menor=validas.length?Math.min(...validas.map(x=>x.parcela)):null;
   $('lResultados').innerHTML=itens.map(x=>`<div class="linear-term-card ${menor!==null&&Math.abs(x.parcela-menor)<0.01?'best':''}"><div class="linear-term">${x.prazo}x</div><div class="linear-label">Parcela</div><div class="linear-payment">${x.parcela?brl(x.parcela):'--'}</div></div>`).join('');
+  // Fase 18.2 — modo Linear não tem botão "Calcular" dedicado (Fase 18.0,
+  // Parte S); fingerprint efêmero (só em memória) + debounce em
+  // notificarSimulacaoLinear evitam contar o mesmo resultado repetidas
+  // vezes por causa do recálculo automático a cada tecla.
+  if(menor!==null && typeof notificarSimulacaoLinear==='function') notificarSimulacaoLinear(bem+'|'+entrada+'|'+faixa);
   if(showOk) setMsg('lMsg','✅ Simulação linear calculada com sucesso.','ok');
 }
 function initLinear(){
@@ -2934,9 +2939,9 @@ function initLinear(){
 function planoTrad(prazo,pe){return tabelaTradicional.filter(r=>r.prazo===prazo&&pe>=r.entrada).sort((a,b)=>b.entrada-a.entrada)[0]||null}
 function renderBaloes(){let qtd=Number($('tQtd').value),html='';for(let i=1;i<=qtd;i++){html+=`<div class="balloon-card"><h3>Balão ${i}</h3><div class="form-grid"><div class="field"><label>Parcela/mês do balão</label><input class="tMes" inputmode="numeric" placeholder="Ex: 36"></div><div class="field"><label>Valor do balão</label><input class="tValor" inputmode="numeric" placeholder="R$ 0,00"></div></div></div>`}$('tBaloes').innerHTML=html;document.querySelectorAll('.tValor').forEach(e=>e.addEventListener('blur',ev=>{ev.target.value=brl(parseBRL(ev.target.value));calcTrad(false)}));document.querySelectorAll('.tMes,.tValor').forEach(e=>e.addEventListener('input',()=>calcTrad(false)))}
 function coletaBaloes(){const m=[...document.querySelectorAll('.tMes')].map(e=>Number(e.value));const v=[...document.querySelectorAll('.tValor')].map(e=>parseBRL(e.value));return m.map((mes,i)=>({mes,valor:v[i]})).filter(b=>b.mes||b.valor)}
-function calcTrad(showOk){const {bem,fin,pe}=atualizaBasicos('t');document.querySelectorAll('.tValor,.tMes').forEach(e=>e.classList.remove('balloon-overlimit'));const prazo=Number($('tPrazo').value);setMsg('tMsg','','');$('tParcela').textContent='R$ 0,00';$('tFluxo').innerHTML='<div class="empty">Nenhum balão configurado.</div>';$('tTaxa').textContent='-';$('tLimite').textContent='Automático';$('tMax').textContent='R$ 0,00';if(!bem)return;if(pe<.1){setMsg('tMsg','⚠️ A entrada mínima permitida para este plano é de 10%.','error');return}if(fin<=0){setMsg('tMsg','⚠️ A entrada deve ser menor que o valor do bem.','error');return}const plano=planoTrad(prazo,pe);if(!plano){setMsg('tMsg','⚠️ Prazo sem regra cadastrada na tabela para a faixa de entrada informada.','error');return}const baloes=coletaBaloes();let total=0,meses=new Set();for(const b of baloes){if(!b.mes||b.mes<1||b.mes>prazo){setMsg('tMsg',`⚠️ Existe balão fora do prazo. Use parcelas entre 1 e ${prazo}.`,'error');return}if(meses.has(b.mes)){setMsg('tMsg','⚠️ Não é permitido inserir dois balões na mesma parcela.','error');return}if(b.valor<=0){setMsg('tMsg','⚠️ Informe valor válido para todos os balões.','error');return}meses.add(b.mes);total+=b.valor}$('tTotalBaloes').textContent=brl(total);const limite=fin*plano.max;$('tLimite').textContent=pct(plano.max);$('tMax').textContent=brl(limite);$('tTaxa').textContent=pct(plano.taxa);if(total>limite+1e-6){document.querySelectorAll('.tValor').forEach(e=>e.classList.add('balloon-overlimit'));setMsg('tMsg',`⚠️ A soma dos balões (${brl(total)}) ultrapassa o valor máximo de balão permitido (${brl(limite)}), calculado sobre o valor financiado.`,'error');return}const i=taxaInterna(plano.taxa),n=prazo,fator=(1-Math.pow(1+i,-n))/i,base=baseInterna(fin),vpBaloes=baloes.reduce((s,b)=>s+b.valor/Math.pow(1+i,b.mes),0),saldo=base-vpBaloes;if(saldo<=0){setMsg('tMsg','⚠️ Os balões escolhidos são altos demais para gerar uma parcela mensal válida.','error');return}const parcela=saldo/fator;$('tParcela').textContent=brl(parcela);if(baloes.length){$('tFluxo').innerHTML=baloes.sort((a,b)=>a.mes-b.mes).map(b=>`<div class="flow-item"><div class="flow-top"><span>Parcela ${b.mes}</span><strong>${brl(parcela+b.valor)}</strong></div><div class="flow-detail">${brl(parcela)} da parcela + ${brl(b.valor)} do balão</div></div>`).join('')}if(showOk)setMsg('tMsg',`✅ Cálculo realizado. Parcela estimada: <b>${brl(parcela)}</b>.`,'ok')}
-function calcPeriod(showOk){const {bem,fin,pe}=atualizaBasicos('p');const prazo=Number($('pPrazo').value),tipo=$('pTipo').value;setMsg('pMsg','','');$('pParcela').textContent='R$ 0,00';$('pFluxo').innerHTML='<div class="empty">Preencha os dados para calcular.</div>';if(!bem)return;if(fin<=0){setMsg('pMsg','⚠️ A entrada deve ser menor que o valor do bem.','error');return}const minEntrada=Math.min(...tabelaPeriodica.filter(r=>r.prazo===prazo).map(r=>r.entrada));if(pe<minEntrada){setMsg('pMsg',`⚠️ A entrada mínima permitida para este plano é de ${pct(minEntrada)}.`,'error');return}const plano=tabelaPeriodica.filter(r=>r.prazo===prazo&&pe>=r.entrada).sort((a,b)=>b.entrada-a.entrada)[0]||null;if(!plano){setMsg('pMsg','⚠️ Prazo sem regra cadastrada para Semestral / Anual.','error');return}const step=tipo==='semestral'?6:12;const meses=[];for(let m=step;m<=prazo;m+=step)meses.push(m);const i=taxaInterna(plano.taxa),base=baseInterna(fin);const denom=meses.reduce((s,m)=>s+1/Math.pow(1+i,m),0);const parcela=base/denom;$('pParcela').textContent=brl(parcela);$('pTituloResultado').textContent=tipo==='semestral'?'Valor das parcelas semestrais':'Valor das parcelas anuais';$('pPrazoTxt').textContent=prazo+'x';$('pTipoTxt').textContent=tipo==='semestral'?'Semestral':'Anual';$('pTaxa').textContent=pct(plano.taxa);$('pFluxo').innerHTML=meses.map((m,idx)=>`<div class="flow-item"><div class="flow-top"><span>Parcela ${m}</span><strong>${brl(parcela)}</strong></div><div class="flow-detail">${tipo==='semestral'?'Vencimento semestral':'Vencimento anual'} ${idx+1} de ${meses.length}</div></div>`).join('');if(showOk)setMsg('pMsg','✅ Fluxo calculado automaticamente.','ok')}
-function calcParcelaUnica(showOk){const {bem,fin,pe}=atualizaBasicos('u');const plano=tabelaParcelaUnica;setMsg('uMsg','','');$('uParcela').textContent='R$ 0,00';$('uFluxo').innerHTML='<div class="empty">Preencha os dados para calcular.</div>';$('uTaxa').textContent=pct(plano.taxa);if($('uCoef')){$('uCoef').textContent=plano.coef.toLocaleString('pt-BR',{minimumFractionDigits:6,maximumFractionDigits:6});}if(!bem)return;if(fin<=0){setMsg('uMsg','⚠️ A entrada deve ser menor que o valor do bem.','error');return}if(pe<plano.entrada){setMsg('uMsg',`⚠️ A entrada mínima permitida para Parcela Única é de ${pct(plano.entrada)}.`,'error');return}const parcela=fin*plano.coef;$('uParcela').textContent=brl(parcela);$('uFluxo').innerHTML=`<div class="flow-item"><div class="flow-top"><span>Meses 1 a 24</span><strong>Sem parcelas</strong></div><div class="flow-detail">Período de carência sem pagamento mensal.</div></div><div class="flow-item"><div class="flow-top"><span>Mês 25</span><strong>${brl(parcela)}</strong></div><div class="flow-detail">Parcela única final calculada sobre o valor financiado, conforme coeficiente validado pelo sistema.</div></div>`;if(showOk)setMsg('uMsg',`✅ Parcela Única calculada: <b>${brl(parcela)}</b> no mês 25.`,'ok')}
+function calcTrad(showOk){const {bem,fin,pe}=atualizaBasicos('t');document.querySelectorAll('.tValor,.tMes').forEach(e=>e.classList.remove('balloon-overlimit'));const prazo=Number($('tPrazo').value);setMsg('tMsg','','');$('tParcela').textContent='R$ 0,00';$('tFluxo').innerHTML='<div class="empty">Nenhum balão configurado.</div>';$('tTaxa').textContent='-';$('tLimite').textContent='Automático';$('tMax').textContent='R$ 0,00';if(!bem)return;if(pe<.1){setMsg('tMsg','⚠️ A entrada mínima permitida para este plano é de 10%.','error');return}if(fin<=0){setMsg('tMsg','⚠️ A entrada deve ser menor que o valor do bem.','error');return}const plano=planoTrad(prazo,pe);if(!plano){setMsg('tMsg','⚠️ Prazo sem regra cadastrada na tabela para a faixa de entrada informada.','error');return}const baloes=coletaBaloes();let total=0,meses=new Set();for(const b of baloes){if(!b.mes||b.mes<1||b.mes>prazo){setMsg('tMsg',`⚠️ Existe balão fora do prazo. Use parcelas entre 1 e ${prazo}.`,'error');return}if(meses.has(b.mes)){setMsg('tMsg','⚠️ Não é permitido inserir dois balões na mesma parcela.','error');return}if(b.valor<=0){setMsg('tMsg','⚠️ Informe valor válido para todos os balões.','error');return}meses.add(b.mes);total+=b.valor}$('tTotalBaloes').textContent=brl(total);const limite=fin*plano.max;$('tLimite').textContent=pct(plano.max);$('tMax').textContent=brl(limite);$('tTaxa').textContent=pct(plano.taxa);if(total>limite+1e-6){document.querySelectorAll('.tValor').forEach(e=>e.classList.add('balloon-overlimit'));setMsg('tMsg',`⚠️ A soma dos balões (${brl(total)}) ultrapassa o valor máximo de balão permitido (${brl(limite)}), calculado sobre o valor financiado.`,'error');return}const i=taxaInterna(plano.taxa),n=prazo,fator=(1-Math.pow(1+i,-n))/i,base=baseInterna(fin),vpBaloes=baloes.reduce((s,b)=>s+b.valor/Math.pow(1+i,b.mes),0),saldo=base-vpBaloes;if(saldo<=0){setMsg('tMsg','⚠️ Os balões escolhidos são altos demais para gerar uma parcela mensal válida.','error');return}const parcela=saldo/fator;$('tParcela').textContent=brl(parcela);if(baloes.length){$('tFluxo').innerHTML=baloes.sort((a,b)=>a.mes-b.mes).map(b=>`<div class="flow-item"><div class="flow-top"><span>Parcela ${b.mes}</span><strong>${brl(parcela+b.valor)}</strong></div><div class="flow-detail">${brl(parcela)} da parcela + ${brl(b.valor)} do balão</div></div>`).join('')}if(showOk){setMsg('tMsg',`✅ Cálculo realizado. Parcela estimada: <b>${brl(parcela)}</b>.`,'ok');notificarSimulacaoRealizada();}}
+function calcPeriod(showOk){const {bem,fin,pe}=atualizaBasicos('p');const prazo=Number($('pPrazo').value),tipo=$('pTipo').value;setMsg('pMsg','','');$('pParcela').textContent='R$ 0,00';$('pFluxo').innerHTML='<div class="empty">Preencha os dados para calcular.</div>';if(!bem)return;if(fin<=0){setMsg('pMsg','⚠️ A entrada deve ser menor que o valor do bem.','error');return}const minEntrada=Math.min(...tabelaPeriodica.filter(r=>r.prazo===prazo).map(r=>r.entrada));if(pe<minEntrada){setMsg('pMsg',`⚠️ A entrada mínima permitida para este plano é de ${pct(minEntrada)}.`,'error');return}const plano=tabelaPeriodica.filter(r=>r.prazo===prazo&&pe>=r.entrada).sort((a,b)=>b.entrada-a.entrada)[0]||null;if(!plano){setMsg('pMsg','⚠️ Prazo sem regra cadastrada para Semestral / Anual.','error');return}const step=tipo==='semestral'?6:12;const meses=[];for(let m=step;m<=prazo;m+=step)meses.push(m);const i=taxaInterna(plano.taxa),base=baseInterna(fin);const denom=meses.reduce((s,m)=>s+1/Math.pow(1+i,m),0);const parcela=base/denom;$('pParcela').textContent=brl(parcela);$('pTituloResultado').textContent=tipo==='semestral'?'Valor das parcelas semestrais':'Valor das parcelas anuais';$('pPrazoTxt').textContent=prazo+'x';$('pTipoTxt').textContent=tipo==='semestral'?'Semestral':'Anual';$('pTaxa').textContent=pct(plano.taxa);$('pFluxo').innerHTML=meses.map((m,idx)=>`<div class="flow-item"><div class="flow-top"><span>Parcela ${m}</span><strong>${brl(parcela)}</strong></div><div class="flow-detail">${tipo==='semestral'?'Vencimento semestral':'Vencimento anual'} ${idx+1} de ${meses.length}</div></div>`).join('');if(showOk){setMsg('pMsg','✅ Fluxo calculado automaticamente.','ok');notificarSimulacaoRealizada();}}
+function calcParcelaUnica(showOk){const {bem,fin,pe}=atualizaBasicos('u');const plano=tabelaParcelaUnica;setMsg('uMsg','','');$('uParcela').textContent='R$ 0,00';$('uFluxo').innerHTML='<div class="empty">Preencha os dados para calcular.</div>';$('uTaxa').textContent=pct(plano.taxa);if($('uCoef')){$('uCoef').textContent=plano.coef.toLocaleString('pt-BR',{minimumFractionDigits:6,maximumFractionDigits:6});}if(!bem)return;if(fin<=0){setMsg('uMsg','⚠️ A entrada deve ser menor que o valor do bem.','error');return}if(pe<plano.entrada){setMsg('uMsg',`⚠️ A entrada mínima permitida para Parcela Única é de ${pct(plano.entrada)}.`,'error');return}const parcela=fin*plano.coef;$('uParcela').textContent=brl(parcela);$('uFluxo').innerHTML=`<div class="flow-item"><div class="flow-top"><span>Meses 1 a 24</span><strong>Sem parcelas</strong></div><div class="flow-detail">Período de carência sem pagamento mensal.</div></div><div class="flow-item"><div class="flow-top"><span>Mês 25</span><strong>${brl(parcela)}</strong></div><div class="flow-detail">Parcela única final calculada sobre o valor financiado, conforme coeficiente validado pelo sistema.</div></div>`;if(showOk){setMsg('uMsg',`✅ Parcela Única calculada: <b>${brl(parcela)}</b> no mês 25.`,'ok');notificarSimulacaoRealizada();}}
 
 ['tBem','tEntrada'].forEach(id=>{$(id).addEventListener('blur',e=>mask(e.target,()=>calcTrad(false)));$(id).addEventListener('input',()=>calcTrad(false))});if($('tPerc')){attachPercentEntradaSync('tPerc','tBem','tEntrada',calcTrad);}['tPrazo','tQtd'].forEach(id=>$(id).addEventListener('change',()=>{renderBaloes();calcTrad(false)}));$('tCalc').addEventListener('click',()=>calcTrad(true));$('tLimpar').addEventListener('click',()=>{$('tQtd').value='0';renderBaloes();calcTrad(false)});
 ['pBem','pEntrada'].forEach(id=>{$(id).addEventListener('blur',e=>mask(e.target,()=>calcPeriod(false)));$(id).addEventListener('input',()=>calcPeriod(false))});if($('pPerc')){attachPercentEntradaSync('pPerc','pBem','pEntrada',calcPeriod);}['pPrazo','pTipo'].forEach(id=>$(id).addEventListener('change',()=>calcPeriod(false)));$('pCalc').addEventListener('click',()=>calcPeriod(true));
@@ -2976,7 +2981,7 @@ function calcDescobridor(showOk){
   $('dCetMes').textContent=pct2(taxaCetMes)+' a.m.';
   $('dTotal').textContent=brl(total);
   $('dJuros').textContent=brl(juros);
-  if(showOk) setMsg('dMsg','✅ Taxa aproximada calculada com sucesso.','ok');
+  if(showOk){ setMsg('dMsg','✅ Taxa aproximada calculada com sucesso.','ok'); notificarSimulacaoRealizada(); }
 }
 ['dFinanciado','dParcela'].forEach(id=>{const e=$(id); if(e){e.addEventListener('blur',ev=>mask(ev.target,()=>calcDescobridor(false))); e.addEventListener('input',()=>calcDescobridor(false));}});
 if($('dPrazo')) $('dPrazo').addEventListener('input',()=>calcDescobridor(false));
@@ -3127,7 +3132,7 @@ function calcSubsidiadas(showOk){
   if(dados.error){setMsg('sMsg',dados.error,'error');return;}
   renderLeituraCampanha(dados.rows);
   renderOpcoesSubsidiadas(dados.rows,dados.minVenda);
-  if(showOk) setMsg('sMsg','✅ Taxas subsidiadas calculadas com sucesso.','ok');
+  if(showOk){ setMsg('sMsg','✅ Taxas subsidiadas calculadas com sucesso.','ok'); notificarSimulacaoRealizada(); }
 }
 ['sValorBem','sEntrada','sMinVenda'].forEach(id=>{const e=$(id); if(e){e.addEventListener('blur',ev=>mask(ev.target,()=>calcSubsidiadas(false)));e.addEventListener('input',()=>calcSubsidiadas(false));}});
 if($('sPctEntrada')){
@@ -3403,7 +3408,7 @@ function calcAntecipacao(showOk){
   $('aValorFinal').textContent=brl(finalTotal); $('aTipoResumo').textContent=descTipo; $('aParcelasResumo').textContent=rows.length===1?`Parcela ${rows[0].num}`:`${rows[0].num} a ${rows[rows.length-1].num}`; $('aQtdResumo').textContent=String(rows.length); $('aBrutoResumo').textContent=brl(brutoTotal); $('aBaloesResumo').textContent=brl(baloesTotal); $('aDescontoResumo').textContent=brl(descTotal); $('aDataResumo').textContent=fmtDateBR(data);
   $('aFluxo').innerHTML=rows.map(r=>`<tr><td>Parcela ${r.num}</td><td>${fmtDateBR(r.venc)}</td><td>${r.tipo}</td><td class="balloon-line">${r.valorBalao?brl(r.valorBalao):'-'}</td><td>${brl(r.bruto)}</td><td>${r.meses}</td><td>${pct2(r.desconto)}</td><td><b>${brl(r.final)}</b></td></tr>`).join('');
   ultimoFluxoAntecipacao=rows; ultimoResumoAntecipacao={qtd:rows.length,qtdBaloes:rows.filter(r=>r.valorBalao>0).length,brutoTotal,baloesTotal,descTotal,finalTotal,data,descTipo};
-  if(missing) setMsg('aMsg','⚠️ Algumas parcelas não tinham percentual na tabela e foram calculadas sem desconto.','error'); else if(showOk) setMsg('aMsg','✅ Antecipação calculada com sucesso.','ok');
+  if(missing) setMsg('aMsg','⚠️ Algumas parcelas não tinham percentual na tabela e foram calculadas sem desconto.','error'); else if(showOk){ setMsg('aMsg','✅ Antecipação calculada com sucesso.','ok'); notificarSimulacaoRealizada(); }
 }
 
 function abrirDetalheAntecipacao(){
@@ -3854,6 +3859,63 @@ window.falarComAnalista = window.falarComAnalista || async function(){
 
 <script id="portal-iframe-helper-v224">
 (function(){window.portalBack=function(){try{parent.postMessage('portal:back',window.location.origin)}catch(e){history.back();}};})();
+</script>
+<script id="fase182-telemetria-simulador-novos-v001">
+(function(){
+  'use strict';
+  // Fase 18.2 — telemetria de utilização (SOMENTE metadados técnicos: quem/
+  // qual módulo/quando/tempo ativo/contagem de simulações — NUNCA valores
+  // digitados, resultado financeiro ou conteúdo). Cada chamada é protegida
+  // por try/catch e checa a ponte antes de usar — se o Portal pai não
+  // expuser as funções (arquivo aberto isolado, teste, falha de carga), o
+  // simulador continua funcionando normalmente. Nada aqui é aguardado
+  // (await) pelo fluxo de cálculo — fire-and-forget.
+  function ponteDisponivel(nome){
+    try{ return window.parent && window.parent!==window && typeof window.parent[nome]==='function'; }
+    catch(e){ return false; }
+  }
+
+  let ULTIMA_ATIVIDADE_EM = Date.now();
+  function notificarAtividade(){ ULTIMA_ATIVIDADE_EM = Date.now(); }
+  ['pointerdown','keydown','touchstart','scroll','input'].forEach(function(evt){
+    document.addEventListener(evt, notificarAtividade, {passive:true, capture:true});
+  });
+
+  // Heartbeat a cada 60s (Fase 18.0/18.1), só quando: aba visível + houve
+  // interação real nos últimos 5 minutos. O delta de tempo ativo é sempre
+  // calculado no backend — este script nunca informa quantidade de tempo.
+  function heartbeatTick(){
+    try{
+      if(document.visibilityState!=='visible') return;
+      if(Date.now() - ULTIMA_ATIVIDADE_EM > 5*60*1000) return;
+      if(ponteDisponivel('simuladorTelemetriaHeartbeat')) window.parent.simuladorTelemetriaHeartbeat();
+    }catch(e){ /* telemetria nunca pode afetar o simulador */ }
+  }
+  setInterval(heartbeatTick, 60000);
+
+  // Chamada nos pontos reais de sucesso de cálculo (calc*(true) que chegou
+  // até o fim sem abortar por validação — Fase 18.0, Parte K/N).
+  window.notificarSimulacaoRealizada = function(){
+    try{ if(ponteDisponivel('simuladorTelemetriaSimulacao')) window.parent.simuladorTelemetriaSimulacao(); }
+    catch(e){ /* fire-and-forget */ }
+  };
+
+  // Exceção do modo Linear (Fase 18.0, Parte S/T/U/V): único modo sem botão
+  // "Calcular" dedicado — recalcula a cada tecla. Debounce de 1,5s +
+  // fingerprint EFÊMERO (só nesta variável de memória, nunca enviado ao
+  // backend nem persistido) evita contar a mesma simulação repetidamente.
+  let LINEAR_DEBOUNCE_TIMER = null;
+  let LINEAR_ULTIMO_FINGERPRINT = null;
+  window.notificarSimulacaoLinear = function(fingerprint){
+    if(LINEAR_DEBOUNCE_TIMER) clearTimeout(LINEAR_DEBOUNCE_TIMER);
+    LINEAR_DEBOUNCE_TIMER = setTimeout(function(){
+      if(fingerprint !== LINEAR_ULTIMO_FINGERPRINT){
+        LINEAR_ULTIMO_FINGERPRINT = fingerprint;
+        window.notificarSimulacaoRealizada();
+      }
+    }, 1500);
+  };
+})();
 </script>
 </body>
 </html>
