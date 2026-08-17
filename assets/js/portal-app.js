@@ -2951,6 +2951,9 @@ let FICHA_USUARIO_ABERTA_ID=null;
 // Fase 4.3 — Revisões Cadastrais (Ativação de Acesso).
 let MASTER_REVISOES_PENDENTES=0;
 let MASTER_REVISOES_FILTRO='PENDENTE';
+// Fase 17.0 — caches client-side para as listas compactas com detalhe sob
+// demanda (mesmo dataset já carregado, sem RPC nova/N+1).
+let MASTER_AUDITORIA_CACHE=[];
 
 function toggleMasterAdmin(){
   MASTER_PANEL_OPEN=!MASTER_PANEL_OPEN;
@@ -2966,6 +2969,7 @@ function setMasterSearch(v){MASTER_SEARCH=(v||'').toUpperCase();renderMasterAdmi
 // já aplicadas em usuarios pela conclusão da ativação (Fase 4.2) — esta
 // aba é só revisão administrativa pós-fato, nunca bloqueia o usuário.
 function setRevisoesFiltro(f){MASTER_REVISOES_FILTRO=f;renderMasterAdmin();}
+let MASTER_REVISOES_CACHE=[];
 async function renderRevisoesCadastraisHtml(){
   let payload=null;
   try{
@@ -2976,32 +2980,73 @@ async function renderRevisoesCadastraisHtml(){
     return `<h2>Revisões Cadastrais</h2><p class="note" style="color:#ff6b61">Não foi possível carregar as revisões: ${escapeOperationalHtml(String(e?.message||e))}</p>`;
   }
   const linhas=payload?.rows||[];
+  MASTER_REVISOES_CACHE=linhas;
   const filtros=[['PENDENTE','Pendentes'],['APROVADO','Aprovadas'],['CORRIGIDO','Corrigidas'],['TODAS','Todas']];
   const badgeStatus=s=>({PENDENTE:'warn',APROVADO:'ok',CORRIGIDO:'ok'}[s]||'warn');
-  const rows=linhas.map(r=>{
-    const acoes=r.status==='PENDENTE'?`
-      <div class="adminActions">
-        <button class="adminActionBtn good" onclick="aprovarRevisaoCadastralAction('${r.revisao_id}','${escapeOperationalHtml(r.campo)}','${escapeOperationalHtml(String(r.valor_novo||''))}','${escapeOperationalHtml(r.usuario_nome||'')}')">Aprovar</button>
-        <button class="adminActionBtn warn" onclick="abrirCorrigirRevisaoModal('${r.revisao_id}','${escapeOperationalHtml(r.campo)}','${escapeOperationalHtml(String(r.valor_novo||''))}','${escapeOperationalHtml(r.usuario_nome||'')}')">Corrigir</button>
-      </div>`:'<span class="note">—</span>';
-    return `<tr>
-      <td>${escapeOperationalHtml(r.usuario_nome||'')}</td>
-      <td>${escapeOperationalHtml(r.campo||'')}</td>
-      <td class="revisaoValorAnterior">${escapeOperationalHtml(r.valor_anterior==null?'(vazio)':String(r.valor_anterior))}</td>
-      <td class="revisaoValorNovo">${escapeOperationalHtml(String(r.valor_novo||''))}</td>
-      <td>${r.criado_em?new Date(r.criado_em).toLocaleString('pt-BR'):'-'}</td>
-      <td><span class="adminStatus ${badgeStatus(r.status)}">${escapeOperationalHtml(r.status||'')}</span></td>
-      <td>${acoes}</td>
-    </tr>`;
-  }).join('');
+  // Fase 17.0 — lista compacta + modal de detalhes (Parte H: ação curta/
+  // confirmatória cabe melhor em modal que em drawer). Mesma RPC, mesmas
+  // ações (Aprovar/Corrigir), nenhuma regra nova.
+  const rows=linhas.map((r,idx)=>`
+    <div class="adminListRow revRow">
+      <div class="adminListMain"><b>${escapeOperationalHtml(r.usuario_nome||'')}</b><span class="adminListSub">${escapeOperationalHtml(r.campo||'')}</span></div>
+      <div class="adminListCol">${escapeOperationalHtml(r.valor_anterior==null?'(vazio)':String(r.valor_anterior))} → <b>${escapeOperationalHtml(String(r.valor_novo||''))}</b></div>
+      <div class="adminListCol revColData">${r.criado_em?new Date(r.criado_em).toLocaleString('pt-BR'):'-'}</div>
+      <div class="adminListCol"><span class="adminStatus ${badgeStatus(r.status)}">${escapeOperationalHtml(r.status||'')}</span></div>
+      <div class="adminListActions"><button class="adminActionBtn wine" onclick="abrirDetalheRevisao(${idx})">Ver detalhes</button></div>
+    </div>`).join('');
   return `<h2>Revisões Cadastrais</h2>
     <div class="revisaoInfoBox">Divergências cadastrais informadas durante <b>Ativar Meu Acesso</b> (Primeiro Acesso). O valor informado já está em uso pelo usuário — <b>Aprovar</b> só confirma administrativamente; <b>Corrigir</b> substitui pelo valor correto. Nenhuma ação bloqueia o usuário, altera e-mail/senha ou desativa a conta.</div>
     <div class="revisaoFiltros">${filtros.map(f=>`<button class="${MASTER_REVISOES_FILTRO===f[0]?'active':''}" onclick="setRevisoesFiltro('${f[0]}')">${f[1]}</button>`).join('')}</div>
     <div id="adminMsg" class="adminMsg"></div>
-    <div class="tableWrap"><table class="adminTable">
-      <thead><tr><th>Usuário</th><th>Campo</th><th>Valor anterior</th><th>Valor informado</th><th>Data</th><th>Status</th><th>Ações</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="7">Nenhuma revisão encontrada para este filtro.</td></tr>'}</tbody>
-    </table></div>`;
+    <div class="adminListWrap">${rows||'<p class="note" style="padding:16px">Nenhuma revisão encontrada para este filtro.</p>'}</div>`;
+}
+function abrirDetalheAuditoria(idx){
+  const a=MASTER_AUDITORIA_CACHE[idx];
+  if(!a) return;
+  // Nunca exibe token/action_link/senha/OTP/service_role — essas colunas
+  // não existem em auditoria (confirmado nas Fases 16.3/16.5); a descrição
+  // gravada pelo backend já segue a mesma disciplina em toda a aplicação.
+  openAdminModal({
+    title:'Detalhes do registro de auditoria',
+    fieldHtml:`
+      <dl class="fichaList">
+        <dt>Data/Hora</dt><dd>${a.criado_em?new Date(a.criado_em).toLocaleString('pt-BR'):'-'}</dd>
+        <dt>Evento</dt><dd>${escapeOperationalHtml(a.tipo||'')}</dd>
+        <dt>Descrição</dt><dd>${escapeOperationalHtml(a.descricao||'—')}</dd>
+        <dt>Alvo (CPF)</dt><dd>${a.cpf?maskCpfFicha(a.cpf):'—'}</dd>
+        <dt>Vendedor/Usuário</dt><dd>${escapeOperationalHtml(a.vendedor||'—')}</dd>
+        <dt>Loja</dt><dd>${escapeOperationalHtml(a.loja||'—')}</dd>
+        <dt>Origem</dt><dd>${escapeOperationalHtml(a.base_origem||'—')}</dd>
+        <dt>Resultado</dt><dd>${a.resolvido?'Resolvido':'Pendente'}</dd>
+        ${a.resolvido_em?`<dt>Resolvido em</dt><dd>${new Date(a.resolvido_em).toLocaleString('pt-BR')}</dd>`:''}
+      </dl>`,
+    confirmText:'Fechar',
+    onConfirm:()=>closeAdminModal()
+  });
+}
+function abrirDetalheRevisao(idx){
+  const r=MASTER_REVISOES_CACHE[idx];
+  if(!r) return;
+  const acoes=r.status==='PENDENTE'?`
+    <div class="adminActions" style="justify-content:flex-start;margin-top:10px">
+      <button class="adminActionBtn good" onclick="closeAdminModal();aprovarRevisaoCadastralAction('${r.revisao_id}','${escapeOperationalHtml(r.campo)}','${escapeOperationalHtml(String(r.valor_novo||''))}','${escapeOperationalHtml(r.usuario_nome||'')}')">Aprovar</button>
+      <button class="adminActionBtn warn" onclick="closeAdminModal();abrirCorrigirRevisaoModal('${r.revisao_id}','${escapeOperationalHtml(r.campo)}','${escapeOperationalHtml(String(r.valor_novo||''))}','${escapeOperationalHtml(r.usuario_nome||'')}')">Corrigir</button>
+    </div>`:'';
+  openAdminModal({
+    title:'Detalhes da revisão cadastral',
+    fieldHtml:`
+      <dl class="fichaList">
+        <dt>Usuário</dt><dd>${escapeOperationalHtml(r.usuario_nome||'')}</dd>
+        <dt>Campo</dt><dd>${escapeOperationalHtml(r.campo||'')}</dd>
+        <dt>Valor anterior</dt><dd>${escapeOperationalHtml(r.valor_anterior==null?'(vazio)':String(r.valor_anterior))}</dd>
+        <dt>Valor informado</dt><dd>${escapeOperationalHtml(String(r.valor_novo||''))}</dd>
+        <dt>Data</dt><dd>${r.criado_em?new Date(r.criado_em).toLocaleString('pt-BR'):'-'}</dd>
+        <dt>Status</dt><dd>${escapeOperationalHtml(r.status||'')}</dd>
+        ${r.revisado_em?`<dt>Revisado em</dt><dd>${new Date(r.revisado_em).toLocaleString('pt-BR')}</dd>`:''}
+      </dl>${acoes}`,
+    confirmText:'Fechar',
+    onConfirm:()=>closeAdminModal()
+  });
 }
 function aprovarRevisaoCadastralAction(revisaoId,campo,valorNovo,usuarioNome){
   openAdminModal({
@@ -3391,14 +3436,23 @@ function abrirFichaUsuario(usuarioId){
   const u=MASTER_USUARIOS_CACHE.find(x=>x.id===usuarioId);
   if(!u) return;
   FICHA_USUARIO_ABERTA_ID=usuarioId;
-  const overlay=document.getElementById('userDrawerOverlay');
-  const painel=document.getElementById('userDrawer');
-  if(!overlay||!painel) return;
-  painel.innerHTML=renderFichaUsuarioHtml(u);
-  overlay.classList.add('show');
+  abrirDrawerGenerico(renderFichaUsuarioHtml(u));
 }
 function fecharFichaUsuario(){
   FICHA_USUARIO_ABERTA_ID=null;
+  fecharDrawerGenerico();
+}
+// Fase 17.0 — drawer genérico, reutilizado por qualquer ficha administrativa
+// (Usuários, Histórico de Competências). Mesmo elemento DOM da Fase 16.2 —
+// só um drawer aberto por vez, sem necessidade de CSS/markup novo.
+function abrirDrawerGenerico(html){
+  const overlay=document.getElementById('userDrawerOverlay');
+  const painel=document.getElementById('userDrawer');
+  if(!overlay||!painel) return;
+  painel.innerHTML=html;
+  overlay.classList.add('show');
+}
+function fecharDrawerGenerico(){
   const overlay=document.getElementById('userDrawerOverlay');
   if(overlay) overlay.classList.remove('show');
 }
@@ -3928,18 +3982,19 @@ async function arquivarMudancaLojaVendedor(id){
   }catch(error){toastAdmin('Erro ao arquivar mudança: '+error.message,'err')}
 }
 function renderMudancasLojaVendedoresHtml(){
+  // Fase 17.0 — lista compacta (mesmo princípio da Fase 16.2/17.0), sem
+  // alterar nenhuma regra/ação/RPC existente.
   const rows=(MUDANCAS_LOJA_VENDEDORES||[]).map(m=>`
-    <tr>
-      <td><b>${m.nome_vendedor||''}</b><br><span class="note">${m.cpf_vendedor||m.login_vendedor||''}${m.fallback_local?' · LOCAL':''}</span></td>
-      <td>${m.loja_origem||''}<br><span class="note">${dataBR(m.data_inicio_origem)} a ${dataBR(m.data_fim_origem)}</span></td>
-      <td>${m.loja_destino||''}<br><span class="note">a partir de ${dataBR(m.data_inicio_destino)}</span></td>
-      <td>${m.observacao||''}</td>
-      <td>${m.ativo!==false?'<span class="periodoAtivoBadge">ATIVA</span>':'<span class="periodoInativoBadge">INATIVA</span>'}</td>
-      <td class="adminActions">
+    <div class="adminListRow ausRow">
+      <div class="adminListMain"><b>${escapeOperationalHtml(m.nome_vendedor||'')}</b><span class="adminListSub">${escapeOperationalHtml(m.cpf_vendedor||m.login_vendedor||'')}${m.fallback_local?' · LOCAL':''}</span></div>
+      <div class="adminListCol">${escapeOperationalHtml(m.loja_origem||'')} → <b>${escapeOperationalHtml(m.loja_destino||'')}</b><span class="adminListSub">${escapeOperationalHtml(m.observacao||'')}</span></div>
+      <div class="adminListCol ausColPeriodo">${dataBR(m.data_inicio_origem)} a ${dataBR(m.data_fim_origem)}<span class="adminListSub">destino a partir de ${dataBR(m.data_inicio_destino)}</span></div>
+      <div class="adminListCol">${m.ativo!==false?'<span class="periodoAtivoBadge">ATIVA</span>':'<span class="periodoInativoBadge">INATIVA</span>'}</div>
+      <div class="adminListActions">
         <button class="adminActionBtn warn" onclick="alternarMudancaLojaVendedor('${m.id}',${m.ativo!==false})">${m.ativo!==false?'Inativar':'Ativar'}</button>
         <button class="adminActionBtn danger" onclick="arquivarMudancaLojaVendedor('${m.id}')">Arquivar</button>
-      </td>
-    </tr>`).join('');
+      </div>
+    </div>`).join('');
   return `<h2>Mudança de Loja — Vendedores</h2>
     <p class="note">Cadastre transferências de loja por período. A regra altera somente a alocação da loja conforme a data da venda/lançamento, preservando as regras de comissão.</p>
     <div class="ausenciaInfoBox"><b>Regra:</b> vendas/valores no período de origem ficam na loja origem; a partir da data destino ficam na loja destino. O vendedor continua consolidado no próprio acesso.</div>
@@ -3953,10 +4008,8 @@ function renderMudancasLojaVendedoresHtml(){
       <div><label>Observação</label><input id="mudObs" placeholder="Ex.: transferência interna"></div>
       <div><button class="adminActionBtn good" onclick="salvarMudancaLojaVendedor()">Salvar mudança</button></div>
     </div>
-    <div class="tableWrap"><table class="adminTable">
-      <thead><tr><th>Vendedor</th><th>Origem</th><th>Destino</th><th>Observação</th><th>Status</th><th>Ações</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="6">Nenhuma mudança cadastrada.</td></tr>'}</tbody>
-    </table></div>`;
+    <h3 style="margin-top:20px">Mudanças cadastradas</h3>
+    <div class="adminListWrap">${rows||'<p class="note" style="padding:16px">Nenhuma mudança cadastrada.</p>'}</div>`;
 }
 
 function analistasOptions(selectedCpf=''){
@@ -4335,7 +4388,13 @@ function salvarParametroModal(chave,titulo,descricao){
 }
 
 function adminTabsHtml(){
-  const tabs=[['usuarios','Usuários'],['senhas','Senhas'],['acessosModulos','Acessos aos Módulos'],['revisoes','Revisões Cadastrais'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
+  // Fase 17.0 — aba "Senhas" removida: auditoria confirmou que suas 3
+  // ações (Redefinir senha / Forçar troca / Bloquear-Desbloquear) já
+  // existem, com as MESMAS funções, na Ficha do Usuário (Fase 16.2/16.5).
+  // "Redefinir senha" e "Forçar troca" já eram código morto em modo secure
+  // (sempre retornavam erro pedindo para usar o Supabase Auth diretamente,
+  // em qualquer uma das duas telas) — nada foi removido do backend.
+  const tabs=[['usuarios','Usuários'],['acessosModulos','Acessos aos Módulos'],['revisoes','Revisões Cadastrais'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
   return `<div class="masterSide">${tabs.map(t=>{
     const badge=(t[0]==='revisoes'&&MASTER_REVISOES_PENDENTES>0)?`<span class="masterTabBadge">${MASTER_REVISOES_PENDENTES}</span>`:'';
     return `<button class="${MASTER_TAB===t[0]?'active':''}" onclick="setMasterTab('${t[0]}')">${t[1]}${badge}</button>`;
@@ -4591,8 +4650,9 @@ function renderFechamentoCompetenciaPreview(){
   const rows=preview.linhas.slice(0,40).map(l=>`
     <tr><td><b>${l.loja}</b></td><td>${l.perfil}</td><td>${l.nome}</td><td>${l.status}</td><td>${l.m.vendidas||0}</td><td>${l.m.financiadas||0}</td><td>${fmtMoney(l.m.retorno||0)}</td><td>${fmtMoney(l.c.spfLiquido||0)}</td><td>${fmtMoney(l.c.rentTotal||0)}</td><td><b>${fmtMoney(l.comissao||0)}</b></td></tr>`).join('');
 
-  const hist=(FECHAMENTOS_COMISSAO||[]).slice(0,20).map(f=>`
-    <tr><td>${f.nome_periodo||''}</td><td>${dataBR(f.data_inicio||'')} a ${dataBR(f.data_fim||'')}</td><td>${f.status||''}</td><td>${f.fechado_por_nome||f.fechado_por||''}</td><td>${fmtMoney(f.comissao_total||fechamentoMetricFromObs(f,'comissao_total')||0)}</td><td class="adminActions"><button class="adminActionBtn wine" onclick="visualizarSnapshot('${f.id}')">Visualizar Snapshot</button>${String(f.status||'').toUpperCase()==='FECHADO'?`<button class="adminActionBtn warn" onclick="reabrirCompetencia('${f.id}')">Reabrir</button>`:''}</td></tr>`).join('');
+  const hist=(FECHAMENTOS_COMISSAO||[]).slice(0,20).map(f=>renderFechamentoHistoricoRow(f,`
+    <button class="adminActionBtn wine" onclick="visualizarSnapshot('${f.id}')">Ver snapshot</button>
+    ${String(f.status||'').toUpperCase()==='FECHADO'?`<button class="adminActionBtn warn" onclick="reabrirCompetencia('${f.id}')">Reabrir</button>`:''}`)).join('');
 
   const snapRows=(SNAPSHOT_VIEW||[]).slice(0,60).map(r=>{
     let d=r.dados||r; if(typeof d==='string'){try{d=JSON.parse(d)}catch(e){d=r}}
@@ -4630,11 +4690,12 @@ function renderFechamentoCompetenciaPreview(){
       <div class="fechamentoWarning"><b>Atenção:</b> ao fechar, o Portal grava uma foto das linhas de comissão em snapshot_comissoes. A Prévia RH/DP não grava nada — é só para conferência.</div>
     </div>
     <h3 style="margin-top:24px">Prévia das linhas do snapshot</h3>
-    <div class="tableWrap"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Retorno</th><th>70% SPF</th><th>Rentab.</th><th>Comissão</th></tr></thead><tbody>${rows||'<tr><td colspan="10">Nenhuma linha prevista para o período.</td></tr>'}</tbody></table></div>
+    <p class="note">Tabela densa (10 colunas numéricas) — mantida em formato de tabela com rolagem horizontal própria; transformar cada linha em card prejudicaria a leitura comparativa entre vendedores.</p>
+    <div class="tableWrapScroll"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Retorno</th><th>70% SPF</th><th>Rentab.</th><th>Comissão</th></tr></thead><tbody>${rows||'<tr><td colspan="10">Nenhuma linha prevista para o período.</td></tr>'}</tbody></table></div>
     ${preview.linhas.length>40?`<p class="note">Exibindo as primeiras 40 linhas de ${preview.linhas.length} previstas.</p>`:''}
     <h3 style="margin-top:24px">Histórico de Fechamentos</h3>
-    <div class="tableWrap"><table class="adminTable"><thead><tr><th>Competência</th><th>Período</th><th>Status</th><th>Fechado por</th><th>Comissão Total</th><th>Ações</th></tr></thead><tbody>${hist||'<tr><td colspan="6">Nenhum fechamento encontrado.</td></tr>'}</tbody></table></div>
-    ${(SNAPSHOT_VIEW||[]).length?`<div class="snapshotBox"><h3>Snapshot Visualizado</h3><div class="tableWrap"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Comissão</th></tr></thead><tbody>${snapRows}</tbody></table></div>${SNAPSHOT_VIEW.length>60?`<p class="note">Exibindo 60 de ${SNAPSHOT_VIEW.length} linhas.</p>`:''}</div>`:''}`;
+    <div class="adminListWrap">${hist||'<p class="note" style="padding:16px">Nenhum fechamento encontrado.</p>'}</div>
+    ${(SNAPSHOT_VIEW||[]).length?`<div class="snapshotBox"><h3>Snapshot Visualizado</h3><div class="tableWrapScroll"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Comissão</th></tr></thead><tbody>${snapRows}</tbody></table></div>${SNAPSHOT_VIEW.length>60?`<p class="note">Exibindo 60 de ${SNAPSHOT_VIEW.length} linhas.</p>`:''}</div>`:''}`;
 }
 
 // Checkpoint C.2 (Fase C.2-B): exporta a prévia da competência ATUAL — nunca
@@ -4742,7 +4803,7 @@ function renderSnapshotReportHtml(rows,title='Relatório RH/DP'){
     ?'<div class="fechamentoWarning">⚠ Este snapshot histórico foi gravado sem valores financeiros. Os dados originais foram preservados e não serão recalculados.</div>'
     :'';
   const trs=rows.map(r=>`<tr><td>${r.loja}</td><td>${r.perfil}</td><td>${r.nome}</td><td>${r.status}</td><td>${r.vendidas}</td><td>${r.financiadas}</td><td>${fmtMoney(r.retorno)}</td><td>${fmtMoney(r.spf_liquido)}</td><td>${fmtMoney(r.rentabilidade_total)}</td><td>${fmtPct2(r.faixa)}</td><td><b>${fmtMoney(r.comissao_total)}</b></td><td>${r.observacao||''}</td></tr>`).join('');
-  return `<div class="rhReportPanel"><h2>${title}</h2><div class="readonlyBanner">Modo histórico somente leitura. Os valores abaixo vêm do snapshot congelado, sem recálculo.</div>${avisoZerado}<div class="rhReportGrid"><div class="rhReportCard"><div class="k">Linhas</div><div class="v">${rows.length}</div></div><div class="rhReportCard"><div class="k">Vendidas</div><div class="v">${agg.vendidas}</div></div><div class="rhReportCard"><div class="k">Financiadas</div><div class="v">${agg.financiadas}</div></div><div class="rhReportCard"><div class="k">Comissão Total</div><div class="v">${fmtMoney(agg.comissao_total)}</div></div><div class="rhReportCard"><div class="k">Retorno</div><div class="v">${fmtMoney(agg.retorno)}</div></div><div class="rhReportCard"><div class="k">SPF Extra</div><div class="v">${fmtMoney(agg.spf_extra)}</div></div><div class="rhReportCard"><div class="k">Vendedores</div><div class="v">${agg.vendedores}</div></div><div class="rhReportCard"><div class="k">Analistas</div><div class="v">${agg.analistas}</div></div></div><div class="tableWrap"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Retorno</th><th>70% SPF</th><th>Rentab.</th><th>Faixa</th><th>Comissão</th><th>Obs.</th></tr></thead><tbody>${trs||'<tr><td colspan="12">Nenhum snapshot carregado.</td></tr>'}</tbody></table></div></div>`;
+  return `<div class="rhReportPanel"><h2>${title}</h2><div class="readonlyBanner">Modo histórico somente leitura. Os valores abaixo vêm do snapshot congelado, sem recálculo.</div>${avisoZerado}<div class="rhReportGrid"><div class="rhReportCard"><div class="k">Linhas</div><div class="v">${rows.length}</div></div><div class="rhReportCard"><div class="k">Vendidas</div><div class="v">${agg.vendidas}</div></div><div class="rhReportCard"><div class="k">Financiadas</div><div class="v">${agg.financiadas}</div></div><div class="rhReportCard"><div class="k">Comissão Total</div><div class="v">${fmtMoney(agg.comissao_total)}</div></div><div class="rhReportCard"><div class="k">Retorno</div><div class="v">${fmtMoney(agg.retorno)}</div></div><div class="rhReportCard"><div class="k">SPF Extra</div><div class="v">${fmtMoney(agg.spf_extra)}</div></div><div class="rhReportCard"><div class="k">Vendedores</div><div class="v">${agg.vendedores}</div></div><div class="rhReportCard"><div class="k">Analistas</div><div class="v">${agg.analistas}</div></div></div><div class="tableWrapScroll"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Retorno</th><th>70% SPF</th><th>Rentab.</th><th>Faixa</th><th>Comissão</th><th>Obs.</th></tr></thead><tbody>${trs||'<tr><td colspan="12">Nenhum snapshot carregado.</td></tr>'}</tbody></table></div></div>`;
 }
 
 function authByName(nome){
@@ -5192,10 +5253,35 @@ async function compararCompetenciasHistorico(){
   SNAPSHOT_VIEW=[{loja:'COMPARATIVO',perfil:'A',nome:'Competência A',vendidas:aa.vendidas,financiadas:aa.financiadas,retorno:aa.retorno,spf_extra:aa.spf_extra,comissao_total:aa.comissao_total},{loja:'COMPARATIVO',perfil:'B',nome:'Competência B',vendidas:ab.vendidas,financiadas:ab.financiadas,retorno:ab.retorno,spf_extra:ab.spf_extra,comissao_total:ab.comissao_total},{loja:'DIFERENÇA',perfil:'B-A',nome:'Variação',vendidas:ab.vendidas-aa.vendidas,financiadas:ab.financiadas-aa.financiadas,retorno:ab.retorno-aa.retorno,spf_extra:ab.spf_extra-aa.spf_extra,comissao_total:ab.comissao_total-aa.comissao_total}];
   renderMasterAdmin();
 }
+// Fase 17.0 — linha compacta reutilizada por "Histórico de Competências" e
+// pelo sub-histórico de "Fechamento de Competência" (mesmo dataset
+// FECHAMENTOS_COMISSAO, mesmas colunas-base). Só as ações mudam por tela.
+function renderFechamentoHistoricoRow(f,acoesHtml){
+  return `<div class="adminListRow histRow">
+    <div class="adminListMain"><b>${escapeOperationalHtml(f.nome_periodo||'')}</b><span class="adminListSub">${dataBR(f.data_inicio||'')} a ${dataBR(f.data_fim||'')}</span></div>
+    <div class="adminListCol">${escapeOperationalHtml(f.status||'')}<span class="adminListSub">${fmtMoney(fechamentoMetric?fechamentoMetric(f,'comissao_total'):(f.comissao_total||0))}</span></div>
+    <div class="adminListCol histColResp">${escapeOperationalHtml(f.fechado_por_nome||f.fechado_por||'—')}</div>
+    <div class="adminListActions">${acoesHtml}</div>
+  </div>`;
+}
+function abrirExportarHistoricoModal(id,nomePeriodo){
+  openAdminModal({
+    title:'Exportar competência',
+    text:`Competência: <b>${escapeOperationalHtml(nomePeriodo||'')}</b>`,
+    fieldHtml:`<div class="adminActions" style="justify-content:flex-start">
+      <button class="adminActionBtn good" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');exportSnapshotExcel(r,'Relatorio_Comissoes_${id}.xlsx');closeAdminModal();})()">Excel</button>
+      <button class="adminActionBtn warn" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');imprimirSnapshotPDF(r,'Relatório ${escapeOperationalHtml(nomePeriodo||'').replace(/'/g,"\\'")}');closeAdminModal();})()">PDF</button>
+    </div>`,
+    confirmText:'Fechar',
+    onConfirm:()=>closeAdminModal()
+  });
+}
 function renderHistoricoCompetenciasHtml(){
   const opts=historicoOptions();
-  const rows=(FECHAMENTOS_COMISSAO||[]).map(f=>`<tr><td><b>${f.nome_periodo||''}</b></td><td>${dataBR(f.data_inicio||'')} a ${dataBR(f.data_fim||'')}</td><td>${f.status||''}</td><td>${f.fechado_por||''}</td><td>${fmtMoney(fechamentoMetric(f,'comissao_total'))}</td><td class="adminActions"><button class="adminActionBtn wine" onclick="carregarHistoricoSnapshotSelecionado('${f.id}')">Abrir</button><button class="adminActionBtn good" onclick="(async()=>{const r=await getSnapshotFechamento('${f.id}');exportSnapshotExcel(r,'Relatorio_Comissoes_${f.id}.xlsx')})()">Excel</button><button class="adminActionBtn warn" onclick="(async()=>{const r=await getSnapshotFechamento('${f.id}');imprimirSnapshotPDF(r,'Relatório ${f.nome_periodo||''}')})()">PDF</button></td></tr>`).join('');
-  return `<h2>Histórico de Competências</h2><p class="note">Consulte competências fechadas usando exclusivamente os snapshots congelados.</p><div class="readonlyBanner">Modo histórico: somente leitura e sem recálculo.</div><div class="reportActions"><select id="histFechamentoSel">${opts}</select><button onclick="carregarHistoricoSnapshotSelecionado(document.getElementById('histFechamentoSel').value)">Abrir competência</button><button onclick="exportarRelatorioHistoricoSelecionado()">Exportar Excel Completo RH/DP Completo</button><button onclick="imprimirRelatorioHistoricoSelecionado()">PDF / Imprimir</button></div><h3>Comparar competências</h3><div class="reportActions"><select id="cmpA">${opts}</select><select id="cmpB">${opts}</select><button onclick="compararCompetenciasHistorico()">Comparar</button></div><div class="tableWrap"><table class="adminTable"><thead><tr><th>Competência</th><th>Período</th><th>Status</th><th>Fechado por</th><th>Comissão Total</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="6">Nenhum fechamento encontrado.</td></tr>'}</tbody></table></div>${(SNAPSHOT_VIEW||[]).length?renderSnapshotReportHtml(SNAPSHOT_VIEW,'Snapshot / Relatório carregado'):''}`;
+  const rows=(FECHAMENTOS_COMISSAO||[]).map(f=>renderFechamentoHistoricoRow(f,`
+    <button class="adminActionBtn wine" onclick="carregarHistoricoSnapshotSelecionado('${f.id}')">Abrir</button>
+    <button class="adminActionBtn good" onclick="abrirExportarHistoricoModal('${f.id}','${escapeOperationalHtml(f.nome_periodo||'').replace(/'/g,"\\'")}')">Exportar</button>`)).join('');
+  return `<h2>Histórico de Competências</h2><p class="note">Consulte competências fechadas usando exclusivamente os snapshots congelados.</p><div class="readonlyBanner">Modo histórico: somente leitura e sem recálculo.</div><div class="reportActions"><select id="histFechamentoSel">${opts}</select><button onclick="carregarHistoricoSnapshotSelecionado(document.getElementById('histFechamentoSel').value)">Abrir competência</button><button onclick="exportarRelatorioHistoricoSelecionado()">Exportar Excel Completo RH/DP Completo</button><button onclick="imprimirRelatorioHistoricoSelecionado()">PDF / Imprimir</button></div><h3>Comparar competências</h3><div class="reportActions"><select id="cmpA">${opts}</select><select id="cmpB">${opts}</select><button onclick="compararCompetenciasHistorico()">Comparar</button></div><div class="adminListWrap">${rows||'<p class="note" style="padding:16px">Nenhum fechamento encontrado.</p>'}</div>${(SNAPSHOT_VIEW||[]).length?renderSnapshotReportHtml(SNAPSHOT_VIEW,'Snapshot / Relatório carregado'):''}`;
 }
 function renderRelatoriosRhDpHtml(){
   // Checkpoint C.3: centraliza as duas experiências de RH/DP na mesma aba.
@@ -5307,33 +5393,6 @@ async function renderMasterAdminContent(renderSequence){
       <div id="adminMsg" class="adminMsg"></div>
       <div class="userListWrap">${rows||'<p class="note" style="padding:16px">Nenhum usuário encontrado.</p>'}</div>
       ${await renderConvitesSection()}`;
-  }else if(MASTER_TAB==='senhas'){
-    const usuarios=filtroUsuarios(await carregarUsuariosSupabase());
-    const rows=usuarios.map(u=>{
-      const situacao=u.ativo?'<span class="adminStatus ok">ATIVO</span>':'<span class="adminStatus bad">BLOQUEADO</span>';
-      const primeiroBadge=u.primeiro_acesso?'<span class="adminStatus warn">PENDENTE</span>':'<span class="adminStatus ok">OK</span>';
-      const passActions=`
-        <div class="adminActions">
-          <button class="adminActionBtn warn" onclick="resetarSenhaUsuario('${u.cpf}')">Redefinir senha</button>
-          <button class="adminActionBtn warn" onclick="forcarTrocaSenha('${u.cpf}')">Forçar troca</button>
-          ${u.ativo?`<button class="adminActionBtn danger" onclick="bloquearUsuario('${u.cpf}')">Bloquear</button>`:`<button class="adminActionBtn good" onclick="desbloquearUsuario('${u.cpf}')">Desbloquear</button>`}
-        </div>`;
-      return `<tr>
-        <td>${u.nome||''}<br><span class="note">${u.cpf||''}</span></td>
-        <td>${u.perfil||''}</td><td>${u.loja||''}</td><td>${u.status||''}</td>
-        <td>${u.ultimo_login?new Date(u.ultimo_login).toLocaleString('pt-BR'):'-'}</td>
-        <td>${situacao}</td><td>${primeiroBadge}</td>
-        <td>${passActions}</td>
-      </tr>`;
-    }).join('');
-    body=`
-      <h2>Gerenciamento de Senhas</h2>
-      <div class="adminToolbar"><div><label>Pesquisar por nome, CPF, loja ou e-mail de acesso</label><br><input class="adminSearch" oninput="setMasterSearch(this.value)" value="${MASTER_SEARCH}" placeholder="Digite para pesquisar"></div>
-      </div>
-      <div id="adminMsg" class="adminMsg"></div>
-      <div class="tableWrap" style="margin-top:12px"><table class="adminTable">
-      <thead><tr><th>Nome / CPF</th><th>Perfil</th><th>Loja</th><th>Status</th><th>Último login</th><th>Situação</th><th>Primeiro acesso</th><th>AÇÕES</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="8">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div>`;
   }else if(MASTER_TAB==='config'){
     await carregarParametrosPortal();
     body=`
@@ -5387,19 +5446,19 @@ async function renderMasterAdminContent(renderSequence){
   }else if(MASTER_TAB==='ausencias'){
     if(String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure') await carregarUsuariosSupabase();
     await carregarAusenciasAnalistas();
+    // Fase 17.0 — lista compacta (mesmo princípio da Fase 16.2), substitui
+    // a tabela larga sem alterar nenhuma regra/ação/RPC existente.
     const rows=(AUSENCIAS_ANALISTAS||[]).map(a=>`
-      <tr>
-        <td><b>${a.nome_analista_ausente||''}</b><br><span class="note">${a.loja_origem||''}</span></td>
-        <td><b>${a.nome_analista_substituto||''}</b></td>
-        <td>${a.loja_coberta||''}</td>
-        <td>${dataBR(a.data_inicio)} a ${dataBR(a.data_fim)}</td>
-        <td>${a.motivo||''}</td>
-        <td>${a.ativo!==false?'<span class="periodoAtivoBadge">ATIVA</span>':'<span class="periodoInativoBadge">INATIVA</span>'}</td>
-        <td class="adminActions">
+      <div class="adminListRow ausRow">
+        <div class="adminListMain"><b>${escapeOperationalHtml(a.nome_analista_ausente||'')}</b><span class="adminListSub">${escapeOperationalHtml(a.loja_origem||'')} · ${escapeOperationalHtml(a.motivo||'')}</span></div>
+        <div class="adminListCol">Substituto: <b>${escapeOperationalHtml(a.nome_analista_substituto||'')}</b><span class="adminListSub">Cobre: ${escapeOperationalHtml(a.loja_coberta||'')}</span></div>
+        <div class="adminListCol ausColPeriodo">${dataBR(a.data_inicio)} a ${dataBR(a.data_fim)}</div>
+        <div class="adminListCol">${a.ativo!==false?'<span class="periodoAtivoBadge">ATIVA</span>':'<span class="periodoInativoBadge">INATIVA</span>'}</div>
+        <div class="adminListActions">
           <button class="adminActionBtn warn" onclick="alternarAusenciaAnalista('${a.id}',${a.ativo!==false})">${a.ativo!==false?'Inativar':'Ativar'}</button>
           <button class="adminActionBtn danger" onclick="arquivarAusenciaAnalista('${a.id}')">Arquivar</button>
-        </td>
-      </tr>`).join('');
+        </div>
+      </div>`).join('');
     body=`<h2>Férias / Ausências de Analistas</h2>
       <p class="note">Cadastre coberturas temporárias para direcionar a comissão do Analista da loja coberta ao Analista substituto apenas no período informado.</p>
       <div class="ausenciaInfoBox"><b>Regra desta etapa:</b> somente a comissão de <b>Analista</b> é redistribuída. Vendedores, Gerentes, Gestor F&I, vendas, financiamentos, produção, retorno e SPF permanecem com as mesmas regras já homologadas.</div>
@@ -5413,10 +5472,8 @@ async function renderMasterAdminContent(renderSequence){
         <div style="grid-column:span 2"><label>Observação</label><input id="ausObs" placeholder="Ex.: cobertura durante férias"></div>
       </div>
       <button onclick="salvarAusenciaAnalista()">Salvar Ausência</button>
-      <div class="tableWrap" style="margin-top:16px"><table class="adminTable">
-        <thead><tr><th>Analista ausente</th><th>Substituto</th><th>Loja coberta</th><th>Período</th><th>Motivo</th><th>Status</th><th>Ações</th></tr></thead>
-        <tbody>${rows||'<tr><td colspan="7">Nenhuma regra de ausência cadastrada.</td></tr>'}</tbody>
-      </table></div>`;
+      <h3 style="margin-top:20px">Regras cadastradas</h3>
+      <div class="adminListWrap">${rows||'<p class="note" style="padding:16px">Nenhuma regra de ausência cadastrada.</p>'}</div>`;
   }else if(MASTER_TAB==='mudancas_loja'){
     if(String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure') await carregarUsuariosSupabase();
     await carregarMudancasLojaVendedores();
@@ -5452,8 +5509,21 @@ async function renderMasterAdminContent(renderSequence){
       : '<h2>Gestão dos Simuladores</h2><p class="note" style="color:#ff6b61">Módulo não carregado (assets/js/master-gestao-simuladores.js).</p>';
   }else if(MASTER_TAB==='auditoria'){
     const aud=await carregarAuditoriaSupabase();
-    const rows=aud.map(a=>`<tr><td>${a.criado_em?new Date(a.criado_em).toLocaleString('pt-BR'):'-'}</td><td>${a.tipo||''}</td><td>${a.descricao||''}</td><td>${a.cpf||''}</td><td>${a.vendedor||''}</td><td>${a.resolvido?'SIM':'NÃO'}</td></tr>`).join('');
-    body=`<h2>Auditoria Administrativa</h2><p class="note">Registro das ações executadas pelo Painel Master.</p><div class="tableWrap"><table class="adminTable"><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>CPF/Chave</th><th>Master</th><th>Resolvido</th></tr></thead><tbody>${rows||'<tr><td colspan="6">Nenhum registro.</td></tr>'}</tbody></table></div>`;
+    MASTER_AUDITORIA_CACHE=aud;
+    // Fase 17.0 — lista compacta (resumo) + modal com o registro completo.
+    // Nunca exibe token/action_link/senha/OTP/service_role — essas colunas
+    // nunca existiram nesta tabela (confirmado nas Fases 16.3/16.5); a
+    // descrição em si já segue essa disciplina em todo o backend.
+    const rows=aud.map((a,idx)=>`
+      <div class="adminListRow audRow">
+        <div class="adminListMain"><b>${a.criado_em?new Date(a.criado_em).toLocaleString('pt-BR'):'-'}</b></div>
+        <div class="adminListCol">${escapeOperationalHtml(a.tipo||'')}</div>
+        <div class="adminListCol">${escapeOperationalHtml(a.vendedor||a.cpf||'—')}</div>
+        <div class="adminListCol audColResultado">${a.resolvido?'<span class="adminStatus ok">RESOLVIDO</span>':'<span class="adminStatus warn">PENDENTE</span>'}</div>
+        <div class="adminListActions"><button class="adminActionBtn wine" onclick="abrirDetalheAuditoria(${idx})">Ver detalhes</button></div>
+      </div>`).join('');
+    body=`<h2>Auditoria Administrativa</h2><p class="note">Registro das ações executadas pelo Painel Master.</p>
+      <div class="adminListWrap">${rows||'<p class="note" style="padding:16px">Nenhum registro.</p>'}</div>`;
   }else{
     body=`<h2>Futuras Funcionalidades</h2><div class="configRoadmap">
       <div class="roadCard"><div class="k">Fase 03</div><p class="note">Gestão de bases pelo Painel Master.</p></div>

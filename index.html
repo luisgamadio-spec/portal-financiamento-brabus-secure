@@ -1215,12 +1215,57 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
   .fichaList{grid-template-columns:1fr}
   .fichaList dd{text-align:left}
 }
+
+/* Fase 17.0 — lista compacta genérica para as telas administrativas
+   restantes (Férias/Ausências, Mudança de Loja, Históricos/Fechamento,
+   Revisões, Auditoria), mesmo princípio da Fase 16.2 (.userRow): grid com
+   colunas fixas por tela, colapsando para 1 coluna (card) no mobile —
+   nunca overflow-x, nunca corte de conteúdo. */
+.adminListWrap{display:grid;gap:8px}
+.adminListRow{display:grid;gap:14px;align-items:center;background:#151515;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 16px}
+.adminListRow .adminListMain b{font-size:14px;color:#fff}
+.adminListRow .adminListSub{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.adminListRow .adminListActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:640px){.adminListRow .adminListActions{justify-content:flex-start}.adminListRow .adminListActions button{width:100%}}
+
+.ausRow{grid-template-columns:1.3fr 1.1fr 1fr 1.2fr auto}
+@media(max-width:1180px){.ausRow{grid-template-columns:1.3fr 1fr 1fr auto}.ausRow .ausColPeriodo{display:none}.ausRow .adminListSub{display:block}}
+@media(max-width:760px){.ausRow{grid-template-columns:1fr;gap:8px}.ausRow .ausColLoja,.ausRow .ausColSub{display:block}.ausRow .adminListActions{flex-direction:row}}
+
+.histRow{grid-template-columns:1.4fr 1fr 1fr auto}
+@media(max-width:900px){.histRow{grid-template-columns:1.4fr 1fr auto}.histRow .histColResp{display:none}}
+@media(max-width:640px){.histRow{grid-template-columns:1fr;gap:8px}}
+
+.revRow{grid-template-columns:1.3fr 1.3fr .9fr .9fr auto}
+@media(max-width:1180px){.revRow{grid-template-columns:1.3fr 1.2fr .9fr auto}.revRow .revColData{display:none}}
+@media(max-width:760px){.revRow{grid-template-columns:1fr;gap:8px}}
+
+.audRow{grid-template-columns:1fr 1.1fr 1.4fr .9fr auto}
+@media(max-width:1180px){.audRow{grid-template-columns:1fr 1.1fr 1.3fr auto}.audRow .audColResultado{display:none}}
+@media(max-width:760px){.audRow{grid-template-columns:1fr;gap:8px}}
+
+.adminListIndicadores{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.adminListToolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.adminListFiltros{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+
+.detailDrawerBox{background:#181818;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:10px}
+
+/* Fase 17.0, Parte O/AB — tabelas financeiras densas (previsão de
+   snapshot, relatórios RH/DP) permanecem em formato de tabela (cards
+   piorariam a leitura comparativa), mas com rolagem HORIZONTAL própria e
+   contida — nunca overflow-x:hidden (que cortava conteúdo) nem overflow
+   da página. Escolha deliberada por natureza da tela (Parte H/O), não a
+   solução padrão das telas administrativas de registro. */
+.tableWrapScroll{overflow-x:auto;max-width:100%;border-radius:10px}
+.tableWrapScroll table{min-width:760px}
+
 </style>
 
 <div id="adminModalOverlay" class="adminModalOverlay"></div>
 <div id="adminToastWrap" class="adminToastWrap"></div>
-<!-- Incidente 16.2 — ficha administrativa do usuário (drawer lateral). -->
-<div id="userDrawerOverlay" class="userDrawerOverlay" onclick="if(event.target===this) fecharFichaUsuario()">
+<!-- Incidente 16.2 / Fase 17.0 — drawer lateral genérico, reutilizado pela
+     ficha do usuário e pelas novas fichas (Histórico de Competências). -->
+<div id="userDrawerOverlay" class="userDrawerOverlay" onclick="if(event.target===this) fecharDrawerGenerico()">
   <div id="userDrawer" class="userDrawer"></div>
 </div>
 
