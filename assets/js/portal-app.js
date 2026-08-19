@@ -4025,7 +4025,9 @@ async function salvarMudancaLojaVendedor(){
   const vendedorId=document.getElementById('mudVendCpf')?.value||'';
   const vendedor=getVendedorById(vendedorId);
   const origem=document.getElementById('mudLojaOrigem')?.value||'';
+  const deptoOrigem=document.getElementById('mudDeptoOrigem')?.value||'';
   const destino=document.getElementById('mudLojaDestino')?.value||'';
+  const deptoDestino=document.getElementById('mudDeptoDestino')?.value||'';
   const iniOrig=document.getElementById('mudDataIniOrigem')?.value||'';
   const fimOrig=document.getElementById('mudDataFimOrigem')?.value||'';
   const iniDest=document.getElementById('mudDataIniDestino')?.value||'';
@@ -4039,7 +4041,9 @@ async function salvarMudancaLojaVendedor(){
     login_vendedor:vendedor.login||vendedor.login_nbs||'',
     nome_vendedor:vendedor.nome||'',
     loja_origem:origem,
+    departamento_origem:deptoOrigem,
     loja_destino:destino,
+    departamento_destino:deptoDestino,
     data_inicio_origem:iniOrig,
     data_fim_origem:fimOrig,
     data_inicio_destino:iniDest,
@@ -4052,7 +4056,10 @@ async function salvarMudancaLojaVendedor(){
     await executarAdminSeguro('STORE_CHANGE','CREATE',{
       seller_cpf:payload.cpf_vendedor,seller_login:payload.login_vendedor,
       seller_name:payload.nome_vendedor,origin_store:payload.loja_origem,
-      destination_store:payload.loja_destino,origin_start:payload.data_inicio_origem,
+      origin_department:payload.departamento_origem,
+      destination_store:payload.loja_destino,
+      destination_department:payload.departamento_destino,
+      origin_start:payload.data_inicio_origem,
       origin_end:payload.data_fim_origem,destination_start:payload.data_inicio_destino,
       notes:payload.observacao
     });
@@ -4080,7 +4087,7 @@ function renderMudancasLojaVendedoresHtml(){
   const rows=(MUDANCAS_LOJA_VENDEDORES||[]).map(m=>`
     <div class="adminListRow ausRow">
       <div class="adminListMain"><b>${escapeOperationalHtml(m.nome_vendedor||'')}</b><span class="adminListSub">${escapeOperationalHtml(m.cpf_vendedor||m.login_vendedor||'')}${m.fallback_local?' · LOCAL':''}</span></div>
-      <div class="adminListCol">${escapeOperationalHtml(m.loja_origem||'')} → <b>${escapeOperationalHtml(m.loja_destino||'')}</b><span class="adminListSub">${escapeOperationalHtml(m.observacao||'')}</span></div>
+      <div class="adminListCol">${escapeOperationalHtml(m.loja_origem||'')}${m.departamento_origem?' • '+escapeOperationalHtml(m.departamento_origem):''} → <b>${escapeOperationalHtml(m.loja_destino||'')}${m.departamento_destino?' • '+escapeOperationalHtml(m.departamento_destino):''}</b><span class="adminListSub">${escapeOperationalHtml(m.observacao||'')}</span></div>
       <div class="adminListCol ausColPeriodo">${dataBR(m.data_inicio_origem)} a ${dataBR(m.data_fim_origem)}<span class="adminListSub">destino a partir de ${dataBR(m.data_inicio_destino)}</span></div>
       <div class="adminListCol">${m.ativo!==false?'<span class="periodoAtivoBadge">ATIVA</span>':'<span class="periodoInativoBadge">INATIVA</span>'}</div>
       <div class="adminListActions">
@@ -4089,12 +4096,14 @@ function renderMudancasLojaVendedoresHtml(){
       </div>
     </div>`).join('');
   return `<h2>Mudança de Loja — Vendedores</h2>
-    <p class="note">Cadastre transferências de loja por período. A regra altera somente a alocação da loja conforme a data da venda/lançamento, preservando as regras de comissão.</p>
+    <p class="note">Cadastre transferências de loja (e, quando aplicável, de departamento) por período. A regra altera somente a alocação de loja/departamento conforme a data da venda/lançamento, preservando as regras de comissão. Departamento é opcional — deixe em branco quando não houver mudança de departamento.</p>
     <div class="ausenciaInfoBox"><b>Regra:</b> vendas/valores no período de origem ficam na loja origem; a partir da data destino ficam na loja destino. O vendedor continua consolidado no próprio acesso.</div>
     <div class="ausenciaAdminGrid">
       <div><label>Vendedor</label><select id="mudVendCpf">${vendedoresOptions()}</select></div>
       <div><label>Loja origem</label><select id="mudLojaOrigem">${lojasOptions()}</select></div>
+      <div><label>Departamento origem</label><select id="mudDeptoOrigem">${departamentosOptions()}</select></div>
       <div><label>Loja destino</label><select id="mudLojaDestino">${lojasOptions()}</select></div>
+      <div><label>Departamento destino</label><select id="mudDeptoDestino">${departamentosOptions()}</select></div>
       <div><label>Início origem</label><input id="mudDataIniOrigem" type="date"></div>
       <div><label>Fim origem</label><input id="mudDataFimOrigem" type="date"></div>
       <div><label>Início destino</label><input id="mudDataIniDestino" type="date"></div>
@@ -4112,6 +4121,10 @@ function analistasOptions(selectedCpf=''){
     :DATA.auth.filter(a=>a.tipo==='ANALISTA')
   ).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   return '<option value="">Selecione</option>'+list.map(a=>`<option value="${a.cpf}" ${String(selectedCpf)===String(a.cpf)?'selected':''}>${a.nome} · ${a.loja}</option>`).join('');
+}
+function departamentosOptions(selected=''){
+  const departamentos=['NOVOS','SEMINOVOS'];
+  return '<option value="">Não informado</option>'+departamentos.map(d=>`<option value="${d}" ${String(selected)===String(d)?'selected':''}>${d}</option>`).join('');
 }
 function lojasOptions(selected=''){
   const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
