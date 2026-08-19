@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Concluir acesso — Portal F&I</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:#0a0a0a;color:#eee;font-family:Arial,Helvetica,sans-serif;padding:16px}
+  .box{width:100%;max-width:440px;padding:32px;border-radius:20px;
+    border:1px solid rgba(201,173,100,.25);background:#111;box-shadow:0 20px 60px rgba(0,0,0,.5);
+    text-align:center}
+  .brand{font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:#c9ad64;font-weight:700;margin:0 0 18px}
+  h1{font-size:20px;text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px;color:#fff}
+  p.sub{color:#999;font-size:13px;margin:0;line-height:1.5}
+  .hidden{display:none}
+  a.backLink{display:block;width:100%;margin-top:22px;text-align:center;
+    text-decoration:none;font-size:13px;color:#999}
+  a.backLink:hover{color:#c9ad64}
+  .blistiqFooter{margin-top:22px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);text-align:center;color:#8a8a8a;font-size:11px;font-weight:400;letter-spacing:.02em}
+  .blistiqFooter b{color:#b5b5b5;font-weight:700;letter-spacing:.03em}
+</style>
+</head>
+<body>
+  <div class="box">
+    <p class="brand">Portal F&amp;I — Grupo Brabus Mitsubishi</p>
+    <div id="loadingState">
+      <h1>Concluindo seu acesso...</h1>
+      <p class="sub">Aguarde um instante.</p>
+    </div>
+
+    <div id="successState" class="hidden">
+      <h1>Acesso concluído</h1>
+      <p class="sub">Sua conta já está ativa. Entre com o e-mail e a senha que você definiu.</p>
+      <a class="backLink" href="index.html">Ir para o login →</a>
+    </div>
+
+    <div id="jaAtivoState" class="hidden">
+      <h1>Sua conta já está ativa</h1>
+      <p class="sub">Este link já havia sido utilizado. Você já pode entrar normalmente com o e-mail e a senha que definiu.</p>
+      <a class="backLink" href="index.html">Ir para o login →</a>
+    </div>
+
+    <div id="errorState" class="hidden">
+      <h1>Não foi possível concluir</h1>
+      <p class="sub">Este link pode ter expirado ou não é mais válido.<br>Peça ao administrador do portal para gerar um novo link.</p>
+      <a class="backLink" href="index.html">Voltar ao Portal →</a>
+    </div>
+    <div class="blistiqFooter">Desenvolvido por <b>BLISTIQ</b> em 2026.</div>
+  </div>
+
+<script>
+(function(){
+  'use strict';
+  // Incidente 22.1 — página mínima e isolada (mesmo padrão de
+  // verificar-acesso.html): sem supabase-js, sem sessão Supabase
+  // necessária (Parte AK — funciona em qualquer navegador/dispositivo,
+  // mesmo sem sessão ativa). O token vem só do FRAGMENT da URL (nunca
+  // enviado ao servidor por nenhum request HTTP) e é removido do
+  // endereço/histórico antes de qualquer chamada de rede. Nunca pede
+  // nova senha — a senha já foi definida antes; esta página só conclui
+  // o vínculo Portal (usuarios.ativo/primeiro_acesso), nunca mexe em Auth.
+  const FUNCTION_URL = 'https://yacqlelpzchcotgngwbh.supabase.co/functions/v1/confirm-modern-onboarding-continuation';
+
+  function show(id){
+    ['loadingState','successState','jaAtivoState','errorState'].forEach(function(s){
+      document.getElementById(s).classList.toggle('hidden', s!==id);
+    });
+  }
+
+  const hash = location.hash || '';
+  const match = hash.match(/(?:^#|&)token=([^&]+)/);
+  const token = match ? decodeURIComponent(match[1]) : '';
+
+  history.replaceState(null, '', location.pathname);
+
+  if(!token){
+    show('errorState');
+  }else{
+    fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token })
+    }).then(function(r){ return r.json().catch(function(){ return {success:false}; }); })
+      .then(function(data){
+        if(data && data.success){
+          show('successState');
+        }else if(data && data.codigo==='JA_CONCLUIDO'){
+          show('jaAtivoState');
+        }else{
+          show('errorState');
+        }
+      })
+      .catch(function(){
+        show('errorState');
+      });
+  }
+})();
+</script>
+</body>
+</html>

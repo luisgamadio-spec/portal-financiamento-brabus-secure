@@ -3412,6 +3412,11 @@ function renderSituacaoBadges(u){
   if(bl){
     if(bl.badgeLabel) html+=`<span class="adminStatus ${bl.classe}">${bl.emoji} ${bl.badgeLabel}</span>`;
     html+=`<span class="adminStatus warn">⚠ E-MAIL LEGADO</span>`;
+  }else if(!u.ativo && u.primeiro_acesso && u.auth_confirmado){
+    // Incidente 22.1 — nunca rotular como migração BLISTIQ (Parte AH):
+    // este é o estado moderno "confirmou o e-mail, falta concluir o
+    // vínculo com o Portal", distinto de "ainda não confirmou" (base).
+    html+=`<span class="adminStatus warn">🟡 ACESSO INCOMPLETO</span>`;
   }
   return html;
 }
@@ -3475,6 +3480,19 @@ function renderFichaUsuarioHtml(u){
       }else if(bl.codigo==='CONCLUIDO' && u.ativo && !u.primeiro_acesso){
         acaoAcesso=`<button class="adminActionBtn warn" onclick="abrirGerarLinkAcessoConfirm('${u.id}','${nomeSeguro}','recovery')">Gerar link para redefinir senha</button>`;
       }
+    }else if(!u.ativo && u.primeiro_acesso && u.auth_confirmado){
+      // Incidente 22.1 -- Auth já confirmado (o usuário já abriu o link e
+      // definiu senha), mas o vínculo Portal ainda não foi concluído
+      // (concluir_convite_usuario() nunca terminou). "Reenviar
+      // convite"/"Gerar link de ativação" chamam generateLink(type=
+      // 'invite'), que o GoTrue recusa para Auth já confirmado ("A user
+      // with this email address has already been registered") -- por
+      // isso NUNCA oferecer esses dois botões neste estado (Incidente
+      // 22.0). O caminho correto é o link de continuação (não mexe em
+      // Auth/senha, só conclui usuarios.ativo/primeiro_acesso).
+      acaoAcesso=`
+        <p class="note" style="color:#ffe6a3">🟡 ACESSO INCOMPLETO — o usuário já confirmou o e-mail e definiu senha, mas ainda não concluiu o vínculo com o Portal.</p>
+        <button class="adminActionBtn warn" onclick="abrirGerarLinkContinuacaoConfirm('${u.id}','${nomeSeguro}')">Gerar link para concluir acesso</button>`;
     }else if(!u.ativo && u.primeiro_acesso){
       acaoAcesso=`
         <button class="adminActionBtn warn" onclick="abrirReenvioConviteConfirm('${u.id}','${escapeOperationalHtml(u.email_auth||'').replace(/'/g,"\\'")}')">Reenviar convite</button>
@@ -3578,8 +3596,8 @@ async function executarGerarLinkAcesso(usuarioId,nome,tipo){
   }
 }
 function abrirModalLinkGerado(tipo){
-  const tituloTipo=tipo==='activation'?'ativação':(tipo==='migracao'?'migração BLISTIQ':'recuperação');
-  const avisoExpiracao=tipo==='migracao'
+  const tituloTipo=tipo==='activation'?'ativação':(tipo==='migracao'?'migração BLISTIQ':(tipo==='continuation'?'continuação de acesso':'recuperação'));
+  const avisoExpiracao=(tipo==='migracao'||tipo==='continuation')
     ?'Este link expira em 30 minutos. Gerar um novo link invalida este imediatamente.'
     :'Gerar um novo link invalida qualquer link anterior ainda não utilizado.';
   openAdminModal({
@@ -3612,6 +3630,79 @@ function limparLinkAcessoGerado(){
   // nesta variável de módulo, removida ao fechar o modal, trocar de aba
   // ou recarregar a página.
   LINK_ACESSO_GERADO_TEMP=null;
+}
+
+// ---------------- Link de continuação de primeiro acesso (Incidente 22.1) ----------------
+// Diferente do link de ativação/recuperação (que fala com o GoTrue via
+// admin-generate-user-access-link), este link NUNCA toca o Auth — é um
+// token próprio da aplicação, gerado e hasheado (SHA-256) aqui no
+// navegador com Web Crypto (mesmo algoritmo já usado pelas Edge Functions
+// do fluxo legado, só que client-side: a RPC master_gerar_continuacao_
+// primeiro_acesso só recebe/guarda o hash, nunca o token bruto). O botão
+// só aparece quando usuarios.ativo=false + primeiro_acesso=true +
+// auth_confirmado=true (Incidente 22.0/22.1) — nunca para quem ainda não
+// confirmou o e-mail (esses continuam com Reenviar Convite/Gerar Link de
+// Ativação normais).
+const CONTINUACAO_PRIMEIRO_ACESSO_URL_BASE='https://brabus.blistiq.com.br/concluir-acesso.html';
+function continuacaoRandomToken(){
+  const bytes=new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function continuacaoSha256Hex(text){
+  const data=new TextEncoder().encode(text);
+  const digest=await crypto.subtle.digest('SHA-256',data);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function abrirGerarLinkContinuacaoConfirm(usuarioId,nome){
+  openAdminModal({
+    title:'Gerar link para concluir acesso',
+    text:`Gerar link de continuação de primeiro acesso para ${escapeOperationalHtml(nome||'')}?`,
+    fieldHtml:`<p class="note" style="margin-top:8px">O usuário já confirmou o e-mail e definiu senha — este link NÃO pede nova senha, só conclui o vínculo com o Portal. Compartilhe-o somente com o próprio usuário. Gerar um novo link invalida qualquer link anterior ainda não utilizado.</p>`,
+    confirmText:'Gerar link para concluir acesso',
+    onConfirm: ()=>executarGerarLinkContinuacao(usuarioId,nome)
+  });
+}
+let GERAR_LINK_CONTINUACAO_EM_ANDAMENTO=false;
+async function executarGerarLinkContinuacao(usuarioId,nome){
+  if(GERAR_LINK_CONTINUACAO_EM_ANDAMENTO) return;
+  GERAR_LINK_CONTINUACAO_EM_ANDAMENTO=true;
+  const btn=document.querySelector('#adminModalOverlay .adminModalActions button:not(.secondary)');
+  if(btn){btn.disabled=true;btn.textContent='Gerando...';}
+  setAdminModalMsg('Gerando link...');
+  try{
+    const token=continuacaoRandomToken();
+    const tokenHash=await continuacaoSha256Hex(token);
+    const expiraEm=new Date(Date.now()+30*60*1000).toISOString();
+    const {data,error}=await supabaseClient.rpc('master_gerar_continuacao_primeiro_acesso',{
+      p_usuario_id:usuarioId, p_token_hash:tokenHash, p_expira_em:expiraEm
+    });
+    if(error) throw error;
+    if(!data?.ok){
+      const mensagens={
+        USUARIO_JA_ATIVO:'Este usuário já está ativo.',
+        PRIMEIRO_ACESSO_NAO_PENDENTE:'Este usuário não está aguardando primeiro acesso.',
+        SEM_CONTA_AUTH:'Este usuário ainda não possui conta Auth.',
+        CONTA_LEGADA_USE_MIGRACAO:'Conta legada — use a migração BLISTIQ, não este link.',
+        CONTA_AUTH_NAO_LOCALIZADA:'Conta Auth vinculada não foi localizada.',
+        EMAIL_DIVERGENTE:'E-mail divergente entre usuarios e Auth — geração bloqueada por segurança.',
+        AUTH_NAO_CONFIRMADO:'O usuário ainda não confirmou o e-mail — use Reenviar Convite/Gerar Link de Ativação.',
+        CONVITE_INCOMPATIVEL:'Convite original não encontrado ou incompatível.',
+        RATE_LIMIT:`Aguarde cerca de ${Math.ceil((data.aguardar_segundos||300)/60)} minuto(s) antes de gerar outro link.`
+      };
+      setAdminModalMsg(mensagens[data.codigo]||'Não foi possível gerar o link.',true);
+      GERAR_LINK_CONTINUACAO_EM_ANDAMENTO=false;
+      if(btn){btn.disabled=false;btn.textContent='Gerar link para concluir acesso';}
+      return;
+    }
+    closeAdminModal();
+    LINK_ACESSO_GERADO_TEMP=`${CONTINUACAO_PRIMEIRO_ACESSO_URL_BASE}#token=${encodeURIComponent(token)}`;
+    abrirModalLinkGerado('continuation');
+  }catch(e){
+    setAdminModalMsg(String(e?.message||e),true);
+  }finally{
+    GERAR_LINK_CONTINUACAO_EM_ANDAMENTO=false;
+  }
 }
 window.addEventListener('beforeunload',limparLinkAcessoGerado);
 
