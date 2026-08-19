@@ -4069,10 +4069,32 @@ async function salvarMudancaLojaVendedor(){
   }catch(error){toastAdmin('Erro ao salvar mudança: '+error.message,'err')}
 }
 async function alternarMudancaLojaVendedor(id,ativo){
+  if(!confirm(ativo?'Deseja inativar esta mudança de loja?':'Deseja reativar esta mudança de loja?')) return;
   try{
     await executarAdminSeguro('STORE_CHANGE','SET_ACTIVE',{id,active:!ativo});
     await carregarMudancasLojaVendedores();render();renderMasterAdmin();
   }catch(error){toastAdmin('Erro ao alterar mudança: '+error.message,'err')}
+}
+async function editarDepartamentosMudancaLojaVendedor(id,deptoOrigemAtual,deptoDestinoAtual){
+  const opcoes='NOVOS, SEMINOVOS ou em branco para remover';
+  const novoOrigem=prompt('Departamento origem ('+opcoes+'):',deptoOrigemAtual||'');
+  if(novoOrigem===null) return;
+  const novoDestino=prompt('Departamento destino ('+opcoes+'):',deptoDestinoAtual||'');
+  if(novoDestino===null) return;
+  const valOrigem=novoOrigem.trim().toUpperCase();
+  const valDestino=novoDestino.trim().toUpperCase();
+  const validos=['','NOVOS','SEMINOVOS'];
+  if(!validos.includes(valOrigem)||!validos.includes(valDestino)){
+    toastAdmin('Departamento inválido. Use NOVOS, SEMINOVOS ou deixe em branco.','err');return;
+  }
+  if(!confirm('Confirma a atualização dos departamentos desta mudança de loja?')) return;
+  try{
+    await executarAdminSeguro('STORE_CHANGE','SET_DEPARTMENTS',{
+      id,origin_department:valOrigem,destination_department:valDestino
+    });
+    toastAdmin('Departamentos atualizados com sucesso.');
+    await carregarMudancasLojaVendedores();render();renderMasterAdmin();
+  }catch(error){toastAdmin('Erro ao atualizar departamentos: '+error.message,'err')}
 }
 async function arquivarMudancaLojaVendedor(id){
   if(!confirm('Deseja arquivar esta mudança de loja? Ela ficará inativa para histórico.')) return;
@@ -4091,6 +4113,7 @@ function renderMudancasLojaVendedoresHtml(){
       <div class="adminListCol ausColPeriodo">${dataBR(m.data_inicio_origem)} a ${dataBR(m.data_fim_origem)}<span class="adminListSub">destino a partir de ${dataBR(m.data_inicio_destino)}</span></div>
       <div class="adminListCol">${m.ativo!==false?'<span class="periodoAtivoBadge">ATIVA</span>':'<span class="periodoInativoBadge">INATIVA</span>'}</div>
       <div class="adminListActions">
+        <button class="adminActionBtn" onclick="editarDepartamentosMudancaLojaVendedor('${m.id}',${JSON.stringify(m.departamento_origem||'')},${JSON.stringify(m.departamento_destino||'')})">Editar departamentos</button>
         <button class="adminActionBtn warn" onclick="alternarMudancaLojaVendedor('${m.id}',${m.ativo!==false})">${m.ativo!==false?'Inativar':'Ativar'}</button>
         <button class="adminActionBtn danger" onclick="arquivarMudancaLojaVendedor('${m.id}')">Arquivar</button>
       </div>
