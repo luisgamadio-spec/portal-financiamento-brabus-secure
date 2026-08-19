@@ -30,7 +30,7 @@ jobs:
           set -e
           mkdir -p _pages_dist
 
-          for f in index.html primeiro-acesso.html verificar-email.html verificar-acesso.html .nojekyll; do
+          for f in index.html primeiro-acesso.html verificar-email.html verificar-acesso.html concluir-acesso.html .nojekyll; do
             if [ -f "$f" ]; then
               cp "$f" "_pages_dist/$f"
             fi
