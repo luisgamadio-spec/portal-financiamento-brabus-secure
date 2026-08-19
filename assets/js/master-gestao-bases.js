@@ -18,7 +18,7 @@
     SALES_CURRENT: 'BASE 01 — Vendas',
     FINANCE_CURRENT: 'BASE 02 — Financiamentos',
     SPF_CURRENT: 'BASE 03 — Complementar / F&I',
-    COLABORADORES: 'Colaboradores / Vendedores'
+    COLABORADORES: 'Colaboradores / Vendedores (legado, opcional)'
   };
   const SOURCE_ORDER = ['SALES_CURRENT', 'FINANCE_CURRENT', 'SPF_CURRENT', 'COLABORADORES'];
 
@@ -471,6 +471,14 @@
     const pendingBadge = (sourceType === 'FINANCE_CURRENT' && GB_SESSION.financeBatch)
       ? `<div class="gbPendingNote">⏳ A Base 02 desta sessão está em validação — confirme-a para torná-la oficial.</div>`
       : '';
+    // Fase 21.6 — usuarios (cadastro/convite) já é a fonte de verdade para
+    // vendedores atuais; Colaboradores deixou de ser requisito para que um
+    // vendedor novo seja reconhecido pelas Bases 01/02 (basta o cadastro
+    // ter Login NBS preenchido). Preservada só como enriquecimento
+    // histórico/legado opcional — nunca mais aparece como pendência.
+    const legadoNote = (sourceType === 'COLABORADORES')
+      ? `<p class="note" style="margin-top:8px">Não é mais necessário para que vendedores novos sejam reconhecidos — o cadastro no Portal (com Login NBS) já é suficiente. Use somente para enriquecer/atualizar dados históricos legados.</p>`
+      : '';
     const body = v ? `
       <div class="gbRow"><span>Arquivo</span><b>${v.original_filename || '-'}</b></div>
       <div class="gbRow"><span>Atualizado em</span><b>${gbFmtDateTime(v.completed_at)}</b></div>
@@ -484,6 +492,7 @@
       <h3>${label}</h3>
       ${body}
       ${pendingBadge}
+      ${legadoNote}
       <button class="portalModuleBtn" onclick="gbIniciarAtualizacao('${sourceType}')">ATUALIZAR</button>
     </div>`;
   }
@@ -503,7 +512,7 @@
       ? `<p class="note gbWarn" style="margin-bottom:12px">🧪 MODO HOMOLOGAÇÃO — nenhuma alteração será gravada (host: ${((typeof location !== 'undefined' && location.hostname) || '') || '(vazio)'})</p>`
       : '';
     return `<h2>Gestão de Bases</h2>
-      <p class="note">Atualize as bases operacionais do portal. A base atual permanece válida até você confirmar a atualização.</p>
+      <p class="note">Bases operacionais do portal: Vendas, Financiamentos e Complementar. A base atual permanece válida até você confirmar a atualização.</p>
       ${homologBanner}
       ${statusHtml}
       <div id="gbModalOverlay" class="adminModalOverlay"></div>`;
