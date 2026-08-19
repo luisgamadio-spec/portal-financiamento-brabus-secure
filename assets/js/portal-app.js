@@ -2950,6 +2950,8 @@ let MASTER_USUARIOS_CACHE=[];
 let FICHA_USUARIO_ABERTA_ID=null;
 // Fase 4.3 — Revisões Cadastrais (Ativação de Acesso).
 let MASTER_REVISOES_PENDENTES=0;
+// Fase 21.5 — Pendências Cadastrais (governança dos alertas da Fase 21.2).
+let MASTER_PENDENCIAS_URGENTES=0;
 let MASTER_REVISOES_FILTRO='PENDENTE';
 // Fase 17.0 — caches client-side para as listas compactas com detalhe sob
 // demanda (mesmo dataset já carregado, sem RPC nova/N+1).
@@ -4394,9 +4396,11 @@ function adminTabsHtml(){
   // "Redefinir senha" e "Forçar troca" já eram código morto em modo secure
   // (sempre retornavam erro pedindo para usar o Supabase Auth diretamente,
   // em qualquer uma das duas telas) — nada foi removido do backend.
-  const tabs=[['usuarios','Usuários'],['acessosModulos','Acessos aos Módulos'],['revisoes','Revisões Cadastrais'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['utilizacaoSimuladores','Utilização dos Simuladores'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
+  const tabs=[['usuarios','Usuários'],['acessosModulos','Acessos aos Módulos'],['revisoes','Revisões Cadastrais'],['pendenciasCadastrais','Pendências Cadastrais'],['config','Configurações'],['periodos','Períodos de Comissão'],['ausencias','Férias / Ausências'],['mudancas_loja','Mudança de Loja — Vendedores'],['bases','Gestão de Bases'],['simuladores','Gestão dos Simuladores'],['fechamento','Fechamento de Competência'],['historico','Histórico de Competências'],['relatorios','Relatórios RH/DP'],['metricas','Métrica Analista'],['utilizacaoSimuladores','Utilização dos Simuladores'],['auditoria','Auditoria'],['futuro','Futuras Funcionalidades']];
   return `<div class="masterSide">${tabs.map(t=>{
-    const badge=(t[0]==='revisoes'&&MASTER_REVISOES_PENDENTES>0)?`<span class="masterTabBadge">${MASTER_REVISOES_PENDENTES}</span>`:'';
+    let badge='';
+    if(t[0]==='revisoes'&&MASTER_REVISOES_PENDENTES>0) badge=`<span class="masterTabBadge">${MASTER_REVISOES_PENDENTES}</span>`;
+    if(t[0]==='pendenciasCadastrais'&&MASTER_PENDENCIAS_URGENTES>0) badge=`<span class="masterTabBadge">${MASTER_PENDENCIAS_URGENTES}</span>`;
     return `<button class="${MASTER_TAB===t[0]?'active':''}" onclick="setMasterTab('${t[0]}')">${t[1]}${badge}</button>`;
   }).join('')}</div>`;
 }
@@ -5351,6 +5355,10 @@ async function renderMasterAdminContent(renderSequence){
     const {data:revisoesBadge}=await supabaseClient.rpc('master_list_revisoes_cadastrais',{p_status:'PENDENTE'});
     MASTER_REVISOES_PENDENTES=revisoesBadge?.total_pendentes||0;
   }catch(e){ MASTER_REVISOES_PENDENTES=0; }
+  // Fase 21.5 — badge de Pendências Cadastrais (só PENDENTE+URGENTE).
+  try{
+    MASTER_PENDENCIAS_URGENTES=typeof pcContarUrgentesPendentes==='function' ? await pcContarUrgentesPendentes() : 0;
+  }catch(e){ MASTER_PENDENCIAS_URGENTES=0; }
   if(renderSequence!==MASTER_RENDER_SEQUENCE) return;
 
   let body='';
@@ -5484,6 +5492,10 @@ async function renderMasterAdminContent(renderSequence){
     body = typeof renderUtilizacaoSimuladoresTab==='function'
       ? await renderUtilizacaoSimuladoresTab()
       : '<h2>Utilização dos Simuladores</h2><p class="note" style="color:#ff6b61">Módulo não carregado (assets/js/master-utilizacao-simuladores.js).</p>';
+  }else if(MASTER_TAB==='pendenciasCadastrais'){
+    body = typeof renderPendenciasCadastraisTab==='function'
+      ? await renderPendenciasCadastraisTab()
+      : '<h2>Pendências Cadastrais</h2><p class="note" style="color:#ff6b61">Módulo não carregado (assets/js/master-pendencias-cadastrais.js).</p>';
   }else if(MASTER_TAB==='historico'){
     await carregarFechamentosComissao();
     body=renderHistoricoCompetenciasHtml();
