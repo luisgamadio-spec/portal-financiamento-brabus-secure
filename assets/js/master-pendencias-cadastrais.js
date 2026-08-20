@@ -8,9 +8,11 @@
 // nova nesta fase; nenhuma alteração nos importadores, em seller_user_id,
 // nas funções analíticas (Fase 21.4) ou em portal_sellers.
 //
-// RESOLVER só marca o alerta como tratado — NUNCA cria/corrige cadastro.
-// Essa distinção é comunicada explicitamente na UI (Parte R), nunca
-// deixada implícita no rótulo do botão.
+// "Resolver manualmente" só marca o alerta como tratado — NUNCA cria/
+// corrige cadastro; essa distinção está no próprio rótulo (Fase 22.5A.1,
+// Parte E), nunca deixada implícita. Quando existe uma correção real
+// conhecida (hoje: Login NBS), a ação PRINCIPAL do drawer é corrigir o
+// cadastro de verdade — "Resolver manualmente" vira secundária.
 
 const PC_TIPOS = {
   NOVO_CADASTRO_NECESSARIO: 'Novo cadastro necessário',
@@ -206,6 +208,28 @@ function pcMockAplicarAcao(nome, args){
     l.status = 'EXCLUIDO'; l.excluido_em = agora; l.motivo_acao = args.p_motivo || null;
     return { ok: true, codigo: 'EXCLUIDO', alerta_id: l.id };
   }
+  if(nome === 'master_cadastro_alerta_corrigir_login_nbs'){
+    const l = pcMockAlertasStore().find(x => x.id === args.p_alerta_id);
+    if(!l) return { ok: false, codigo: 'ALERTA_NAO_ENCONTRADO' };
+    if(l.tipo !== 'NBS_DIVERGENTE') return { ok: false, codigo: 'TIPO_INCOMPATIVEL' };
+    if(l.status !== 'PENDENTE') return { ok: false, codigo: 'STATUS_INCOMPATIVEL', status_atual: l.status };
+    if(!l.usuario_candidato_id) return { ok: false, codigo: 'SEM_CANDIDATO' };
+    const novo = String(args.p_novo_login_nbs || '').toUpperCase().trim();
+    if(!novo) return { ok: false, codigo: 'VALOR_OBRIGATORIO' };
+    // fixture de conflito determinística pro TESTE AG (Parte AG): digitar
+    // exatamente CONFLITO simula um segundo usuário já dono deste NBS.
+    if(novo === 'CONFLITO') return { ok: false, codigo: 'NBS_VINCULADO_OUTRO_USUARIO' };
+    const candidato = (PC_STATE.usuariosCache || []).find(u => u.id === l.usuario_candidato_id);
+    if(candidato) candidato.login_nbs = novo;
+    let resolvidos = 0;
+    if(String(l.login_nbs_encontrado || '').toUpperCase().trim() === novo){
+      l.status = 'RESOLVIDO'; l.resolvido_em = agora; l.motivo_acao = 'Login NBS corrigido automaticamente para ' + novo;
+      resolvidos++;
+    }
+    pcMockAlertasStore().filter(x => x.id !== l.id && x.status === 'PENDENTE' && x.tipo === 'NBS_DIVERGENTE' && x.usuario_candidato_id === l.usuario_candidato_id && String(x.login_nbs_encontrado || '').toUpperCase().trim() === novo)
+      .forEach(x => { x.status = 'RESOLVIDO'; x.resolvido_em = agora; x.motivo_acao = 'Login NBS corrigido automaticamente para ' + novo; resolvidos++; });
+    return { ok: true, codigo: 'CORRIGIDO', usuario_id: l.usuario_candidato_id, novo_login_nbs: novo, alertas_resolvidos: resolvidos };
+  }
   if(nome === 'master_cadastro_excecao_revogar'){
     const e = pcMockExcecoesStore().find(x => x.id === args.p_excecao_id);
     if(!e) return { ok: false, codigo: 'EXCECAO_NAO_ENCONTRADA' };
@@ -295,7 +319,7 @@ async function pcCarregar(){
 async function pcCarregarUsuariosCache(){
   if(PC_STATE.usuariosCache) return PC_STATE.usuariosCache;
   if(PC_LOCAL && PC_STATE.mockAtivo){
-    PC_STATE.usuariosCache = [0,1,2,3,4,5,6].map(i => ({ id: `MOCK-USER-${i}`, nome: `USUÁRIO CANDIDATO ${i}`, perfil: 'VENDEDOR', loja: ['ABC','ALPHAVILLE','ANALIA FRANCO','BARRA FUNDA'][i % 4] }));
+    PC_STATE.usuariosCache = [0,1,2,3,4,5,6].map(i => ({ id: `MOCK-USER-${i}`, nome: `USUÁRIO CANDIDATO ${i}`, perfil: 'VENDEDOR', loja: ['ABC','ALPHAVILLE','ANALIA FRANCO','BARRA FUNDA'][i % 4], login_nbs: i === 1 ? 'TESTEOLD' : null }));
     return PC_STATE.usuariosCache;
   }
   PC_STATE.usuariosCache = (typeof carregarUsuariosSupabase === 'function') ? await carregarUsuariosSupabase() : [];
@@ -327,8 +351,13 @@ function pcTipoLabel(tipo){ return PC_TIPOS[tipo] || tipo || '—'; }
 
 function pcAcaoBtnsHtml(l){
   if(l.status !== 'PENDENTE') return '';
+  // Fase 22.5A.1 (Parte D/AA) — a ação de lista continua compacta (a
+  // correção assistida por tipo vive no drawer, que tem espaço pra
+  // contexto); aqui só troca o rótulo/estilo de "Resolver" pra deixar
+  // claro que é a via manual, sem correção de cadastro — nunca mais
+  // chamada de "Resolver problema".
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-    <button class="adminActionBtn good" onclick="event.stopPropagation();pcAbrirModalResolver('${l.id}')">Resolver</button>
+    <button class="adminActionBtn" onclick="event.stopPropagation();pcAbrirModalResolver('${l.id}')">Resolver manualmente</button>
     <button class="adminActionBtn warn" onclick="event.stopPropagation();pcAbrirModalIgnorar('${l.id}')">Ignorar</button>
     <button class="adminActionBtn danger" onclick="event.stopPropagation();pcAbrirModalExcluir('${l.id}')">Excluir</button>
   </div>`;
@@ -414,7 +443,14 @@ function pcAcaoRecomendadaHtml(l){
       };
     }
     case 'NBS_DIVERGENTE':
-      return usuarioId ? { texto: 'O CPF corresponde a este usuário, mas o Login NBS do cadastro diverge do encontrado na base. Compare os dois valores e corrija o Login NBS se a base estiver certa.', botoes: verFichaBtn('login_nbs') } : semCandidato;
+      // Fase 22.5A.1 (Parte G) — correção real, não só navegação: abre um
+      // modal dedicado que altera usuarios.login_nbs pela RPC MASTER-only,
+      // com o valor da base como sugestão pré-preenchida (Parte I) e
+      // revalidação antes de marcar resolvido (Parte N).
+      return usuarioId ? {
+        texto: 'O CPF corresponde a este usuário, mas o Login NBS do cadastro diverge do encontrado na base. Confirme o valor correto para corrigir o cadastro — a resolução do alerta só acontece depois que a correção for aplicada com sucesso.',
+        botoes: `<button class="adminActionBtn good" onclick="pcAbrirModalCorrigirNbs('${l.id}')">Corrigir Login NBS</button>`
+      } : semCandidato;
     case 'LOJA_DIVERGENTE':
       return usuarioId ? {
         texto: 'Existe uma arquitetura temporal de loja (Mudança de Loja — Vendedores). Se a divergência é sobre a loja ATUAL do vendedor, edite o cadastro. Se é sobre uma venda de um período em que ele estava alocado em outra loja, registre/corrija a mudança de loja daquele período — nunca sobrescreva o histórico pelo status atual.',
@@ -428,9 +464,17 @@ function pcAcaoRecomendadaHtml(l){
     case 'USUARIO_INATIVO_COM_PRODUCAO':
       return usuarioId ? { texto: 'Existe produção registrada em nome deste cadastro, porém o usuário está inativo. Avalie o histórico antes de decidir — reativação não é automática.', botoes: verFichaBtn(null) } : semCandidato;
     case 'IDENTIFICADOR_DUPLICADO':
-      return { texto: 'Este identificador foi encontrado associado a mais de um cadastro. Esta tela não escolhe automaticamente qual está certo — revise os cadastros correspondentes manualmente em Usuários.', botoes: usuarioId ? verFichaBtn(null) : '' };
+      // Parte W — rótulo explícito "Revisar cadastros", nunca escolhe entre candidatos.
+      return {
+        texto: 'Este identificador foi encontrado associado a mais de um cadastro. Esta tela não escolhe automaticamente qual está certo — revise os cadastros correspondentes manualmente.',
+        botoes: usuarioId ? `<button class="adminActionBtn wine" onclick="pcFecharDrawer();abrirMasterUsuarioDeep('${usuarioId}',{foco:null})">Revisar cadastros</button>` : `<button class="adminActionBtn wine" onclick="pcFecharDrawer();setMasterTab('usuarios')">Revisar cadastros</button>`
+      };
     case 'CORRESPONDENCIA_INDETERMINADA':
-      return { texto: 'Não foi possível determinar com segurança a qual cadastro este registro pertence. Revise as evidências acima manualmente — esta tela não tenta adivinhar.', botoes: '' };
+      // Parte X — rótulo explícito "Revisar", sem alteração automática.
+      return {
+        texto: 'Não foi possível determinar com segurança a qual cadastro este registro pertence. Revise as evidências acima manualmente — esta tela não tenta adivinhar.',
+        botoes: usuarioId ? `<button class="adminActionBtn wine" onclick="pcFecharDrawer();abrirMasterUsuarioDeep('${usuarioId}',{foco:null})">Revisar</button>` : `<button class="adminActionBtn wine" onclick="pcFecharDrawer();setMasterTab('usuarios')">Revisar em Usuários</button>`
+      };
     case 'ATUALIZACAO_CADASTRAL_NECESSARIA':
       return usuarioId ? { texto: 'O identificador corresponde a este cadastro, mas algum dado encontrado na base diverge do cadastro atual — compare os valores acima com a ficha do usuário para identificar qual campo mudou.', botoes: verFichaBtn(null) } : semCandidato;
     case 'FATO_SEM_VENDEDOR_ATRIBUIDO':
@@ -459,6 +503,7 @@ async function pcMontarDrawerHtml(l){
         <dt>Nome</dt><dd>${escapeOperationalHtml(candidato?.nome || l.nome_usuario_candidato || '—')}</dd>
         <dt>Perfil</dt><dd>${escapeOperationalHtml(candidato?.perfil || '—')}</dd>
         <dt>Loja</dt><dd>${escapeOperationalHtml(candidato?.loja || '—')}</dd>
+        <dt>Login NBS</dt><dd>${escapeOperationalHtml(candidato?.login_nbs || '(vazio)')}</dd>
       </dl>`;
   }
   const explicacao = PC_TIPO_EXPLICACAO[l.tipo] || l.motivo || 'Situação cadastral que requer atenção do Master.';
@@ -500,9 +545,9 @@ async function pcMontarDrawerHtml(l){
       ${recomendacao ? `<h4>O que precisa ser feito</h4><p class="note">${escapeOperationalHtml(recomendacao.texto)}</p>${recomendacao.botoes ? `<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${recomendacao.botoes}</div>` : ''}` : ''}
       ${historicoHtml}
       ${l.status === 'PENDENTE' ? `<div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="adminActionBtn good" onclick="pcAbrirModalResolver('${l.id}')">Resolver</button>
         <button class="adminActionBtn warn" onclick="pcAbrirModalIgnorar('${l.id}')">Ignorar</button>
         <button class="adminActionBtn danger" onclick="pcAbrirModalExcluir('${l.id}')">Excluir</button>
+        <button class="adminActionBtn" onclick="pcAbrirModalResolver('${l.id}')">Marcar como resolvido manualmente</button>
       </div>` : ''}
     </div>`;
 }
@@ -536,10 +581,66 @@ async function pcRecarregarEAtualizar(){
   pcRenderResultados();
   requestAnimationFrame(() => window.scrollTo(0, scrollY));
 }
+// Fase 22.5A.1 (Problema/PARTE G-N) — correção assistida real para
+// NBS_DIVERGENTE: mostra atual × encontrado na base, sugere o valor da
+// base (Parte I) mas exige confirmação explícita do Master (Parte J),
+// chama a RPC MASTER-only que valida unicidade/conflito no backend
+// (Parte AM — nunca UPDATE client-side) e só marca o alerta RESOLVIDO
+// depois que a correção realmente aconteceu (Parte N).
+window.pcAbrirModalCorrigirNbs = async function(alertaId){
+  const l = PC_STATE.linhas.find(x => x.id === alertaId);
+  if(!l) return;
+  const usuarios = await pcCarregarUsuariosCache();
+  const candidato = (usuarios || []).find(x => x.id === l.usuario_candidato_id);
+  const nomeUsuario = candidato?.nome || l.nome_usuario_candidato || '—';
+  const atual = candidato?.login_nbs || '(vazio)';
+  const encontrado = l.login_nbs_encontrado || '';
+  openAdminModal({
+    title: 'Corrigir Login NBS',
+    text: `Usuário: <b>${escapeOperationalHtml(nomeUsuario)}</b><br>
+      Login NBS no cadastro: <b>${escapeOperationalHtml(atual)}</b><br>
+      Login NBS encontrado na base: <b>${escapeOperationalHtml(encontrado || '—')}</b>`,
+    fieldHtml: `
+      <div><label>Novo Login NBS</label><input id="pcNovoNbs" value="${escapeOperationalHtml(encontrado)}" placeholder="Confirme ou ajuste o valor"></div>
+      <div style="margin-top:8px"><label>Observação (opcional)</label><input id="pcNovoNbsObs" placeholder="Detalhe adicional"></div>`,
+    confirmText: 'Confirmar alteração do Login NBS',
+    onConfirm: async () => {
+      const novo = document.getElementById('pcNovoNbs')?.value?.trim();
+      if(!novo){ setAdminModalMsg('Informe um valor válido.', true); return; }
+      const observacao = document.getElementById('pcNovoNbsObs')?.value || null;
+      try{
+        const resp = await pcChamarAcao('master_cadastro_alerta_corrigir_login_nbs', {
+          p_alerta_id: alertaId, p_novo_login_nbs: novo, p_observacao: observacao
+        });
+        if(resp?.ok === false){
+          // Parte Q — falha de conflito: cadastro inalterado, alerta continua PENDENTE.
+          const mensagens = {
+            NBS_VINCULADO_OUTRO_USUARIO: 'Este Login NBS já está vinculado a outro usuário ativo.',
+            NBS_CPF_DIVERGENTE: 'Este Login NBS está vinculado, na base de vendedores, a um CPF diferente do deste usuário.',
+            VALOR_OBRIGATORIO: 'Informe um valor válido.',
+            SEM_CANDIDATO: 'Não há um cadastro candidato para corrigir.',
+            TIPO_INCOMPATIVEL: 'Este alerta não é do tipo Login NBS divergente.',
+            STATUS_INCOMPATIVEL: 'Este alerta não está mais pendente.'
+          };
+          setAdminModalMsg(mensagens[resp.codigo] || ('Não foi possível corrigir: ' + (resp.codigo || 'erro desconhecido')), true);
+          return;
+        }
+        closeAdminModal();
+        pcFecharDrawer();
+        const extras = Number(resp?.alertas_resolvidos) || 0;
+        let msg = 'Login NBS corrigido.';
+        if(extras === 1) msg += ' Alerta resolvido.';
+        else if(extras > 1) msg += ` ${extras} alertas relacionados resolvidos automaticamente.`;
+        toastAdmin(msg);
+        await pcRecarregarEAtualizar();
+      }catch(e){ setAdminModalMsg('Erro ao corrigir: ' + (e.message || e), true); }
+    }
+  });
+};
 window.pcAbrirModalResolver = function(alertaId){
   openAdminModal({
-    title: 'Marcar pendência como resolvida',
-    text: 'Confirme apenas se a situação já foi tratada fora deste alerta. Esta ação <b>não cria nem corrige nenhum cadastro</b> — apenas remove o item da fila de pendências.',
+    title: 'Marcar como resolvido manualmente',
+    text: 'Esta ação <b>não altera o cadastro</b>. Use somente se o problema já tiver sido corrigido por outro meio — confirme apenas se a situação já foi tratada fora deste alerta.',
     fieldHtml: `<div><label>Observação (opcional)</label><input id="pcResolverMotivo" placeholder="Ex.: cadastro corrigido manualmente em DD/MM"></div>`,
     confirmText: 'Confirmar resolução',
     onConfirm: async () => {
