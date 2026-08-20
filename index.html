@@ -1255,6 +1255,14 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
   .fichaList{grid-template-columns:1fr}
   .fichaList dd{text-align:left}
 }
+/* Fase 22.5A-UX — destaque temporário e discreto ao chegar num campo via
+   navegação assistida (Resolver problema → ficha do usuário). Não altera
+   nenhum valor, só chama a atenção por alguns segundos. */
+.fichaCampoDestaque{animation:fichaFocoPulse 2.2s ease-out 1}
+@keyframes fichaFocoPulse{
+  0%{background:rgba(255,196,84,.35);border-radius:4px}
+  100%{background:transparent}
+}
 
 /* Fase 17.0 — lista compacta genérica para as telas administrativas
    restantes (Férias/Ausências, Mudança de Loja, Históricos/Fechamento,

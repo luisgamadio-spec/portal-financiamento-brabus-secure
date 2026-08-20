@@ -2964,7 +2964,19 @@ function toggleMasterAdmin(){
   if(MASTER_PANEL_OPEN){setTimeout(()=>document.getElementById('masterAdmin')?.scrollIntoView({behavior:'smooth',block:'start'}),50);}
 }
 function setMasterTab(tab){MASTER_TAB=tab;renderMasterAdmin();}
-function setMasterSearch(v){MASTER_SEARCH=(v||'').toUpperCase();renderMasterAdmin();}
+// Fase 22.5A-UX (Problema 4) — a busca de Usuários chamava renderMasterAdmin()
+// a cada tecla, que reconstrói o painel inteiro (inclusive o próprio <input>),
+// derrubando o foco. Mesmo antipadrão já corrigido na Fase 18.4 para outra
+// tela. Correção: nunca re-renderiza o painel inteiro por causa da busca —
+// só refiltra o dataset MASTER já carregado (usrAtualizarLista, definida
+// perto de filtroUsuarios) e repinta unicamente os cards/lista, com um
+// debounce curto para não refiltrar a cada tecla em sequência muito rápida.
+let MASTER_SEARCH_DEBOUNCE=null;
+function setMasterSearchLocal(v){
+  MASTER_SEARCH=(v||'').toUpperCase();
+  clearTimeout(MASTER_SEARCH_DEBOUNCE);
+  MASTER_SEARCH_DEBOUNCE=setTimeout(usrAtualizarLista,200);
+}
 
 // ---------------- Fase 4.3 — Revisões Cadastrais (Ativação de Acesso) ----------------
 // Divergências (Loja/Login NBS) aceitas durante o novo Primeiro Acesso,
@@ -3250,16 +3262,21 @@ function atualizarCampoDepartamentoConvite(){
   }
 }
 
-function abrirConvidarUsuarioModal(){
+function abrirConvidarUsuarioModal(prefill){
+  // Fase 22.5A-UX (Parte AC) — navegação assistida a partir de um alerta
+  // NOVO_CADASTRO_NECESSARIO pode pré-preencher nome/loja/NBS (dados já
+  // encontrados na base, nunca CPF — o alerta só expõe o CPF mascarado).
+  // O Master sempre confirma/edita antes de enviar; nada é salvo sozinho.
+  prefill=prefill||{};
   const perfilOptions=CONVITE_PERFIS.map(p=>`<option value="${p}">${p}</option>`).join('');
-  const lojaOptions=`<option value="">(nenhuma / não vinculado a loja)</option>`+CONVITE_LOJAS.map(l=>`<option value="${l}">${l}</option>`).join('');
+  const lojaOptions=`<option value="">(nenhuma / não vinculado a loja)</option>`+CONVITE_LOJAS.map(l=>`<option value="${l}" ${prefill.loja===l?'selected':''}>${l}</option>`).join('');
   openAdminModal({
     title:'Convidar novo usuário',
     text:'O usuário receberá um e-mail real para definir a própria senha. Você não define nem vê a senha dele.',
     fieldHtml:`
       <div class="adminModalForm">
         <label>CPF</label><input id="conviteCpf" inputmode="numeric" placeholder="Somente números">
-        <label>Nome</label><input id="conviteNome" placeholder="Nome completo">
+        <label>Nome</label><input id="conviteNome" placeholder="Nome completo" value="${escapeOperationalHtml(prefill.nome||'')}">
         <label>Cargo/Perfil</label><select id="convitePerfil" onchange="atualizarCampoDepartamentoConvite()"><option value="">Selecione</option>${perfilOptions}</select>
         <div id="conviteDepartamentoWrap" style="display:none">
           <label>Departamento</label>
@@ -3273,7 +3290,7 @@ function abrirConvidarUsuarioModal(){
         </div>
         <label>Loja</label><select id="conviteLoja">${lojaOptions}</select>
         <label>E-mail real</label><input id="conviteEmail" type="email" placeholder="nome@dominio.com">
-        <label>Login NBS (opcional)</label><input id="conviteNbs" placeholder="Deixe em branco se não aplicável">
+        <label>Login NBS (opcional)</label><input id="conviteNbs" placeholder="Deixe em branco se não aplicável" value="${escapeOperationalHtml(prefill.nbs||'')}">
       </div>`,
     confirmText:'Enviar convite',
     onConfirm:confirmarConviteUsuario
@@ -3428,7 +3445,50 @@ function usuarioCombinaFiltro(u,filtro){
   if(filtro==='LEGADO') return !!(u.email_auth && ehEmailAcessoLegado(u.email_auth));
   return true;
 }
-function setMasterUsuariosFiltro(f){MASTER_USUARIOS_FILTRO=f;renderMasterAdmin();}
+// Fase 22.5A-UX — clicar num chip de filtro também não precisa reconstruir
+// o painel inteiro; reaproveita o mesmo patch parcial da busca (Problema 4),
+// o que evita perder a posição de rolagem da lista de usuários de brinde.
+function setMasterUsuariosFiltro(f){MASTER_USUARIOS_FILTRO=f;usrAtualizarLista();}
+const USR_FILTRO_CHIPS=[['TODOS','Todos'],['ATIVOS','Ativos'],['AGUARDANDO','Aguardando ativação'],['BLOQUEADOS','Bloqueados'],['LEGADO','E-mail legado']];
+function usrFiltroChipsHtml(){
+  return USR_FILTRO_CHIPS.map(([chave,label])=>`<button class="${MASTER_USUARIOS_FILTRO===chave?'active':''}" onclick="setMasterUsuariosFiltro('${chave}')">${label}</button>`).join('');
+}
+function usrCardsHtml(usuarios){
+  const total=usuarios.length, ativos=usuarios.filter(u=>u.ativo && !u.primeiro_acesso).length, primeiro=usuarios.filter(u=>u.primeiro_acesso).length, bloqueados=usuarios.filter(u=>!u.ativo && !u.primeiro_acesso).length;
+  return `<div class="adminCard"><div class="k">Usuários</div><div class="v">${total}</div></div>
+    <div class="adminCard"><div class="k">Ativos</div><div class="v">${ativos}</div></div>
+    <div class="adminCard"><div class="k">Primeiro acesso</div><div class="v">${primeiro}</div></div>
+    <div class="adminCard"><div class="k">Bloqueados</div><div class="v">${bloqueados}</div></div>`;
+}
+function usrRowsHtml(usuariosVisiveis){
+  const rows=usuariosVisiveis.map(u=>`
+    <div class="userRow">
+      <div class="userMain">
+        <div class="userName">${escapeOperationalHtml(u.nome||'')}</div>
+        <div class="userMetaMobile">${escapeOperationalHtml(u.perfil||'')} • ${escapeOperationalHtml(u.loja||'—')}</div>
+      </div>
+      <div class="userCol userColPerfil">${escapeOperationalHtml(u.perfil||'—')}</div>
+      <div class="userCol userColLoja">${escapeOperationalHtml(u.loja||'—')}</div>
+      <div class="userCol userColStatus">${escapeOperationalHtml(u.status||'—')}</div>
+      <div class="userCol userColSituacao">${renderSituacaoBadges(u)}</div>
+      <div class="userCol userColAcao"><button class="adminActionBtn wine" onclick="abrirFichaUsuario('${u.id}')">Ver detalhes</button></div>
+    </div>`).join('');
+  return rows||'<p class="note" style="padding:16px">Nenhum usuário encontrado.</p>';
+}
+// Fase 22.5A-UX — único ponto que a busca/chip de Usuários tocam: refiltra
+// o dataset MASTER_USUARIOS_CACHE (já carregado, sem RPC nova) e repinta só
+// os cards + a lista, preservando o resto do painel (inclusive o próprio
+// campo de busca, que nunca é recriado).
+function usrAtualizarLista(){
+  const usuarios=filtroUsuarios(MASTER_USUARIOS_CACHE||[]);
+  const usuariosVisiveis=usuarios.filter(u=>usuarioCombinaFiltro(u,MASTER_USUARIOS_FILTRO));
+  const cardsEl=document.getElementById('usrSummaryCards');
+  if(cardsEl) cardsEl.innerHTML=usrCardsHtml(usuarios);
+  const listEl=document.getElementById('usrListWrap');
+  if(listEl) listEl.innerHTML=usrRowsHtml(usuariosVisiveis);
+  const chipsEl=document.getElementById('usrFiltroChips');
+  if(chipsEl) chipsEl.innerHTML=usrFiltroChipsHtml();
+}
 function maskCpfFicha(cpf){
   const s=String(cpf||'').replace(/\D/g,'');
   if(s.length<4) return s;
@@ -3439,12 +3499,38 @@ function maskCpfFicha(cpf){
 // Reaproveita o dataset MASTER já carregado (nenhuma consulta nova por
 // usuário) e as MESMAS funções de ação já existentes e homologadas —
 // convite, link manual (Fase 16.1), edição de perfil/loja/status, senha.
-function abrirFichaUsuario(usuarioId){
+function abrirFichaUsuario(usuarioId,opts){
   const u=MASTER_USUARIOS_CACHE.find(x=>x.id===usuarioId);
   if(!u) return;
   FICHA_USUARIO_ABERTA_ID=usuarioId;
   abrirDrawerGenerico(renderFichaUsuarioHtml(u));
+  if(opts&&opts.foco) fichaAplicarFoco(opts.foco);
 }
+// Fase 22.5A-UX (Parte AA/AB) — navegação assistida a partir de Pendências
+// Cadastrais: sempre por usuario_id (nunca por nome), abre a ficha já na
+// aba Usuários e, quando souber qual campo é o relevante, rola até ele e
+// aplica um destaque temporário — nunca altera o valor sozinho.
+const FICHA_CAMPO_FOCO_ID={login_nbs:'fichaCampoLoginNbs',loja:'fichaCampoLoja',departamento_status:'fichaCampoDepartamentoStatus'};
+function fichaAplicarFoco(campo){
+  const id=FICHA_CAMPO_FOCO_ID[campo];
+  if(!id) return;
+  requestAnimationFrame(()=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.scrollIntoView({behavior:'smooth',block:'center'});
+    el.classList.remove('fichaCampoDestaque');
+    void el.offsetWidth; // reinicia a animação se o mesmo campo for focado de novo
+    el.classList.add('fichaCampoDestaque');
+  });
+}
+async function abrirMasterUsuarioDeep(usuarioId,opts){
+  MASTER_TAB='usuarios';
+  MASTER_USUARIOS_FILTRO='TODOS';
+  MASTER_SEARCH='';
+  await renderMasterAdmin();
+  abrirFichaUsuario(usuarioId,opts||{});
+}
+window.abrirMasterUsuarioDeep=abrirMasterUsuarioDeep;
 function fecharFichaUsuario(){
   FICHA_USUARIO_ABERTA_ID=null;
   fecharDrawerGenerico();
@@ -3514,9 +3600,9 @@ function renderFichaUsuarioHtml(u){
         <dt>Nome</dt><dd>${escapeOperationalHtml(u.nome||'')}</dd>
         <dt>CPF</dt><dd>${maskCpfFicha(u.cpf)}</dd>
         <dt>Perfil</dt><dd>${escapeOperationalHtml(u.perfil||'—')}</dd>
-        <dt>Loja</dt><dd>${escapeOperationalHtml(u.loja||'—')}</dd>
-        <dt>Departamento/Status</dt><dd>${escapeOperationalHtml(u.status||'—')}</dd>
-        <dt>Login NBS</dt><dd>${u.login_nbs?escapeOperationalHtml(u.login_nbs):'Não disponível'}</dd>
+        <dt>Loja</dt><dd id="fichaCampoLoja">${escapeOperationalHtml(u.loja||'—')}</dd>
+        <dt>Departamento/Status</dt><dd id="fichaCampoDepartamentoStatus">${escapeOperationalHtml(u.status||'—')}</dd>
+        <dt>Login NBS</dt><dd id="fichaCampoLoginNbs">${u.login_nbs?escapeOperationalHtml(u.login_nbs):'Não disponível'}</dd>
         <dt>E-mail de acesso</dt><dd>${renderEmailAcessoCelula(u)}</dd>
       </dl>
       <h4>Segurança e acesso</h4>
@@ -5483,38 +5569,21 @@ async function renderMasterAdminContent(renderSequence){
     // Incidente 16.2 — lista compacta + ficha administrativa (drawer),
     // substituindo a tabela horizontal larga. Mesma regra de negócio,
     // mesmo dataset MASTER já carregado (sem RPC nova, sem N+1).
-    const usuarios=filtroUsuarios(await carregarUsuariosSupabase());
-    MASTER_USUARIOS_CACHE=usuarios;
-    const total=usuarios.length, ativos=usuarios.filter(u=>u.ativo && !u.primeiro_acesso).length, primeiro=usuarios.filter(u=>u.primeiro_acesso).length, bloqueados=usuarios.filter(u=>!u.ativo && !u.primeiro_acesso).length;
-    const filtroChips=[['TODOS','Todos'],['ATIVOS','Ativos'],['AGUARDANDO','Aguardando ativação'],['BLOQUEADOS','Bloqueados'],['LEGADO','E-mail legado']]
-      .map(([chave,label])=>`<button class="${MASTER_USUARIOS_FILTRO===chave?'active':''}" onclick="setMasterUsuariosFiltro('${chave}')">${label}</button>`).join('');
+    // Fase 22.5A-UX — MASTER_USUARIOS_CACHE guarda a lista COMPLETA (sem
+    // filtro de busca), pra usrAtualizarLista poder refiltrar do zero a
+    // cada tecla sem ir estreitando o próprio cache a cada chamada.
+    MASTER_USUARIOS_CACHE=await carregarUsuariosSupabase();
+    const usuarios=filtroUsuarios(MASTER_USUARIOS_CACHE);
     const usuariosVisiveis=usuarios.filter(u=>usuarioCombinaFiltro(u,MASTER_USUARIOS_FILTRO));
-    const rows=usuariosVisiveis.map(u=>`
-      <div class="userRow">
-        <div class="userMain">
-          <div class="userName">${escapeOperationalHtml(u.nome||'')}</div>
-          <div class="userMetaMobile">${escapeOperationalHtml(u.perfil||'')} • ${escapeOperationalHtml(u.loja||'—')}</div>
-        </div>
-        <div class="userCol userColPerfil">${escapeOperationalHtml(u.perfil||'—')}</div>
-        <div class="userCol userColLoja">${escapeOperationalHtml(u.loja||'—')}</div>
-        <div class="userCol userColStatus">${escapeOperationalHtml(u.status||'—')}</div>
-        <div class="userCol userColSituacao">${renderSituacaoBadges(u)}</div>
-        <div class="userCol userColAcao"><button class="adminActionBtn wine" onclick="abrirFichaUsuario('${u.id}')">Ver detalhes</button></div>
-      </div>`).join('');
     body=`
       <h2>Gerenciamento de Usuários</h2>
-      <div class="adminGrid">
-        <div class="adminCard"><div class="k">Usuários</div><div class="v">${total}</div></div>
-        <div class="adminCard"><div class="k">Ativos</div><div class="v">${ativos}</div></div>
-        <div class="adminCard"><div class="k">Primeiro acesso</div><div class="v">${primeiro}</div></div>
-        <div class="adminCard"><div class="k">Bloqueados</div><div class="v">${bloqueados}</div></div>
-      </div>
-      <div class="adminToolbar"><div><label>Pesquisar usuário...</label><br><input class="adminSearch" oninput="setMasterSearch(this.value)" value="${MASTER_SEARCH}" placeholder="Nome, CPF, loja ou e-mail de acesso"></div>
+      <div class="adminGrid" id="usrSummaryCards">${usrCardsHtml(usuarios)}</div>
+      <div class="adminToolbar"><div><label>Pesquisar usuário...</label><br><input class="adminSearch" oninput="setMasterSearchLocal(this.value)" value="${MASTER_SEARCH}" placeholder="Nome, CPF, loja ou e-mail de acesso"></div>
         <div><button class="adminActionBtn good" onclick="abrirConvidarUsuarioModal()">+ Convidar novo usuário</button></div>
       </div>
-      <div class="userFiltros">${filtroChips}</div>
+      <div class="userFiltros" id="usrFiltroChips">${usrFiltroChipsHtml()}</div>
       <div id="adminMsg" class="adminMsg"></div>
-      <div class="userListWrap">${rows||'<p class="note" style="padding:16px">Nenhum usuário encontrado.</p>'}</div>
+      <div class="userListWrap" id="usrListWrap">${usrRowsHtml(usuariosVisiveis)}</div>
       ${await renderConvitesSection()}`;
   }else if(MASTER_TAB==='config'){
     await carregarParametrosPortal();

@@ -365,19 +365,100 @@ function pcRenderResultados(){
   if(!area) return;
   area.innerHTML = pcResultadosAlertasHtml();
 }
+// Cards de resumo (Parte AK): calculados sobre o dataset já carregado do
+// filtro/aba atual — não é um resumo global independente de filtro,
+// documentado na própria UI para não parecer um KPI absoluto. Extraído
+// numa função própria (Fase 22.5A-UX) pra poder ser repintado sozinho,
+// sem re-renderizar o painel inteiro, depois de Resolver/Ignorar/Excluir.
+function pcSummaryCardsHtml(){
+  const totaisPorStatus = { PENDENTE: 0, URGENTE_PENDENTE: 0, IGNORADO: 0, RESOLVIDO: 0 };
+  PC_STATE.linhas.forEach(l => {
+    if(l.status === 'PENDENTE'){ totaisPorStatus.PENDENTE++; if(l.severidade === 'URGENTE') totaisPorStatus.URGENTE_PENDENTE++; }
+    if(l.status === 'IGNORADO') totaisPorStatus.IGNORADO++;
+    if(l.status === 'RESOLVIDO') totaisPorStatus.RESOLVIDO++;
+  });
+  return `<div class="adminCard"><div class="k">Pendentes</div><div class="v">${totaisPorStatus.PENDENTE}</div></div>
+    <div class="adminCard"><div class="k">Urgentes (pendentes)</div><div class="v">${totaisPorStatus.URGENTE_PENDENTE}</div></div>
+    <div class="adminCard"><div class="k">Ignorados</div><div class="v">${totaisPorStatus.IGNORADO}</div></div>
+    <div class="adminCard"><div class="k">Resolvidos</div><div class="v">${totaisPorStatus.RESOLVIDO}</div></div>`;
+}
+
+// ---------------- resolução assistida (Fase 22.5A-UX, Problema 3) ----------------
+// Parte AH — quantas outras ocorrências PENDENTE (dentro do que já está
+// carregado na tela) compartilham o mesmo identificador. Só informativo —
+// a propagação real ao ignorar roda no backend sobre o valor normalizado,
+// não sobre esta contagem client-side (que usa o mascarado, disponível
+// aqui). Nunca conta por nome.
+function pcOcorrenciasRelacionadas(l){
+  if(!l.identificador_tipo || !l.identificador_mascarado) return 0;
+  return PC_STATE.linhas.filter(x =>
+    x.id !== l.id && x.status === 'PENDENTE' &&
+    x.identificador_tipo === l.identificador_tipo &&
+    x.identificador_mascarado === l.identificador_mascarado
+  ).length;
+}
+// Partes O-W — cada tipo tem uma orientação e uma ação recomendada
+// diferentes. Nunca decide sozinho (LOJA/DEPARTAMENTO temporal — Parte
+// R/S), nunca escolhe entre candidatos (Parte U), nunca finge uma solução
+// determinística quando não há uma (Parte V).
+function pcAcaoRecomendadaHtml(l){
+  const usuarioId = l.usuario_candidato_id;
+  const verFichaBtn = (foco) => `<button class="adminActionBtn good" onclick="pcFecharDrawer();abrirMasterUsuarioDeep('${usuarioId}',{foco:${foco ? `'${foco}'` : 'null'}})">${foco ? 'Abrir ficha e ir ao campo' : 'Ver usuário'}</button>`;
+  const semCandidato = { texto: 'Não há um cadastro candidato determinado para esta pendência. Revise manualmente em Painel Master → Usuários.', botoes: '' };
+  switch(l.tipo){
+    case 'NOVO_CADASTRO_NECESSARIO': {
+      const prefill = { nome: l.nome_encontrado || '', loja: l.loja_encontrada || '', nbs: l.login_nbs_encontrado || '' };
+      return {
+        texto: 'Nenhum usuário ativo corresponde a este identificador. Cadastre ou convide o usuário — nome, loja e Login NBS encontrados na base já vêm preenchidos, mas confira antes de enviar o convite.',
+        botoes: `<button class="adminActionBtn good" onclick='pcAcionarConvite(this)' data-prefill="${escapeOperationalHtml(JSON.stringify(prefill))}">Cadastrar / convidar usuário</button>`
+      };
+    }
+    case 'NBS_DIVERGENTE':
+      return usuarioId ? { texto: 'O CPF corresponde a este usuário, mas o Login NBS do cadastro diverge do encontrado na base. Compare os dois valores e corrija o Login NBS se a base estiver certa.', botoes: verFichaBtn('login_nbs') } : semCandidato;
+    case 'LOJA_DIVERGENTE':
+      return usuarioId ? {
+        texto: 'Existe uma arquitetura temporal de loja (Mudança de Loja — Vendedores). Se a divergência é sobre a loja ATUAL do vendedor, edite o cadastro. Se é sobre uma venda de um período em que ele estava alocado em outra loja, registre/corrija a mudança de loja daquele período — nunca sobrescreva o histórico pelo status atual.',
+        botoes: `${verFichaBtn('loja')}<button class="adminActionBtn wine" onclick="pcFecharDrawer();setMasterTab('mudancas_loja')">Mudança de Loja — Vendedores</button>`
+      } : semCandidato;
+    case 'DEPARTAMENTO_DIVERGENTE':
+      return usuarioId ? {
+        texto: 'Mesma lógica temporal do departamento: se o departamento ATUAL do vendedor mudou, edite o STATUS do cadastro. Se a divergência é sobre um período específico, registre/corrija em Mudança de Loja — Vendedores → Editar departamentos — nunca sobrescreva o histórico pelo status atual.',
+        botoes: `${verFichaBtn('departamento_status')}<button class="adminActionBtn wine" onclick="pcFecharDrawer();setMasterTab('mudancas_loja')">Mudança de Loja — Vendedores</button>`
+      } : semCandidato;
+    case 'USUARIO_INATIVO_COM_PRODUCAO':
+      return usuarioId ? { texto: 'Existe produção registrada em nome deste cadastro, porém o usuário está inativo. Avalie o histórico antes de decidir — reativação não é automática.', botoes: verFichaBtn(null) } : semCandidato;
+    case 'IDENTIFICADOR_DUPLICADO':
+      return { texto: 'Este identificador foi encontrado associado a mais de um cadastro. Esta tela não escolhe automaticamente qual está certo — revise os cadastros correspondentes manualmente em Usuários.', botoes: usuarioId ? verFichaBtn(null) : '' };
+    case 'CORRESPONDENCIA_INDETERMINADA':
+      return { texto: 'Não foi possível determinar com segurança a qual cadastro este registro pertence. Revise as evidências acima manualmente — esta tela não tenta adivinhar.', botoes: '' };
+    case 'ATUALIZACAO_CADASTRAL_NECESSARIA':
+      return usuarioId ? { texto: 'O identificador corresponde a este cadastro, mas algum dado encontrado na base diverge do cadastro atual — compare os valores acima com a ficha do usuário para identificar qual campo mudou.', botoes: verFichaBtn(null) } : semCandidato;
+    case 'FATO_SEM_VENDEDOR_ATRIBUIDO':
+      return { texto: l.motivo || 'Um ou mais registros importados não trouxeram identificador de vendedor. Não há cadastro para direcionar — este alerta é só informativo.', botoes: '' };
+    default:
+      return { texto: 'Revise manualmente — este tipo de alerta não tem uma ação automática associada.', botoes: '' };
+  }
+}
+window.pcAcionarConvite = function(btnEl){
+  let prefill = {};
+  try{ prefill = JSON.parse(btnEl.getAttribute('data-prefill') || '{}'); }catch(e){}
+  pcFecharDrawer();
+  if(typeof abrirConvidarUsuarioModal === 'function') abrirConvidarUsuarioModal(prefill);
+};
 
 // ---------------- drawer de detalhes ----------------
 async function pcMontarDrawerHtml(l){
+  let candidato = null;
   let candidatoHtml = '';
   if(l.usuario_candidato_id){
     const usuarios = await pcCarregarUsuariosCache();
-    const u = (usuarios || []).find(x => x.id === l.usuario_candidato_id);
+    candidato = (usuarios || []).find(x => x.id === l.usuario_candidato_id) || null;
     candidatoHtml = `
-      <h4>Possível cadastro correspondente</h4>
+      <h4>O que o cadastro possui hoje</h4>
       <dl class="fichaList">
-        <dt>Nome</dt><dd>${escapeOperationalHtml(u?.nome || l.nome_usuario_candidato || '—')}</dd>
-        <dt>Perfil</dt><dd>${escapeOperationalHtml(u?.perfil || '—')}</dd>
-        <dt>Loja</dt><dd>${escapeOperationalHtml(u?.loja || '—')}</dd>
+        <dt>Nome</dt><dd>${escapeOperationalHtml(candidato?.nome || l.nome_usuario_candidato || '—')}</dd>
+        <dt>Perfil</dt><dd>${escapeOperationalHtml(candidato?.perfil || '—')}</dd>
+        <dt>Loja</dt><dd>${escapeOperationalHtml(candidato?.loja || '—')}</dd>
       </dl>`;
   }
   const explicacao = PC_TIPO_EXPLICACAO[l.tipo] || l.motivo || 'Situação cadastral que requer atenção do Master.';
@@ -387,6 +468,10 @@ async function pcMontarDrawerHtml(l){
   if(l.status === 'EXCLUIDO') historico.push(`<dt>Excluído em</dt><dd>${pcFmtDataHoraBR(l.excluido_em)}</dd>`);
   if(l.motivo_acao) historico.push(`<dt>Motivo da ação</dt><dd>${escapeOperationalHtml(l.motivo_acao)}</dd>`);
   const historicoHtml = historico.length ? `<h4>Histórico da decisão</h4><dl class="fichaList">${historico.join('')}</dl>` : '';
+  const ocorrenciasRelacionadas = pcOcorrenciasRelacionadas(l);
+  const ocorrenciasHtml = ocorrenciasRelacionadas > 0
+    ? `<p class="note gbWarn">${ocorrenciasRelacionadas} outro(s) alerta(s) pendente(s) carregado(s) nesta lista está(ão) relacionado(s) a este mesmo identificador. Ignorar com "não alertar novamente" trata todos de uma vez.</p>` : '';
+  const recomendacao = l.status === 'PENDENTE' ? pcAcaoRecomendadaHtml(l) : null;
 
   return `
     <div class="userDrawerHeader">
@@ -395,10 +480,11 @@ async function pcMontarDrawerHtml(l){
       <div class="userMeta">${pcSevBadgeHtml(l.severidade)} · ${escapeOperationalHtml(pcTipoLabel(l.tipo))} · ${pcStatusBadgeHtml(l.status)}</div>
     </div>
     <div class="userDrawerBody">
-      <h4>Por que este alerta existe</h4>
+      <h4>Problema</h4>
       <p class="note">${escapeOperationalHtml(explicacao)}</p>
+      ${ocorrenciasHtml}
 
-      <h4>Dados encontrados na base</h4>
+      <h4>O que a base informou</h4>
       <dl class="fichaList">
         <dt>Nome</dt><dd>${escapeOperationalHtml(l.nome_encontrado || '—')}</dd>
         <dt>Login NBS</dt><dd>${escapeOperationalHtml(l.login_nbs_encontrado || '—')}</dd>
@@ -411,6 +497,7 @@ async function pcMontarDrawerHtml(l){
         <dt>Quantidade de ocorrências</dt><dd>${l.quantidade_ocorrencias}</dd>
       </dl>
       ${candidatoHtml}
+      ${recomendacao ? `<h4>O que precisa ser feito</h4><p class="note">${escapeOperationalHtml(recomendacao.texto)}</p>${recomendacao.botoes ? `<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${recomendacao.botoes}</div>` : ''}` : ''}
       ${historicoHtml}
       ${l.status === 'PENDENTE' ? `<div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="adminActionBtn good" onclick="pcAbrirModalResolver('${l.id}')">Resolver</button>
@@ -430,9 +517,24 @@ window.pcFecharDrawer = function(){
 };
 
 // ---------------- ações destrutivas — SEMPRE via modal de confirmação (Parte X) ----------------
+// Fase 22.5A-UX (Problema 2) — chamar renderMasterAdmin() aqui reconstruía
+// o #masterAdmin inteiro; o innerHTML intermediário ("Carregando...") que
+// renderMasterAdminContent usa encolhe o documento por um instante, e o
+// navegador ajusta (clampa) o scroll pra essa altura menor — quando o
+// conteúdo real volta, o scroll não é restaurado sozinho, e o Master
+// "volta ao topo" mesmo tratando um item no meio de uma lista longa.
+// Correção: nunca mais re-renderiza o painel inteiro por causa de uma
+// ação em um alerta — só recarrega os dados e repinta os cards + a lista
+// de resultados (pcRenderResultados já só toca #pcResultsArea), com
+// window.scrollY como rede de segurança (Parte L) caso alguma reflow
+// residual ainda desloque a página.
 async function pcRecarregarEAtualizar(){
+  const scrollY = window.scrollY;
   await pcCarregar();
-  if(typeof renderMasterAdmin === 'function') await renderMasterAdmin();
+  const cardsEl = document.getElementById('pcSummaryCards');
+  if(cardsEl) cardsEl.innerHTML = pcSummaryCardsHtml();
+  pcRenderResultados();
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
 }
 window.pcAbrirModalResolver = function(alertaId){
   openAdminModal({
@@ -482,7 +584,13 @@ window.pcAbrirModalIgnorar = function(alertaId){
         if(resp?.ok === false){ setAdminModalMsg('Não foi possível ignorar: ' + (resp.codigo || 'erro desconhecido'), true); return; }
         closeAdminModal();
         pcFecharDrawer();
-        toastAdmin('Pendência ignorada.' + (resp?.codigo === 'IGNORADO_COM_EXCECAO' ? ' Exceção criada.' : ''));
+        // Fase 22.5A-UX (Parte F) — o Master precisa ver de imediato quantas
+        // outras pendências do mesmo identificador também foram tratadas.
+        const propagados = Number(resp?.propagados) || 0;
+        let msg = 'Pendência ignorada.';
+        if(resp?.codigo === 'IGNORADO_COM_EXCECAO') msg += ' Exceção criada.';
+        if(propagados > 0) msg += ` Mais ${propagados} pendência(s) do mesmo identificador também ${propagados === 1 ? 'foi ignorada' : 'foram ignoradas'}.`;
+        toastAdmin(msg);
         await pcRecarregarEAtualizar();
       }catch(e){ setAdminModalMsg('Erro ao ignorar: ' + (e.message || e), true); }
     }
@@ -582,7 +690,8 @@ window.pcSalvarExcecaoManual = async function(){
       p_identificador_tipo: tipo, p_identificador_valor: valor, p_motivo: motivo, p_observacao: observacao
     });
     if(resp?.ok === false){ adminMsg('Não foi possível criar a exceção: ' + (resp.codigo || 'erro desconhecido'), true); return; }
-    toastAdmin('Exceção criada.');
+    const propagados = Number(resp?.propagados) || 0;
+    toastAdmin('Exceção criada.' + (propagados > 0 ? ` ${propagados} pendência(s) do mesmo identificador ${propagados === 1 ? 'foi ignorada' : 'foram ignoradas'}.` : ''));
     ['pcExcValor', 'pcExcObs'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
     PC_STATE.excecoes._carregouUmaVez = false;
     if(typeof renderMasterAdmin === 'function') renderMasterAdmin();
@@ -668,16 +777,6 @@ async function pcRenderTab(){
       <button onclick="pcRetry()">Tentar novamente</button>`;
   }
 
-  const totaisPorStatus = { PENDENTE: 0, URGENTE_PENDENTE: 0, IGNORADO: 0, RESOLVIDO: 0 };
-  // Cards de resumo (Parte AK): calculados sobre o dataset já carregado do
-  // filtro/aba atual — não é um resumo global independente de filtro,
-  // documentado na própria UI para não parecer um KPI absoluto.
-  PC_STATE.linhas.forEach(l => {
-    if(l.status === 'PENDENTE'){ totaisPorStatus.PENDENTE++; if(l.severidade === 'URGENTE') totaisPorStatus.URGENTE_PENDENTE++; }
-    if(l.status === 'IGNORADO') totaisPorStatus.IGNORADO++;
-    if(l.status === 'RESOLVIDO') totaisPorStatus.RESOLVIDO++;
-  });
-
   const mockBanner = (PC_LOCAL && PC_STATE.mockAtivo)
     ? `<p class="note gbWarn">🧪 MOCK LOCAL ATIVO — dados sintéticos, nada foi gravado no Supabase. Ações simulam apenas o estado local.</p>` : '';
   const mockBtn = PC_LOCAL
@@ -693,12 +792,7 @@ async function pcRenderTab(){
     <p class="note">Governança dos alertas gerados automaticamente pela reconciliação de vendedores das Bases 01/02. Nenhum dado financeiro ou de cliente é exibido aqui.</p>
     ${abasHtml}
     ${mockBanner}
-    <div class="adminGrid">
-      <div class="adminCard"><div class="k">Pendentes</div><div class="v">${totaisPorStatus.PENDENTE}</div></div>
-      <div class="adminCard"><div class="k">Urgentes (pendentes)</div><div class="v">${totaisPorStatus.URGENTE_PENDENTE}</div></div>
-      <div class="adminCard"><div class="k">Ignorados</div><div class="v">${totaisPorStatus.IGNORADO}</div></div>
-      <div class="adminCard"><div class="k">Resolvidos</div><div class="v">${totaisPorStatus.RESOLVIDO}</div></div>
-    </div>
+    <div class="adminGrid" id="pcSummaryCards">${pcSummaryCardsHtml()}</div>
     <div class="adminToolbar" style="align-items:center">
       <div style="display:flex;gap:8px;flex-wrap:wrap">${mockBtn}${perfBtn}</div>
     </div>
