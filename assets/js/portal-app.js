@@ -4113,7 +4113,7 @@ function renderMudancasLojaVendedoresHtml(){
       <div class="adminListCol ausColPeriodo">${dataBR(m.data_inicio_origem)} a ${dataBR(m.data_fim_origem)}<span class="adminListSub">destino a partir de ${dataBR(m.data_inicio_destino)}</span></div>
       <div class="adminListCol">${m.ativo!==false?'<span class="periodoAtivoBadge">ATIVA</span>':'<span class="periodoInativoBadge">INATIVA</span>'}</div>
       <div class="adminListActions">
-        <button class="adminActionBtn" onclick="editarDepartamentosMudancaLojaVendedor('${m.id}',${JSON.stringify(m.departamento_origem||'')},${JSON.stringify(m.departamento_destino||'')})">Editar departamentos</button>
+        <button class="adminActionBtn" onclick="editarDepartamentosMudancaLojaVendedor('${m.id}','${escapeOperationalHtml(m.departamento_origem||'').replace(/'/g,"&#39;")}','${escapeOperationalHtml(m.departamento_destino||'').replace(/'/g,"&#39;")}')">Editar departamentos</button>
         <button class="adminActionBtn warn" onclick="alternarMudancaLojaVendedor('${m.id}',${m.ativo!==false})">${m.ativo!==false?'Inativar':'Ativar'}</button>
         <button class="adminActionBtn danger" onclick="arquivarMudancaLojaVendedor('${m.id}')">Arquivar</button>
       </div>
