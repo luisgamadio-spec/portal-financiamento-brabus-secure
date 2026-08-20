@@ -351,12 +351,19 @@ function pcTipoLabel(tipo){ return PC_TIPOS[tipo] || tipo || '—'; }
 
 function pcAcaoBtnsHtml(l){
   if(l.status !== 'PENDENTE') return '';
-  // Fase 22.5A.1 (Parte D/AA) — a ação de lista continua compacta (a
-  // correção assistida por tipo vive no drawer, que tem espaço pra
-  // contexto); aqui só troca o rótulo/estilo de "Resolver" pra deixar
-  // claro que é a via manual, sem correção de cadastro — nunca mais
-  // chamada de "Resolver problema".
-  return `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+  // Fase 22.5A.2 (Incidente: ação assistida só existia dentro do drawer —
+  // a lista/card, que é o que o Master vê primeiro, mostrava só "Resolver
+  // manualmente"). pcAcaoRecomendadaHtml é pura (só lê `l`), então dá pra
+  // reusar aqui sem duplicar a lógica por tipo — envolvida num <div> com
+  // stopPropagation próprio porque essas strings de botão foram escritas
+  // pro contexto do drawer (sem parar propagação), e a LINHA inteira tem
+  // onclick="pcAbrirDrawer(...)" por baixo.
+  const recomendacao = pcAcaoRecomendadaHtml(l);
+  const primariaHtml = recomendacao.botoes
+    ? `<div style="display:flex;gap:6px;flex-wrap:wrap" onclick="event.stopPropagation()">${recomendacao.botoes}</div>`
+    : '';
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
+    ${primariaHtml}
     <button class="adminActionBtn" onclick="event.stopPropagation();pcAbrirModalResolver('${l.id}')">Resolver manualmente</button>
     <button class="adminActionBtn warn" onclick="event.stopPropagation();pcAbrirModalIgnorar('${l.id}')">Ignorar</button>
     <button class="adminActionBtn danger" onclick="event.stopPropagation();pcAbrirModalExcluir('${l.id}')">Excluir</button>
