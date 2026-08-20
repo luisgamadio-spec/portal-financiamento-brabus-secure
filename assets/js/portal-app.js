@@ -3538,8 +3538,6 @@ function renderFichaUsuarioHtml(u){
       </div>
       <h4 class="fichaAcoesSensiveis">Ações administrativas</h4>
       <div class="adminActions" style="justify-content:flex-start">
-        <button class="adminActionBtn warn" onclick="resetarSenhaUsuario('${u.cpf}')">Redefinir senha</button>
-        <button class="adminActionBtn warn" onclick="forcarTrocaSenha('${u.cpf}')">Forçar troca</button>
         ${u.ativo?`<button class="adminActionBtn danger" onclick="bloquearUsuario('${u.cpf}')">Bloquear</button>`:`<button class="adminActionBtn good" onclick="desbloquearUsuario('${u.cpf}')">Desbloquear</button>`}
       </div>
     </div>`;
@@ -4479,16 +4477,6 @@ function bloquearUsuario(cpfAlvo){
 }
 function desbloquearUsuario(cpfAlvo){
   confirmarAcaoUsuario({cpfAlvo,title:'Desbloquear usuário',text:`Confirmar desbloqueio do CPF <b>${cpfAlvo}</b>?`,payload:{ativo:true},descricao:`Desbloqueado usuário ${cpfAlvo}`});
-}
-function forcarTrocaSenha(cpfAlvo){
-  if(PORTAL_RUNTIME_CONFIG.authMode==='secure'){
-    toastAdmin('Use Authentication → Users para enviar recuperação ou redefinir a senha.','err');
-    return;
-  }
-  confirmarAcaoUsuario({cpfAlvo,title:'Forçar troca de senha',text:`O usuário <b>${cpfAlvo}</b> será obrigado a trocar a senha no próximo login.`,payload:{primeiro_acesso:true},descricao:`Forçada troca de senha para ${cpfAlvo}`});
-}
-function resetarSenhaUsuario(cpfAlvo){
-  toastAdmin('Redefinição administrativa com senha padrão foi desativada. Use o fluxo seguro do Supabase Auth.','err');
 }
 async function salvarConfigPortalComAuditoria(chave,novo,descricao){
   await salvarConfigPortal(chave,novo,descricao);

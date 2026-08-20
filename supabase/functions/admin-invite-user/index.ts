@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// Mesmo padrão já em produção em admin-reset-password: dois clientes —
+// Padrão já usado em outras Edge Functions administrativas: dois clientes —
 // userClient (anon key + Authorization do chamador) só para identificar
 // QUEM está chamando; adminClient (service_role, nunca exposto ao
 // navegador) para consultar usuarios com privilégio e operar o Auth Admin.
