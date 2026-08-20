@@ -65,11 +65,20 @@ function buildInviteHtml(nome, actionLink) {
 // Janela mínima entre reenvios para o mesmo usuário (Parte O) — evita
 // disparo acidental repetido pelo MASTER, sem depender só da UI.
 const REENVIO_MIN_INTERVALO_MS = 5 * 60 * 1000;
+const ALLOWED_ORIGINS = new Set([
+  "https://luisgamadio-spec.github.io",
+  "https://brabus.blistiq.com.br",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080"
+]);
+
 serve(async (req)=>{
+  const origin = req.headers.get("origin");
   const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": origin && ALLOWED_ORIGINS.has(origin) ? origin : "",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS"
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin"
   };
   try {
     if (req.method === "OPTIONS") {
@@ -219,7 +228,7 @@ serve(async (req)=>{
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500, headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" }
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
 });

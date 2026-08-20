@@ -7,11 +7,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // nunca chama updateUserById de novo — só reconsulta Auth (fonte da
 // verdade) e sincroniza usuarios se, e somente se, confirmado agora.
 
+const ALLOWED_ORIGINS = new Set([
+  "https://luisgamadio-spec.github.io",
+  "https://brabus.blistiq.com.br",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080"
+]);
+
 serve(async (req) => {
+  const origin = req.headers.get("origin");
   const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": origin && ALLOWED_ORIGINS.has(origin) ? origin : "",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS"
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin"
   };
   try {
     if (req.method === "OPTIONS") {
@@ -94,7 +103,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: String((e as any)?.message || e) }), {
       status: 500,
       headers: {
-        "Access-Control-Allow-Origin": "*",
+        ...corsHeaders,
         "Content-Type": "application/json"
       }
     });

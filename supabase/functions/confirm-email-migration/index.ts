@@ -17,11 +17,20 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+const ALLOWED_ORIGINS = new Set([
+  "https://luisgamadio-spec.github.io",
+  "https://brabus.blistiq.com.br",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080"
+]);
+
 serve(async (req) => {
+  const origin = req.headers.get("origin");
   const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": origin && ALLOWED_ORIGINS.has(origin) ? origin : "",
     "Access-Control-Allow-Headers": "content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS"
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin"
   };
   try {
     if (req.method === "OPTIONS") {
@@ -207,7 +216,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: false, message: GENERIC_ERROR }), {
       status: 500,
       headers: {
-        "Access-Control-Allow-Origin": "*",
+        ...corsHeaders,
         "Content-Type": "application/json"
       }
     });
