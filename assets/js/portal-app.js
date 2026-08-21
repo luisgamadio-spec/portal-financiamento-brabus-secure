@@ -5009,7 +5009,19 @@ async function exportarPreviaRhDp(){
   }));
   const ini=document.getElementById('dtIni')?.value||'';
   const fim=document.getElementById('dtFim')?.value||'';
-  exportSnapshotExcel(previewRows,`PREVIA_RH_DP_${ini}_${fim}.xlsx`,true);
+  // Incidente Fechamento 1.0 -- Auditoria SPF real em modo seguro. Se a RPC
+  // falhar, a exportação inteira é bloqueada (Parte AB) em vez de gerar um
+  // Excel com a aba fingindo sucesso vazio.
+  let spfAuditData=null;
+  if(secureMode){
+    const spfResult=await supabaseClient.rpc('master_operational_spf_audit_period',{p_start:ini,p_end:fim});
+    if(spfResult.error){
+      toastAdmin('Não foi possível carregar a Auditoria SPF: '+spfResult.error.message,'err');
+      return;
+    }
+    spfAuditData=spfResult.data;
+  }
+  exportSnapshotExcel(previewRows,`PREVIA_RH_DP_${ini}_${fim}.xlsx`,true,spfAuditData);
 }
 function parseMaybeJson(v){
   if(!v) return {};
@@ -5267,7 +5279,7 @@ function fitColsFromJson(json, min=10, max=42){
   return keys.map(k=>({wch:Math.min(max,Math.max(min,k.length+2,...json.slice(0,200).map(r=>String(r[k]??'').length+2)))}));
 }
 
-function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx',isPreview=false){
+function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx',isPreview=false,spfAuditData=null){
   if(!rows||!rows.length){alert('Nenhum snapshot carregado para exportar.');return}
   // Checkpoint C4: um snapshot histórico é fotografia imutável. NUNCA substituir
   // por recálculo ao vivo (calcularPreviewFechamentoCompetencia/calcGestorFIGrupo
@@ -5462,12 +5474,32 @@ function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx',isPr
   XLSX.utils.book_append_sheet(wb,wsAll,'6_TODOS_CHASSIS_VENDEDOR');
 
   // ABA 7 - Auditoria SPF
-  // Checkpoint C.2 (Fase C.2-D): NÃO implementada em modo seguro nesta fase —
-  // nenhuma RPC nova criada; master_operational_list_spf_extra_base02 não é
-  // reaproveitada (expõe chassi completo/client_match_key sem máscara e não é
-  // filtrada por período). Opção A: aba preservada, com aviso explícito.
+  // Incidente Fechamento 1.0 -- modo seguro agora usa dados reais vindos de
+  // master_operational_spf_audit_period (buscados em exportarPreviaRhDp,
+  // que bloqueia a exportação inteira se a RPC falhar -- nunca chega aqui
+  // com um erro disfarçado de sucesso vazio). Exportações de fechamentos
+  // JÁ HISTÓRICOS continuam sem spfAuditData (4º parâmetro não passado
+  // nesses dois call sites) -- mantêm o aviso original, pelo mesmo motivo
+  // já documentado: detalhe por operação não foi congelado no snapshot.
   let spfAudit;
-  if(secureModeExport){
+  if(secureModeExport && spfAuditData && Array.isArray(spfAuditData.rows)){
+    spfAudit=spfAuditData.rows.map(r=>({
+      Loja:r.store||'',
+      Vendedor:r.seller_name||'',
+      Departamento:r.department||'',
+      Data:excelDateBR(r.operation_date||''),
+      Chassi:r.chassis_masked||'',
+      Codigo_Operacao:r.operation_code||'',
+      Banco:r.bank||'',
+      Plano_Financeiro:r.finance_code||'',
+      Opcional:r.optional_name||'',
+      Valor_SPF_Bruto:+(r.spf_bruto||0),
+      Valor_SPF_70pct:+(r.spf_liquido||0)
+    }));
+    if(!spfAudit.length){
+      spfAudit=[{Aviso:'Nenhuma operação de SPF encontrada para esta competência no período.'}];
+    }
+  }else if(secureModeExport){
     spfAudit=[{Aviso:'Auditoria detalhada de SPF por operação indisponível no modo seguro nesta fase. Os totais de SPF (bruto e 70%) já estão corretos nas abas 1, 2, 3 e 4.'}];
   }else{
   spfAudit=[];
