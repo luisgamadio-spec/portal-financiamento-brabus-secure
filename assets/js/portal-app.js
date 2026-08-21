@@ -1298,9 +1298,11 @@ function showOperationalAggregateDetails(index){
         <div><span class="salaryEyebrow">ACOMPANHAMENTO DE SALÁRIOS</span><h2>Detalhes da comissão</h2><p>${escapeOperationalHtml(detail.name)} · ${escapeOperationalHtml(detail.store||'TODAS')} · ${dataBR(period.start)} a ${dataBR(period.end)}</p></div>
         <button class="secondary" onclick="document.getElementById('chassisModal').remove()">Fechar</button>
       </div>
-      ${operationalAggregateSummaryCards(metrics,commission,detail.kind)}
-      ${memory}
-      <p class="salaryPrivacy">${privacyNote}</p>
+      <div class="aggregateModalBody">
+        ${operationalAggregateSummaryCards(metrics,commission,detail.kind)}
+        ${memory}
+        <p class="salaryPrivacy">${privacyNote}</p>
+      </div>
     </section>
   </div>`;
   document.body.appendChild(shell);

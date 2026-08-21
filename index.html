@@ -168,9 +168,10 @@ table.compactMain td.commValue{
 
 <style id="aggregate-commission-details">
 .aggregateModalBack{background:rgba(0,0,0,.86)!important;backdrop-filter:blur(9px)}
-.aggregateDetailModal{width:min(1380px,97vw)!important;padding:0!important;overflow:hidden!important;background:linear-gradient(145deg,#181818,#090909)!important;border-color:rgba(246,196,83,.25)!important}
-.aggregateModalHead{margin:0!important;padding:22px 24px 18px;background:rgba(13,13,13,.97)}
+.aggregateDetailModal{width:min(1380px,97vw)!important;padding:0!important;overflow:hidden!important;background:linear-gradient(145deg,#181818,#090909)!important;border-color:rgba(246,196,83,.25)!important;display:flex!important;flex-direction:column!important}
+.aggregateModalHead{margin:0!important;padding:22px 24px 18px;background:rgba(13,13,13,.97);flex:0 0 auto}
 .aggregateModalHead h2{margin:5px 0 2px;font-size:27px}.aggregateModalHead p{margin:0;color:var(--muted)}
+.aggregateModalBody{overflow-y:auto;flex:1 1 auto;padding:0 24px 22px;min-height:0}
 .aggregateDetailCards{display:grid;grid-template-columns:repeat(5,minmax(145px,1fr));gap:10px;padding:18px 22px}
 .aggregateDetailCards article{display:flex;flex-direction:column;gap:6px;min-height:91px;padding:14px;border:1px solid #303030;border-radius:15px;background:linear-gradient(180deg,#1b1b1b,#111)}
 .aggregateDetailCards span,.aggregateRuleGrid span{color:var(--muted);font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.45px}
