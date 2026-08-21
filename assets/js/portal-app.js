@@ -5552,11 +5552,33 @@ function imprimirSnapshotPDF(rows,title='Relatório de Comissões RH/DP'){
   w.document.write(html);
   w.document.close();
 }
+// Incidente Exportação RH/DP -- Auditoria SPF real também para fechamentos
+// HISTÓRICOS. Usa o período do próprio fechamento (nunca o período aberto
+// atualmente selecionado na tela) -- nunca toca snapshot/comissão, só
+// complementa com um dataset adicional read-only. Se a RPC falhar, bloqueia
+// a exportação em vez de gerar a aba vazia disfarçada de sucesso (mesmo
+// padrão já usado em exportarPreviaRhDp()). Retorna undefined = "já
+// bloqueado e avisado, não prossiga"; null = "modo não-seguro, sem SPF
+// aplicável aqui".
+async function buscarAuditoriaSpfParaFechamento(fechamentoId){
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  if(!secureMode) return null;
+  const fechamento=(FECHAMENTOS_COMISSAO||[]).find(f=>String(f.id)===String(fechamentoId));
+  if(!fechamento||!fechamento.data_inicio||!fechamento.data_fim) return null;
+  const {data,error}=await supabaseClient.rpc('master_operational_spf_audit_period',{p_start:fechamento.data_inicio,p_end:fechamento.data_fim});
+  if(error){
+    toastAdmin('Não foi possível carregar a Auditoria SPF desta competência: '+error.message,'err');
+    return undefined;
+  }
+  return data;
+}
 async function exportarRelatorioHistoricoSelecionado(){
   const id=document.getElementById('histFechamentoSel')?.value||document.getElementById('relFechamentoSel')?.value;
   if(!id){alert('Selecione uma competência.');return}
   const rows=await getSnapshotFechamento(id);
-  exportSnapshotExcel(rows,'Relatorio_Comissoes_RH_DP_'+id+'.xlsx');
+  const spfAuditData=await buscarAuditoriaSpfParaFechamento(id);
+  if(spfAuditData===undefined) return;
+  exportSnapshotExcel(rows,'Relatorio_Comissoes_RH_DP_'+id+'.xlsx',false,spfAuditData);
 }
 async function imprimirRelatorioHistoricoSelecionado(){
   const id=document.getElementById('histFechamentoSel')?.value||document.getElementById('relFechamentoSel')?.value;
@@ -5588,7 +5610,7 @@ function abrirExportarHistoricoModal(id,nomePeriodo){
     title:'Exportar competência',
     text:`Competência: <b>${escapeOperationalHtml(nomePeriodo||'')}</b>`,
     fieldHtml:`<div class="adminActions" style="justify-content:flex-start">
-      <button class="adminActionBtn good" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');exportSnapshotExcel(r,'Relatorio_Comissoes_${id}.xlsx');closeAdminModal();})()">Excel</button>
+      <button class="adminActionBtn good" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');const spf=await buscarAuditoriaSpfParaFechamento('${id}');if(spf===undefined)return;exportSnapshotExcel(r,'Relatorio_Comissoes_${id}.xlsx',false,spf);closeAdminModal();})()">Excel</button>
       <button class="adminActionBtn warn" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');imprimirSnapshotPDF(r,'Relatório ${escapeOperationalHtml(nomePeriodo||'').replace(/'/g,"\\'")}');closeAdminModal();})()">PDF</button>
     </div>`,
     confirmText:'Fechar',
