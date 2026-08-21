@@ -1262,6 +1262,17 @@ function showOperationalAggregateDetails(index){
       ?`SUBSTITUTA DURANTE FÉRIAS/AUSÊNCIA · ${dataBR(detail.coveredStart)} a ${dataBR(detail.coveredEnd)}`
       :'ANALISTA OFICIAL')
     :'RESULTADO AGREGADO DA EQUIPE AUTORIZADA';
+  // Fase Cobertura-Details 1.0 — botao "VER DETALHES" ja existia (linhas de
+  // cobertura), so faltava a composicao por vendedor. Carregada sob demanda
+  // (Parte 29 do incidente), nunca junto com a tela principal.
+  const showCoverageComposition=isAnalyst&&detail.transfer&&detail.coverageId;
+  const coverageCompositionId='coverageComposition_'+String(index);
+  const coverageSection=showCoverageComposition
+    ?`<div class="aggregateRule" id="${coverageCompositionId}">
+        <h3>Composição da cobertura</h3>
+        <p class="coverageLoadingState">Carregando detalhes da cobertura...</p>
+      </div>`
+    :'';
   const memory=isAnalyst
     ?`<div class="aggregateRule">
         <h3>Memória por loja e período</h3>
@@ -1271,13 +1282,16 @@ function showOperationalAggregateDetails(index){
           <div><span>Período considerado</span><b>${dataBR(detail.coveredStart||period.start)} a ${dataBR(detail.coveredEnd||period.end)}</b></div>
           <div><span>Regra aplicada</span><b>Rentabilidade × ${fmtPct2(commission.faixa)} + ${fmtMoney(cfgNum('bonus_spf_analista'))} por SPF</b></div>
         </div>
-      </div>`
+      </div>${coverageSection}`
     :`<div class="aggregateRule">
         <h3>Memória por vendedor</h3>
         <p>O total gerencial usa o resultado agregado da loja/departamento. A tabela abaixo demonstra os vendedores que compõem esse resultado, todos já limitados pelo escopo autorizado no banco.</p>
         ${operationalManagerMemoryTable(detail.rows||[])}
         <div class="aggregateFormula"><b>Regra gerencial:</b> (${fmtMoney(metrics.retorno)} de retorno + ${fmtMoney(commission.spfLiquido)} de 70% SPF) × ${fmtPct2(commission.faixa)} = <b>${fmtMoney(commission.comissaoPrincipal)}</b></div>
       </div>`;
+  const privacyNote=showCoverageComposition
+    ?'<b>Segurança:</b> sem cliente, CPF, NBS ou identificadores pessoais. Chassi exibido parcialmente mascarado, apenas para conferência da composição. O escopo (cobertura, loja e período) foi validado no banco antes de chegar ao navegador.'
+    :'<b>Segurança:</b> memória agregada, sem cliente, CPF, chassi, NBS ou identificadores pessoais. O escopo foi validado no banco antes de chegar ao navegador.';
   shell.innerHTML=`<div class="modalBack aggregateModalBack" onclick="closeModal(event)">
     <section class="modalBox aggregateDetailModal" role="dialog" aria-modal="true" aria-label="Detalhes da comissão">
       <div class="modalHead aggregateModalHead">
@@ -1286,10 +1300,75 @@ function showOperationalAggregateDetails(index){
       </div>
       ${operationalAggregateSummaryCards(metrics,commission,detail.kind)}
       ${memory}
-      <p class="salaryPrivacy"><b>Segurança:</b> memória agregada, sem cliente, CPF, chassi, NBS ou identificadores pessoais. O escopo foi validado no banco antes de chegar ao navegador.</p>
+      <p class="salaryPrivacy">${privacyNote}</p>
     </section>
   </div>`;
   document.body.appendChild(shell);
+  if(showCoverageComposition){
+    loadCoverageCompositionInto(coverageCompositionId,detail.coverageId);
+  }
+}
+// Fase Cobertura-Details 1.0 — busca sob demanda (so ao abrir o modal de
+// uma linha de cobertura) e renderiza a composição por vendedor. Autorização
+// 100% no backend (RPC operational_analyst_coverage_details) — este código
+// só exibe o que já veio filtrado; nunca decide quem pode ver o quê.
+async function loadCoverageCompositionInto(containerId,coverageId){
+  const container=document.getElementById(containerId);
+  if(!container)return;
+  try{
+    if(typeof supabaseClient==='undefined'||!supabaseClient)throw new Error('Supabase não inicializado.');
+    const{data,error}=await supabaseClient.rpc('operational_analyst_coverage_details',{p_coverage_id:coverageId});
+    if(error)throw error;
+    const current=document.getElementById(containerId);
+    if(!current)return; // modal já foi fechado antes da resposta chegar
+    current.innerHTML=`<h3>Composição da cobertura</h3>${renderCoverageCompositionHtml(data)}`;
+  }catch(err){
+    console.error('Falha ao carregar composição da cobertura:',err?.message||err);
+    const current=document.getElementById(containerId);
+    if(!current)return;
+    current.innerHTML='<h3>Composição da cobertura</h3><p class="coverageErrorState">Não foi possível carregar os detalhes desta cobertura.</p>';
+  }
+}
+function renderCoverageCompositionHtml(payload){
+  const sales=Array.isArray(payload?.sales)?payload.sales:[];
+  const finance=Array.isArray(payload?.finance)?payload.finance:[];
+  if(!sales.length&&!finance.length){
+    return '<p class="coverageEmptyState">Nenhuma venda encontrada para esta cobertura no período.</p>';
+  }
+  const bySeller=new Map();
+  const ensureSeller=(id,name)=>{
+    if(!bySeller.has(id))bySeller.set(id,{name:name||'VENDEDOR',sales:[],finance:[]});
+    return bySeller.get(id);
+  };
+  sales.forEach(row=>ensureSeller(row.seller_id,row.seller_name).sales.push(row));
+  finance.forEach(row=>ensureSeller(row.seller_id,row.seller_name).finance.push(row));
+  const sellerBlocks=[...bySeller.values()]
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR'))
+    .map(seller=>{
+      const salesRows=seller.sales.map(r=>`<tr>
+          <td>${dataBR(r.sale_date)}</td>
+          <td>${escapeOperationalHtml(r.model||'-')}</td>
+          <td>${escapeOperationalHtml(r.chassis_masked||'-')}</td>
+          <td>—</td><td>—</td>
+          <td>${fmtMoney(r.sale_value)}</td><td>—</td>
+        </tr>`).join('');
+      const financeRows=seller.finance.map(r=>`<tr>
+          <td>${dataBR(r.operation_date)}</td>
+          <td>${escapeOperationalHtml(r.model||'-')}</td>
+          <td>${escapeOperationalHtml(r.chassis_masked||'-')}</td>
+          <td>${r.is_real_financing?'SIM':'NÃO'}</td>
+          <td>${escapeOperationalHtml(r.plan_codigo_if||r.finance_code||'-')}</td>
+          <td>${fmtMoney(r.financed_or_service_value)}</td><td>${fmtMoney(r.return_value)}</td>
+        </tr>`).join('');
+      return `<details class="coverageSellerBlock">
+        <summary><b>${escapeOperationalHtml(seller.name)}</b> — ${seller.sales.length} venda(s), ${seller.finance.length} financiamento(s)</summary>
+        <div class="tableWrap aggregateMemoryWrap"><table class="aggregateMemoryTable">
+          <thead><tr><th>Data</th><th>Modelo</th><th>Chassi</th><th>Financiado?</th><th>Plano</th><th>Produção</th><th>Retorno</th></tr></thead>
+          <tbody>${salesRows}${financeRows}</tbody>
+        </table></div>
+      </details>`;
+    }).join('');
+  return `<p class="coverageCompositionHint">Agrupado por vendedor — clique para expandir cada um.</p>${sellerBlocks}`;
 }
 function operationalManagerRowHtml(label,rows,status,store){
   if(!rows.length) return '';
@@ -1331,6 +1410,7 @@ function operationalAnalystRowHtml(row){
     transfer,
     coveredStart:row.covered_start||'',
     coveredEnd:row.covered_end||'',
+    coverageId:row.coverage_id||null,
     metrics,
     commission,
     rows:[row]
