@@ -53,6 +53,31 @@
     th:first-child,td:first-child{text-align:left}
     th{position:sticky;top:0;background:#14243a;color:#dce9ff;z-index:1}
     tr:hover td{background:#0e1c30}
+    /* Fase UX-Grupo-3.0, Item 4: transforma tabela em lista de cards (1 card
+       por linha) -- elimina rolagem horizontal sem esconder nenhuma coluna.
+       tableWide (>7 colunas, ex.: Indicadores por modelo com 18) sempre em
+       cards; tabelas normais só abaixo de 760px. */
+    .tableWrap.tableWide{overflow:visible;border:0}
+    .tableWrap.tableWide table,.tableWrap.tableWide thead,.tableWrap.tableWide tbody,.tableWrap.tableWide th,.tableWrap.tableWide td,.tableWrap.tableWide tr{display:block;min-width:0}
+    .tableWrap.tableWide thead tr{position:absolute;top:-9999px;left:-9999px}
+    .tableWrap.tableWide tbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+    .tableWrap.tableWide tr{margin:0;border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#0a1627}
+    .tableWrap.tableWide td{border:none;border-bottom:1px solid #1e324f;position:relative;padding:7px 0 7px 46%;text-align:right;white-space:normal;overflow-wrap:anywhere}
+    .tableWrap.tableWide td:last-child{border-bottom:0}
+    .tableWrap.tableWide td::before{content:attr(data-label);position:absolute;left:0;width:44%;padding-right:8px;white-space:normal;text-align:left;font-weight:800;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+    .tableWrap.tableWide td:first-child{padding-left:0;text-align:left;font-weight:900;border-bottom:2px solid #26436a;margin-bottom:4px}
+    .tableWrap.tableWide td:first-child::before{content:none}
+    @media(max-width:760px){
+      .tableWrap:not(.tableWide){overflow:visible;border:0}
+      .tableWrap:not(.tableWide) table,.tableWrap:not(.tableWide) thead,.tableWrap:not(.tableWide) tbody,.tableWrap:not(.tableWide) th,.tableWrap:not(.tableWide) td,.tableWrap:not(.tableWide) tr{display:block;min-width:0}
+      .tableWrap:not(.tableWide) thead tr{position:absolute;top:-9999px;left:-9999px}
+      .tableWrap:not(.tableWide) tr{margin-bottom:12px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#0a1627}
+      .tableWrap:not(.tableWide) td{border:none;border-bottom:1px solid #1e324f;position:relative;padding:7px 0 7px 46%;text-align:right;white-space:normal;overflow-wrap:anywhere}
+      .tableWrap:not(.tableWide) td:last-child{border-bottom:0}
+      .tableWrap:not(.tableWide) td::before{content:attr(data-label);position:absolute;left:0;width:44%;padding-right:8px;white-space:normal;text-align:left;font-weight:800;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+      .tableWrap:not(.tableWide) td:first-child{padding-left:0;text-align:left;font-weight:900;border-bottom:2px solid #26436a;margin-bottom:4px}
+      .tableWrap:not(.tableWide) td:first-child::before{content:none}
+    }
     .muted{color:var(--muted)}
     .warn{color:var(--yellow)}
     .bad{color:var(--red)}
@@ -81,6 +106,29 @@
     .metricBox .mk{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
     .metricBox .mv{font-size:20px;font-weight:950;margin-top:5px}
     @media(max-width:1000px){.modelHero,.miniGrid{grid-template-columns:1fr}}
+    /* Fase UX-Grupo-3.0, Item 4 (Parte AF-AK): "Indicadores por modelo" --
+       18 colunas não cabem em nenhuma largura de tela com legibilidade.
+       Substituído por 1 card resumido por modelo (Volume/Financiada/
+       Penetração, iguais ao exemplo de negócio) + botão "Ver Detalhes"
+       que abre modal com as 18 métricas completas -- nenhuma informação
+       da tabela original é perdida (Parte AL), só reorganizada. */
+    .modelIndicatorGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+    .modelIndicatorCard{background:#0a1627;border:1px solid var(--line);border-radius:16px;padding:16px}
+    .modelIndicatorCard .micName{font-weight:950;font-size:15px;margin-bottom:10px;overflow-wrap:anywhere}
+    .modelIndicatorCard .micRow{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;padding:5px 0;border-bottom:1px solid #1e324f}
+    .modelIndicatorCard .micRow .mick{color:var(--muted);font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.3px}
+    .modelIndicatorCard .micRow .micv{font-weight:900}
+    .modelIndicatorCard .micDetailsBtn{width:100%;margin-top:12px;padding:9px;border-radius:10px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-weight:900;cursor:pointer;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+    .modelIndicatorCard .micDetailsBtn:hover{background:var(--blue);color:#06101d}
+    .modelDetailModalBack{position:fixed;inset:0;background:rgba(2,6,12,.78);z-index:5000;display:none;align-items:center;justify-content:center;padding:18px}
+    .modelDetailModalBack.open{display:flex}
+    .modelDetailModalBox{width:min(720px,96vw);max-height:88vh;overflow:auto;background:#0b111a;border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.65)}
+    .modelDetailModalHead{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px}
+    .modelDetailModalHead h2{margin:0;font-size:18px}
+    .modelDetailGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+    .modelDetailGrid .mdgItem{background:#101927;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+    .modelDetailGrid .mdgItem .k{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:800;letter-spacing:.3px}
+    .modelDetailGrid .mdgItem .v{font-size:15px;font-weight:950;margin-top:4px;overflow-wrap:anywhere}
 
   
     /* === Visual premium alinhado ao painel executivo de referência === */
@@ -2078,9 +2126,13 @@ async function loadSecureModelMetrics(periodOverride=null){
   if(MODEL_SECURE_CACHE.has(key)) return await MODEL_SECURE_CACHE.get(key);
 
   const pending = (async()=>{
+    // Fase UX-Grupo-3.0, Item 2: mesmo raciocínio de analise-geral-grupo-secure-adapter.js
+    // (fetchMetrics) -- p_group_view só amplia de fato para ANALISTA/VENDEDOR no backend,
+    // seguro enviar sempre true para qualquer perfil autorizado a abrir este módulo.
     const {data,error} = await modelSupabaseClient.rpc("operational_model_metrics",{
       p_start:period.start,
-      p_end:period.end
+      p_end:period.end,
+      p_group_view:true
     });
     if(error) throw error;
     if(!data || !Array.isArray(data.rows)) throw new Error("Resposta operacional incompleta.");
@@ -2697,6 +2749,16 @@ function addAgg(map, key, values){
   }
   return o;
 }
+// Fase UX-Grupo-3.0, Item 4: helper compartilhado por ~28 tabelas do módulo.
+// Cada <td> agora carrega data-label com o cabeçalho da coluna, permitindo
+// que o CSS transforme a tabela em uma lista de cards (1 card por linha,
+// "rótulo: valor" empilhado) sem duplicar HTML nem tocar em cada chamada
+// individual de table(). Tabelas com muitas colunas (>7 -- ex.: "Indicadores
+// por modelo" tem 18) ganham a classe tableWide e viram cards em QUALQUER
+// largura de tela (mesmo 1920), já que não existe fonte legível que caiba
+// 18 colunas numeradas sem rolagem horizontal. Tabelas menores (a maioria)
+// permanecem como tabela normal em telas largas e só viram cards abaixo de
+// 760px -- ver bloco @media correspondente no <style>.
 function table(title, rows, columns, comparisonMap=null){
   const body = rows.map(r => "<tr>"+columns.map(c => {
     let val = c.f ? c.f(r[c.k], r) : (r[c.k] ?? "");
@@ -2707,11 +2769,62 @@ function table(title, rows, columns, comparisonMap=null){
       const prevFormatted = c.f ? c.f(prev[c.k], prev) : (prev[c.k] ?? "—");
       val = valueWithDelta(val, curNum, prevNum, prevFormatted);
     }
-    return `<td>${val}</td>`;
+    return `<td data-label="${String(c.label).replace(/"/g,"&quot;")}">${val}</td>`;
   }).join("")+"</tr>").join("");
-  return `<div class="panel"><h2>${title}</h2><div class="tableWrap"><table><thead><tr>${columns.map(c=>`<th>${c.label}</th>`).join("")}</tr></thead><tbody>${body || `<tr><td colspan="${columns.length}" class="muted">Sem dados.</td></tr>`}</tbody></table></div></div>`;
+  const wideClass = columns.length > 7 ? " tableWide" : "";
+  return `<div class="panel"><h2>${title}</h2><div class="tableWrap${wideClass}"><table><thead><tr>${columns.map(c=>`<th>${c.label}</th>`).join("")}</tr></thead><tbody>${body || `<tr><td colspan="${columns.length}" class="muted">Sem dados.</td></tr>`}</tbody></table></div></div>`;
 }
 function kv(title, value, sub="", cmp=""){ return `<div class="card"><div class="k">${title}</div><div class="v">${value}</div><div class="s">${sub}</div>${cmp?`<div class="kpiCompare">${cmp}</div>`:""}</div>`; }
+
+// Fase UX-Grupo-3.0, Item 4 (Parte AF-AK): "Indicadores por modelo" em cards
+// resumidos + modal de detalhes, no lugar da tabela de 18 colunas. Reutiliza
+// EXATAMENTE os mesmos columns/formatters/comparisonMap já usados por
+// table() -- nenhum valor é recalculado, só reorganizado (Parte AL).
+let MODEL_INDICATOR_ROWS_CACHE = [];
+let MODEL_INDICATOR_COLUMNS_CACHE = [];
+let MODEL_INDICATOR_COMPARISON_CACHE = null;
+function formatColumnValue(r, c, comparisonMap){
+  let val = c.f ? c.f(r[c.k], r) : (r[c.k] ?? "");
+  if(comparisonMap && c.compare){
+    const prev = comparisonMap[rowKeyValue(r)] || {};
+    const curNum = Number(r[c.k] || 0);
+    const prevNum = Number(prev[c.k] || 0);
+    const prevFormatted = c.f ? c.f(prev[c.k], prev) : (prev[c.k] ?? "—");
+    val = valueWithDelta(val, curNum, prevNum, prevFormatted);
+  }
+  return val;
+}
+function renderModelIndicatorsCards(title, rows, columns, comparisonMap=null){
+  MODEL_INDICATOR_ROWS_CACHE = rows;
+  MODEL_INDICATOR_COLUMNS_CACHE = columns;
+  MODEL_INDICATOR_COMPARISON_CACHE = comparisonMap;
+  // As 3 métricas de resumo do card seguem o exemplo de negócio (Volume/
+  // Financiada/Penetração ~ Vendas/Financiados/Share); as outras 15 colunas
+  // continuam 100% disponíveis no botão "Ver Detalhes".
+  const summaryKeys = ["volume","financiada","penetracao"];
+  const summaryCols = summaryKeys.map(k=>columns.find(c=>c.k===k)).filter(Boolean);
+  const cards = rows.map((r,idx)=>`
+    <div class="modelIndicatorCard">
+      <div class="micName">${r.Modelo ?? ""}</div>
+      ${summaryCols.map(c=>`<div class="micRow"><span class="mick">${c.label}</span><span class="micv">${formatColumnValue(r,c,comparisonMap)}</span></div>`).join("")}
+      <button class="micDetailsBtn" onclick="openModelDetailModal(${idx})">Ver Detalhes</button>
+    </div>`).join("");
+  return `<div class="panel"><h2>${title}</h2><div class="modelIndicatorGrid">${cards || '<div class="muted">Sem dados.</div>'}</div></div>`;
+}
+function openModelDetailModal(idx){
+  const r = MODEL_INDICATOR_ROWS_CACHE[idx];
+  if(!r) return;
+  const columns = MODEL_INDICATOR_COLUMNS_CACHE;
+  const comparisonMap = MODEL_INDICATOR_COMPARISON_CACHE;
+  document.getElementById("modelDetailModalTitle").textContent = r.Modelo ?? "Detalhes do modelo";
+  document.getElementById("modelDetailModalBody").innerHTML = `<div class="modelDetailGrid">${
+    columns.filter(c=>c.k!=="Modelo").map(c=>`<div class="mdgItem"><div class="k">${c.label}</div><div class="v">${formatColumnValue(r,c,comparisonMap)}</div></div>`).join("")
+  }</div>`;
+  document.getElementById("modelDetailModalBack").classList.add("open");
+}
+function closeModelDetailModal(){
+  document.getElementById("modelDetailModalBack")?.classList.remove("open");
+}
 
 function getReceitaSPF(registros){
   return (registros || []).reduce((s,r)=>s + (Number(r.receitaSPF || 0)), 0);
@@ -3699,7 +3812,7 @@ async function renderModelos(results){
         <div class="metricBox planoDestaqueBox"><div class="mk">🏆 Plano Destaque</div><div class="mv">${planoDestaqueFamiliaAtualHtml(modelPlanResults)}</div></div>
       </div>
     </div>`+
-    table(`${currentFamily} · Indicadores por modelo`, rows, [
+    renderModelIndicatorsCards(`${currentFamily} · Indicadores por modelo`, rows, [
       {k:"Modelo",label:"Modelo"},
       {k:"volume",label:"Volume / Qtd Vendida",f:(v)=>num(v),compare:true},
       {k:"financiada",label:"Financiamento / Qtd Financiada",f:(v)=>num(v),compare:true},
@@ -5523,6 +5636,17 @@ window.processar = carregarBasesAutomaticamente;
 <script id="portal-iframe-helper-v224">
 (function(){window.portalBack=function(){try{parent.postMessage('portal:back','*')}catch(e){history.back();}};})();
 </script>
+<!-- Fase UX-Grupo-3.0, Item 4: modal de detalhe para os cards de "Indicadores
+     por modelo" (renderModelIndicatorsCards). -->
+<div class="modelDetailModalBack" id="modelDetailModalBack" onclick="if(event.target===this)closeModelDetailModal()">
+  <div class="modelDetailModalBox">
+    <div class="modelDetailModalHead">
+      <h2 id="modelDetailModalTitle">Detalhes do modelo</h2>
+      <button class="secondary" onclick="closeModelDetailModal()">Fechar</button>
+    </div>
+    <div id="modelDetailModalBody"></div>
+  </div>
+</div>
 <script src="../assets/js/analise-geral-grupo-secure-adapter.js?v=modelos-spf-periodo-20260807"></script>
 </body>
 </html>

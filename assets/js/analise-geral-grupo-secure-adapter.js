@@ -103,7 +103,13 @@
   }
 
   async function fetchMetrics(start, end) {
-    const response = await client.rpc("operational_metrics", { p_start: iso(start), p_end: iso(end) });
+    // Fase UX-Grupo-3.0, Item 2: p_group_view pede escopo de TODAS as lojas
+    // do Grupo, exclusivo deste módulo (Análise Geral do Grupo). O backend
+    // (operational_metrics) só amplia de fato para ANALISTA/VENDEDOR --
+    // para qualquer outro perfil autorizado a abrir este módulo (MASTER,
+    // DIRETOR NOVOS/SEMINOVOS) o parâmetro não altera o escopo já correto
+    // que cada um já tinha, então é seguro enviar sempre true aqui.
+    const response = await client.rpc("operational_metrics", { p_start: iso(start), p_end: iso(end), p_group_view: true });
     if (response.error) throw response.error;
     const payload = response.data || {};
     if (!Array.isArray(payload.rows)) throw new Error("A API segura retornou uma resposta incompleta.");
