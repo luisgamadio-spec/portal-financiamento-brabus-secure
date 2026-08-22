@@ -212,6 +212,11 @@ table.compactMain td.commValue{
   display:block!important;
   filter:drop-shadow(0 6px 18px rgba(0,0,0,.45));
 }
+.topHeaderRight{
+  display:flex!important;
+  align-items:center!important;
+  gap:16px!important;
+}
 #loginBox .row{
   align-items:flex-end!important;
 }
@@ -237,7 +242,8 @@ table.compactMain td.commValue{
 @media(max-width:700px){
   .topHeader{align-items:flex-start!important;flex-direction:column!important;gap:12px!important;}
   .headerTitle h1{font-size:26px!important;}
-  .headerLogo{height:34px!important;max-width:210px!important;align-self:flex-end!important;}
+  .topHeaderRight{align-self:stretch!important;justify-content:space-between!important;flex-wrap:wrap!important;}
+  .headerLogo{height:34px!important;max-width:210px!important;}
   .vendorKpis{grid-template-columns:1fr!important;}
 }
 </style>
@@ -969,7 +975,9 @@ window.BLISTIQ_FOOTER_HTML = '<div class="blistiqFooter">Desenvolvido por <b>BLI
 <body>
 <header class="topHeader">
   <div class="headerTitle"><h1>Portal F&I — Grupo Brabus Mitsubishi</h1></div>
+  <div class="topHeaderRight" id="topHeaderRight">
   <img class="headerLogo" src="data:image/png;base64,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" alt="Grupo Brabus">
+  </div>
 </header>
 <main>
 <div class="login" id="loginBox">
@@ -1146,6 +1154,7 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
 }
 </script>
 <script src="assets/js/portal-app.js"></script>
+<script src="assets/js/portal-ai-ui.js"></script>
 <script src="assets/js/master-gestao-bases.js"></script>
 <script src="assets/js/master-gestao-simuladores.js"></script>
 <script src="assets/js/master-acessos-modulos.js"></script>
@@ -1247,6 +1256,86 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
 .userDrawer{position:fixed;top:0;right:0;height:100vh;width:min(480px,100%);background:#111;border-left:1px solid rgba(255,255,255,.14);box-shadow:-24px 0 70px rgba(0,0,0,.6);overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;padding:20px}
 .userDrawerOverlay.show .userDrawer{transform:translateX(0)}
 @media(max-width:640px){.userDrawer{width:100%}}
+
+/* Fase IA-2B — Brabus F&I Intelligence: botão no header (MASTER-only,
+   injetado via JS em assets/js/portal-ai-ui.js) + drawer conversacional.
+   Segue o mesmo padrão visual do .userDrawer acima (lado direito,
+   slide via transform, mesma faixa de z-index). */
+.brabusAiBtn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:9px 16px;border-radius:999px;
+  background:linear-gradient(135deg,rgba(246,196,83,.16),rgba(246,196,83,.05));
+  border:1px solid rgba(246,196,83,.45);
+  color:#f6c453;font-weight:900;font-size:13px;letter-spacing:.01em;
+  cursor:pointer;box-shadow:none;white-space:nowrap;
+}
+.brabusAiBtn:hover{background:linear-gradient(135deg,rgba(246,196,83,.26),rgba(246,196,83,.08));}
+.brabusAiBtnIcon{font-size:14px;line-height:1}
+.brabusAiBtnBadge{
+  font-size:9.5px;font-weight:950;letter-spacing:.06em;
+  background:rgba(246,196,83,.22);color:#ffe6a3;
+  border-radius:999px;padding:2px 7px;text-transform:uppercase;
+}
+@media(max-width:480px){.brabusAiBtn{padding:8px 12px;font-size:12px}.brabusAiBtnBadge{display:none}}
+
+.brabusAiOverlay{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9994;display:none}
+.brabusAiOverlay.show{display:block}
+.brabusAiDrawer{
+  position:fixed;top:0;right:0;height:100vh;width:min(460px,100%);
+  background:#111;border-left:1px solid rgba(246,196,83,.22);
+  box-shadow:-24px 0 70px rgba(0,0,0,.6);
+  transform:translateX(100%);transition:transform .22s ease;
+  display:flex;flex-direction:column;
+}
+.brabusAiOverlay.show .brabusAiDrawer{transform:translateX(0)}
+@media(max-width:640px){.brabusAiDrawer{width:100%}}
+
+.brabusAiHeader{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:18px 18px 14px;border-bottom:1px solid rgba(255,255,255,.1);flex:none}
+.brabusAiTitle{font-size:16.5px;font-weight:950;color:#fff;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.brabusAiBadge{font-size:9.5px;font-weight:950;letter-spacing:.06em;background:rgba(246,196,83,.22);color:#ffe6a3;border-radius:999px;padding:2px 7px;text-transform:uppercase}
+.brabusAiSubtitle{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4}
+.brabusAiHeaderActions{display:flex;align-items:center;gap:8px;flex:none}
+.brabusAiNewChatBtn{padding:7px 12px!important;font-size:11.5px!important;background:#222!important;border-radius:999px!important;box-shadow:none!important;white-space:nowrap}
+.brabusAiCloseBtn{width:30px;height:30px;padding:0!important;border-radius:999px!important;background:#1c1c1c!important;border:1px solid rgba(255,255,255,.14);font-size:15px!important;line-height:1;box-shadow:none!important}
+
+.brabusAiBody{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px}
+.brabusAiGreeting{color:var(--muted);font-size:13.5px;line-height:1.55;background:#151515;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 16px}
+.brabusAiSuggestions{display:flex;flex-direction:column;gap:8px}
+.brabusAiSuggestionChip{
+  text-align:left;background:#161616!important;border:1px solid rgba(246,196,83,.28)!important;
+  color:#f0dcae!important;border-radius:12px!important;padding:10px 14px!important;
+  font-size:12.8px!important;font-weight:700!important;box-shadow:none!important;
+}
+.brabusAiSuggestionChip:hover{background:#1d1a10!important}
+
+.brabusAiBubble{max-width:88%;border-radius:14px;padding:11px 14px;font-size:13.3px;line-height:1.55}
+.brabusAiBubbleUser{align-self:flex-end;background:rgba(227,6,19,.20);border:1px solid rgba(227,6,19,.35);color:#fff;white-space:pre-wrap}
+.brabusAiBubbleAi{align-self:flex-start;background:#151515;border:1px solid rgba(255,255,255,.08);color:#f0f0f0}
+.brabusAiBubbleAi p,.brabusAiBubbleAi ul,.brabusAiBubbleAi ol{margin:0 0 8px}
+.brabusAiBubbleAi p:last-child,.brabusAiBubbleAi ul:last-child,.brabusAiBubbleAi ol:last-child{margin-bottom:0}
+.brabusAiBubbleAi ul,.brabusAiBubbleAi ol{padding-left:18px}
+.brabusAiBubbleAi li{margin-bottom:3px}
+.brabusAiBubbleAi strong{color:#fff}
+.brabusAiBubbleAi a{color:#f6c453;word-break:break-word}
+.brabusAiTableWrap{overflow-x:auto;margin:0 0 8px;border:1px solid rgba(255,255,255,.1);border-radius:10px}
+.brabusAiTable{border-collapse:collapse;width:100%;font-size:12px}
+.brabusAiTable th,.brabusAiTable td{padding:6px 9px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left;white-space:nowrap}
+.brabusAiTable th{background:#1a1a1a;color:var(--muted);font-size:10px;text-transform:uppercase}
+.brabusAiTable tr:last-child td{border-bottom:none}
+.brabusAiBubbleLoading{align-self:flex-start;background:#151515;border:1px solid rgba(255,255,255,.08);color:var(--muted);font-style:italic}
+.brabusAiBubbleError{align-self:flex-start;background:rgba(227,6,19,.12);border:1px solid rgba(227,6,19,.4);color:#ffc7cb}
+
+.brabusAiInputBar{display:flex;gap:10px;align-items:flex-end;padding:14px 18px;border-top:1px solid rgba(255,255,255,.1);flex:none}
+.brabusAiInput{
+  flex:1;resize:none;min-height:42px;max-height:140px;
+  background:#0a0a0a;color:#fff;border:1px solid #333;border-radius:12px;
+  padding:11px 13px;font-size:13.3px;font-family:inherit;line-height:1.4;
+}
+.brabusAiInput:focus{outline:none;border-color:rgba(246,196,83,.5)}
+.brabusAiSendBtn{padding:11px 16px!important;border-radius:12px!important;font-size:13px!important;flex:none}
+.brabusAiSendBtn:disabled{opacity:.45;cursor:default}
+
+.brabusAiFooter{padding:10px 18px 16px;font-size:10.8px;color:#77726a;line-height:1.4;flex:none}
 .userDrawerHeader{position:relative;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.1)}
 .userDrawerClose{position:absolute;top:-6px;right:-6px;width:34px;height:34px;border-radius:999px;background:#1c1c1c!important;border:1px solid rgba(255,255,255,.14);font-size:18px;line-height:1;box-shadow:none!important}
 .userDrawerNome{font-size:19px;font-weight:950;color:#fff;padding-right:36px}
@@ -1403,6 +1492,10 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
      ficha do usuário e pelas novas fichas (Histórico de Competências). -->
 <div id="userDrawerOverlay" class="userDrawerOverlay" onclick="if(event.target===this) fecharDrawerGenerico()">
   <div id="userDrawer" class="userDrawer"></div>
+</div>
+
+<div id="brabusAiOverlay" class="brabusAiOverlay" onclick="if(event.target===this) fecharBrabusAI()">
+  <aside id="brabusAiDrawer" class="brabusAiDrawer" role="dialog" aria-modal="true" aria-label="Brabus F&amp;I Intelligence"></aside>
 </div>
 
 

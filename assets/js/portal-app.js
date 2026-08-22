@@ -2645,6 +2645,7 @@ async function logout(){
   document.getElementById('portalHome')?.classList.add('hidden');
   document.getElementById('painelAnalistaFi')?.classList.add('hidden');
   document.getElementById('loginBox').classList.remove('hidden');
+  if(typeof removeBrabusAIButton==='function') removeBrabusAIButton();
 }
 
 function setDataFinalHoje(){
@@ -2689,6 +2690,7 @@ async function initApp(){
   document.getElementById('loginBox').classList.add('hidden');
   document.getElementById('app').classList.add('hidden');
   renderPortalHome();
+  if(typeof renderBrabusAIButton==='function') renderBrabusAIButton();
 }
 
 function portalRoleKeyForComissao(u=USER){
