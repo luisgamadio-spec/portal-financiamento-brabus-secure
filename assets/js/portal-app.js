@@ -5043,12 +5043,20 @@ function pickSnap(r,d,key,alts=[]){
   return 0;
 }
 function snapshotNormalizedRow(r){
-  const d=parseMaybeJson(r.dados)||parseMaybeJson(r.observacao)||{};
+  // Incidente Certificacao-Excel-2.0: snapshot_comissoes (fechamento real) guarda
+  // a decomposicao comissao_principal/comissao_spf dentro da coluna jsonb
+  // "detalhes" (nao "dados"/"observacao", que nunca existiram nessa tabela) e o
+  // departamento da linha na coluna "departamento" (nao "status"). A Previa
+  // RH/DP continua funcionando sem alteracao: seus objetos ja trazem esses
+  // campos direto na raiz (r.status/r.comissao_principal/...), que pickSnap
+  // sempre prioriza antes de olhar "d".
+  const d=parseMaybeJson(r.detalhes)||parseMaybeJson(r.dados)||parseMaybeJson(r.observacao)||{};
   return {
     loja:pickSnap(r,d,'loja')||'',
     perfil:pickSnap(r,d,'perfil')||'',
     nome:pickSnap(r,d,'nome')||'',
-    status:pickSnap(r,d,'status')||'',
+    cpf:pickSnap(r,d,'cpf')||'',
+    status:pickSnap(r,d,'status',['departamento'])||'',
     vendidas:+pickSnap(r,d,'vendidas'),
     financiadas:+pickSnap(r,d,'financiadas'),
     share:+pickSnap(r,d,'share'),
