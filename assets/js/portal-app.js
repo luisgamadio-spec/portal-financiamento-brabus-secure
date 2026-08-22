@@ -5617,12 +5617,189 @@ function abrirExportarHistoricoModal(id,nomePeriodo){
     onConfirm:()=>closeAdminModal()
   });
 }
+// =========================================================================
+// Fase Histórico-UX-2.0 — 1 COMPETÊNCIA (periodos_comissao) = 1 item na
+// tela. FECHAR/REABRIR/FECHAR NOVAMENTE são eventos daquela competência
+// (fechamentos_comissao, append-only) — nunca competências diferentes.
+// Zero RPC nova: reaproveita PERIODOS_COMISSAO, FECHAMENTOS_COMISSAO,
+// getSnapshotFechamento, buscarAuditoriaSpfParaFechamento (Fechamento
+// 1.0), exportSnapshotExcel, classificarSnapshotHistorico. Nenhuma regra
+// financeira/RPC/snapshot alterada — apenas apresentação.
+// =========================================================================
+let HISTORICO_UX_PERIODO_ID=null;
+let HISTORICO_UX_SNAPSHOT_STATUS_CACHE={};
+function historicoPeriodosAtivos(){
+  return (PERIODOS_COMISSAO||[]).filter(p=>p.ativo!==false)
+    .slice().sort((a,b)=>(b.data_inicio||'').localeCompare(a.data_inicio||''));
+}
+function historicoPeriodoOptionsComSelecao(selectedId){
+  return historicoPeriodosAtivos()
+    .map(p=>`<option value="${p.id}"${String(p.id)===String(selectedId)?' selected':''}>${escapeOperationalHtml(p.nome_periodo||'')} · ${escapeOperationalHtml(p.status||'')}</option>`)
+    .join('');
+}
+function fechamentoAtivoDoPeriodo(periodoId){
+  return (FECHAMENTOS_COMISSAO||[]).find(f=>String(f.periodo_id||'')===String(periodoId)&&String(f.status||'').toUpperCase()==='FECHADO'&&f.ativo!==false)||null;
+}
+// Um registro de fechamentos_comissao pode carregar DOIS momentos (fechado_em
+// E reaberto_em, se foi reaberto depois) -- achata em eventos individuais
+// (1 por transição real) pra reconstruir a linha do tempo completa, em vez
+// de mostrar só o status atual da linha e perder o "fechou às 23:01" de
+// quem depois foi reaberto.
+function eventosDoPeriodo(periodoId){
+  const eventos=[];
+  (FECHAMENTOS_COMISSAO||[]).filter(f=>String(f.periodo_id||'')===String(periodoId)).forEach(f=>{
+    if(f.fechado_em){
+      eventos.push({tipo:'FECHADO',data:f.fechado_em,responsavel:f.fechado_por_nome||f.fechado_por,
+        valor:fechamentoMetric?fechamentoMetric(f,'comissao_total'):(f.comissao_total||0),
+        atual:String(f.status||'').toUpperCase()==='FECHADO'&&f.ativo===true});
+    }
+    if(f.reaberto_em){
+      eventos.push({tipo:'REABERTO',data:f.reaberto_em,responsavel:f.reaberto_por,valor:null,atual:false});
+    }
+  });
+  return eventos.sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+}
+function selecionarHistoricoPeriodo(id){
+  HISTORICO_UX_PERIODO_ID=id||null;
+  renderMasterAdmin();
+  const fechamento=id?fechamentoAtivoDoPeriodo(id):null;
+  if(fechamento&&HISTORICO_UX_SNAPSHOT_STATUS_CACHE[fechamento.id]===undefined){
+    HISTORICO_UX_SNAPSHOT_STATUS_CACHE[fechamento.id]=null;
+    getSnapshotFechamento(fechamento.id).then(rows=>{
+      HISTORICO_UX_SNAPSHOT_STATUS_CACHE[fechamento.id]=classificarSnapshotHistorico(rows);
+      renderMasterAdmin();
+    });
+  }
+}
+async function abrirCompetenciaAtivaHistorico(periodoId){
+  const fechamento=fechamentoAtivoDoPeriodo(periodoId);
+  if(!fechamento){toastAdmin('Esta competência não possui fechamento ativo para abrir.','err');return}
+  await carregarHistoricoSnapshotSelecionado(fechamento.id);
+}
+async function exportarRhDpOficialHistorico(periodoId){
+  const fechamento=fechamentoAtivoDoPeriodo(periodoId);
+  if(!fechamento){toastAdmin('Esta competência não possui fechamento ativo para exportar.','err');return}
+  const rows=await getSnapshotFechamento(fechamento.id);
+  const spfAuditData=await buscarAuditoriaSpfParaFechamento(fechamento.id);
+  if(spfAuditData===undefined) return;
+  exportSnapshotExcel(rows,'Relatorio_Comissoes_RH_DP_'+fechamento.id+'.xlsx',false,spfAuditData);
+}
+async function imprimirRhDpOficialHistorico(periodoId){
+  const fechamento=fechamentoAtivoDoPeriodo(periodoId);
+  if(!fechamento){toastAdmin('Esta competência não possui fechamento ativo para imprimir.','err');return}
+  const rows=await getSnapshotFechamento(fechamento.id);
+  imprimirSnapshotPDF(rows,'Relatório '+(fechamento.nome_periodo||''));
+}
+// Prévia sempre opera sobre #dtIni/#dtFim — sincroniza com o período
+// selecionado no Histórico antes de disparar, senão exportaria o período
+// errado. Não mexe em PERIODO_SELECIONADO (isso pertence à aba Fechamento
+// de Competência) nem força um render() completo do app.
+async function exportarPreviaHistorico(dataInicio,dataFim){
+  const dtIni=document.getElementById('dtIni'), dtFim=document.getElementById('dtFim');
+  if(!dtIni||!dtFim){toastAdmin('Não foi possível localizar os campos de período.','err');return}
+  dtIni.value=dataInicio||''; dtFim.value=dataFim||'';
+  await loadOperationalCommissionMetrics(true);
+  await exportarPreviaRhDp();
+}
+function historicoEventoHtml(ev){
+  const cor=ev.tipo==='FECHADO'?'var(--green)':'var(--yellow)';
+  return `<div class="histEventoRow">
+    <span class="histEventoDot" style="background:${cor}"></span>
+    <div class="histEventoBody">
+      <div><b>${escapeOperationalHtml(ev.tipo)}</b>${ev.atual?' <span class="histEventoAtual">ATUAL</span>':''}</div>
+      <div class="histEventoMeta">${ev.data?new Date(ev.data).toLocaleString('pt-BR'):'—'} · ${escapeOperationalHtml(ev.responsavel||'—')}${ev.tipo==='FECHADO'?' · '+fmtMoney(ev.valor):''}</div>
+    </div>
+  </div>`;
+}
+async function compararCompetenciasHistoricoV2(){
+  const a=document.getElementById('cmpA')?.value,b=document.getElementById('cmpB')?.value;
+  if(!a||!b){toastAdmin('Selecione duas competências para comparar.','err');return}
+  const fa=fechamentoAtivoDoPeriodo(a),fb=fechamentoAtivoDoPeriodo(b);
+  if(!fa||!fb){toastAdmin('Uma das competências selecionadas não possui fechamento ativo.','err');return}
+  const ra=await getSnapshotFechamento(fa.id),rb=await getSnapshotFechamento(fb.id);
+  const aa=aggregateSnapshot(ra),ab=aggregateSnapshot(rb);
+  const nomeA=(PERIODOS_COMISSAO||[]).find(p=>String(p.id)===String(a))?.nome_periodo||'Competência A';
+  const nomeB=(PERIODOS_COMISSAO||[]).find(p=>String(p.id)===String(b))?.nome_periodo||'Competência B';
+  SNAPSHOT_VIEW=[
+    {loja:'COMPARATIVO',perfil:'A',nome:nomeA,vendidas:aa.vendidas,financiadas:aa.financiadas,retorno:aa.retorno,spf_extra:aa.spf_extra,comissao_total:aa.comissao_total},
+    {loja:'COMPARATIVO',perfil:'B',nome:nomeB,vendidas:ab.vendidas,financiadas:ab.financiadas,retorno:ab.retorno,spf_extra:ab.spf_extra,comissao_total:ab.comissao_total},
+    {loja:'DIFERENÇA',perfil:'B-A',nome:'Variação',vendidas:ab.vendidas-aa.vendidas,financiadas:ab.financiadas-aa.financiadas,retorno:ab.retorno-aa.retorno,spf_extra:ab.spf_extra-aa.spf_extra,comissao_total:ab.comissao_total-aa.comissao_total}
+  ];
+  renderMasterAdmin();
+}
 function renderHistoricoCompetenciasHtml(){
-  const opts=historicoOptions();
-  const rows=(FECHAMENTOS_COMISSAO||[]).map(f=>renderFechamentoHistoricoRow(f,`
-    <button class="adminActionBtn wine" onclick="carregarHistoricoSnapshotSelecionado('${f.id}')">Abrir</button>
-    <button class="adminActionBtn good" onclick="abrirExportarHistoricoModal('${f.id}','${escapeOperationalHtml(f.nome_periodo||'').replace(/'/g,"\\'")}')">Exportar</button>`)).join('');
-  return `<h2>Histórico de Competências</h2><p class="note">Consulte competências fechadas usando exclusivamente os snapshots congelados.</p><div class="readonlyBanner">Modo histórico: somente leitura e sem recálculo.</div><div class="reportActions"><select id="histFechamentoSel">${opts}</select><button onclick="carregarHistoricoSnapshotSelecionado(document.getElementById('histFechamentoSel').value)">Abrir competência</button><button onclick="exportarRelatorioHistoricoSelecionado()">Exportar Excel Completo RH/DP Completo</button><button onclick="imprimirRelatorioHistoricoSelecionado()">PDF / Imprimir</button></div><h3>Comparar competências</h3><div class="reportActions"><select id="cmpA">${opts}</select><select id="cmpB">${opts}</select><button onclick="compararCompetenciasHistorico()">Comparar</button></div><div class="adminListWrap">${rows||'<p class="note" style="padding:16px">Nenhum fechamento encontrado.</p>'}</div>${(SNAPSHOT_VIEW||[]).length?renderSnapshotReportHtml(SNAPSHOT_VIEW,'Snapshot / Relatório carregado'):''}`;
+  const periodos=historicoPeriodosAtivos();
+  if(!periodos.length){
+    return `<h2>Histórico de Competências</h2><p class="note">Nenhuma competência cadastrada.</p>`;
+  }
+  const fechadas=periodos.filter(p=>String(p.status||'').toUpperCase()==='FECHADO');
+  if(!HISTORICO_UX_PERIODO_ID){
+    HISTORICO_UX_PERIODO_ID=(fechadas[0]||periodos[0]).id;
+  }
+  const periodo=periodos.find(p=>String(p.id)===String(HISTORICO_UX_PERIODO_ID))||fechadas[0]||periodos[0];
+  const statusUpper=String(periodo.status||'').toUpperCase();
+  const isFechado=statusUpper==='FECHADO';
+  const fechamento=isFechado?fechamentoAtivoDoPeriodo(periodo.id):null;
+  const eventos=eventosDoPeriodo(periodo.id);
+
+  const statusBadge=isFechado
+    ?'<span class="histStatusBadge histStatusFechado">FECHADO</span>'
+    :'<span class="histStatusBadge histStatusConferencia">EM CONFERÊNCIA</span>';
+
+  const legadoStatus=fechamento?HISTORICO_UX_SNAPSHOT_STATUS_CACHE[fechamento.id]:undefined;
+  const legadoBadge=(isFechado&&legadoStatus==='ZERADO')
+    ?'<div class="fechamentoWarning">⚠ SNAPSHOT LEGADO — REVISÃO NECESSÁRIA. Este snapshot foi gravado sem valores financeiros completos (achado conhecido, backlog separado — não corrigido nesta fase).</div>'
+    :'';
+
+  const cardCorpo=isFechado
+    ?`<div class="fechamentoPreviewGrid">
+        <div class="fechamentoPreviewCard"><div class="k">Fechado em</div><div class="v">${fechamento?.fechado_em?new Date(fechamento.fechado_em).toLocaleString('pt-BR'):'—'}</div></div>
+        <div class="fechamentoPreviewCard"><div class="k">Responsável</div><div class="v">${escapeOperationalHtml(fechamento?.fechado_por_nome||fechamento?.fechado_por||'—')}</div></div>
+        <div class="fechamentoPreviewCard"><div class="k">Comissão Total</div><div class="v">${fmtMoney(fechamento?fechamentoMetric(fechamento,'comissao_total'):0)}</div></div>
+      </div>`
+    :`<p class="fechamentoSectionNote">Competência ainda não fechada. A Prévia RH/DP recalcula ao vivo e não substitui o fechamento oficial.</p>`;
+
+  const acoes=isFechado
+    ?`<div class="fechamentoActionBox">
+        <button onclick="abrirCompetenciaAtivaHistorico('${periodo.id}')">Abrir Competência</button>
+        <button class="adminActionBtn good" onclick="exportarRhDpOficialHistorico('${periodo.id}')">Exportar RH/DP</button>
+        <button class="adminActionBtn wine" onclick="imprimirRhDpOficialHistorico('${periodo.id}')">PDF / Imprimir</button>
+      </div>`
+    :`<div class="fechamentoActionBox">
+        <button class="adminActionBtn warn" onclick="exportarPreviaHistorico('${periodo.data_inicio||''}','${periodo.data_fim||''}')">Exportar Prévia RH/DP</button>
+      </div>`;
+
+  const historicoAcoes=eventos.length
+    ?`<details class="histEventosDetails">
+        <summary>Histórico de ações (${eventos.length})</summary>
+        <div class="histEventosList">${eventos.map(historicoEventoHtml).join('')}</div>
+      </details>`
+    :'<p class="note">Nenhum evento de fechamento registrado ainda para esta competência.</p>';
+
+  const cmpDefaultA=fechadas[0]?.id||'';
+  const cmpDefaultB=fechadas[1]?.id||'';
+
+  return `<h2>Histórico de Competências</h2>
+    <p class="note">Consulte competências encerradas e seus snapshots congelados.</p>
+    <div class="readonlyBanner">Modo histórico: somente leitura e sem recálculo.</div>
+    <div class="reportActions">
+      <div><label>Competência</label><br><select id="histPeriodoSel" onchange="selecionarHistoricoPeriodo(this.value)">${historicoPeriodoOptionsComSelecao(periodo.id)}</select></div>
+    </div>
+    <div class="fechamentoPreviewBox">
+      <div class="fechamentoSectionTitle">${escapeOperationalHtml(periodo.nome_periodo||'')} ${statusBadge}</div>
+      <div class="fechamentoSectionNote">${dataBR(periodo.data_inicio||'')} a ${dataBR(periodo.data_fim||'')}</div>
+      ${legadoBadge}
+      ${cardCorpo}
+      ${acoes}
+    </div>
+    ${historicoAcoes}
+    <h3>Comparar competências</h3>
+    <div class="reportActions">
+      <select id="cmpA">${historicoPeriodoOptionsComSelecao(cmpDefaultA)}</select>
+      <select id="cmpB">${historicoPeriodoOptionsComSelecao(cmpDefaultB)}</select>
+      <button onclick="compararCompetenciasHistoricoV2()">Comparar</button>
+    </div>
+    ${(SNAPSHOT_VIEW||[]).length?renderSnapshotReportHtml(SNAPSHOT_VIEW,'Snapshot / Relatório carregado'):''}`;
 }
 function renderRelatoriosRhDpHtml(){
   // Checkpoint C.3: centraliza as duas experiências de RH/DP na mesma aba.
@@ -5817,7 +5994,7 @@ async function renderMasterAdminContent(renderSequence){
       ? await renderPendenciasCadastraisTab()
       : '<h2>Pendências Cadastrais</h2><p class="note" style="color:#ff6b61">Módulo não carregado (assets/js/master-pendencias-cadastrais.js).</p>';
   }else if(MASTER_TAB==='historico'){
-    await carregarFechamentosComissao();
+    await Promise.all([carregarFechamentosComissao(),carregarPeriodosComissao()]);
     body=renderHistoricoCompetenciasHtml();
   }else if(MASTER_TAB==='relatorios'){
     await carregarFechamentosComissao();
