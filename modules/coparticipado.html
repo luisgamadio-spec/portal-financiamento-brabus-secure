@@ -52,7 +52,7 @@
 <body>
 <header><div class="title"><div><h1>Gestão de Coparticipados</h1><div class="subtitle">Módulo financeiro · Portal F&I Grupo Brabus Mitsubishi</div></div></div></header>
 <main>
-  <div class="actions" id="autoLoadWrap"><button class="secondary" onclick="processar()">Recarregar bases</button><button class="secondary" onclick="exportarCoparticipados()">Exportar Coparticipados em Excel</button><span id="status" class="status">Carregando bases automaticamente...</span></div>
+  <div class="actions" id="autoLoadWrap"><button class="secondary" onclick="processar()">Recarregar bases</button><button class="secondary" onclick="exportarCoparticipados()">Exportar Coparticipados em Excel</button><button class="secondary" onclick="exportarSubsidiados()">Exportar Subsidiados em Excel</button><span id="status" class="status">Carregando bases automaticamente...</span></div>
   <div id="filters" class="filters" style="display:none">
     <div class="field"><label>Data inicial</label><input id="dateStart" type="date" value="2026-06-01" onchange="autoRenderFromFilter()" oninput="autoRenderFromFilter()"></div>
     <div class="field"><label>Data final</label><input id="dateEnd" type="date" onchange="autoRenderFromFilter()" oninput="autoRenderFromFilter()"></div>
@@ -64,7 +64,7 @@
     <button class="secondary" onclick="setQuickPeriod('lastYear')">Último ano</button>
     <button class="secondary" onclick="clearPeriodFilter()">Limpar período</button>
   </div>
-  <div class="tabs" id="tabs" style="display:none"><div class="tab active" onclick="showTab('copart',this)">Coparticipados</div><div class="tab" onclick="showTab('diagnostico',this)">Diagnóstico</div></div>
+  <div class="tabs" id="tabs" style="display:none"><div class="tab active" onclick="showTab('copart',this)">Coparticipados / Subsidiados</div><div class="tab" onclick="showTab('diagnostico',this)">Diagnóstico</div></div>
   <section id="copart" class="active"></section>
   <section id="diagnostico"></section>
   <div class="footer">Regras do módulo Coparticipado no Portal F&I: carregamento automático das bases em ../data/ incluindo BASE CORRETA VENDAS ATUALIZADA.xlsx; coparticipado válido somente com Base 03 FANDI + TC Devolvida = 1 + Situação PAGA/FATURADA; coparticipação calculada pela tabela taxa coparticipado.xlsx por modelo, Rebate Total e Parte Brabus; exportação em Excel nativo formatado.</div>
@@ -531,7 +531,33 @@ function renderNovos(sales,fins){const el=document.getElementById('novos');if(el
 function openSellerDetails(vend,loja){vend=decodeURIComponent(vend);loja=decodeURIComponent(loja);const f=currentFiltered();const rows=f.fins.filter(r=>r.dept==='Novos'&&r.vendedor===vend&&r.loja===loja);document.getElementById('modalTitle').textContent=`Detalhes · ${vend}`;document.getElementById('modalBody').innerHTML=`<div class="tableWrap"><table><thead><tr><th>Cliente</th><th>Loja</th><th>Modelo</th><th>Família</th><th>Valor Venda</th><th>Valor Financiado</th><th>% Entrada</th><th>Plano</th><th>Prazo</th><th>Parcela</th><th>Balão</th><th>Retorno</th><th>SPF</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.cliente}</td><td>${r.loja}</td><td>${r.modelo}</td><td>${r.familia}</td><td>${money(r.valorVenda)}</td><td>${money(r.valorFinanciado)}</td><td>${pct(r.valorVenda?Math.max(0,r.valorVenda-r.valorFinanciado)/r.valorVenda:0)}</td><td>${planBadge(r.plano)}</td><td>${num(r.parcelas)}</td><td>${financiamentoCellParcela(r)}</td><td>${financiamentoCellBalao(r)}</td><td>${money(r.retorno)}</td><td>${money(r.receitaSPF)}</td><td>${iso(r.data)}</td><td>${r.chassi}</td></tr>`).join('')||'<tr><td colspan="15" class="muted">Sem financiamentos.</td></tr>'}</tbody></table></div>`;document.getElementById('modal').classList.add('open')}
 function closeModal(){document.getElementById('modal').classList.remove('open')}
 function calcCoparticipacao(r){return calcCoparticipacaoDetalhe(r).coparticipacao||0}
-function renderCopa(fins){const rows=fins.filter(r=>r.plano==='COPARTICIPADO');document.getElementById('copart').innerHTML=`<div class="panel"><h2>Planos Coparticipados</h2><p class="muted">Coparticipação calculada pela tabela <b>taxa coparticipado.xlsx</b>: Modelo × Rebate Total × Rebate Parte Brabus.</p><div class="tableWrap"><table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Loja</th><th>Modelo Base</th><th>Modelo Taxa</th><th>Valor Financiado</th><th>Rebate Total</th><th>Parte Brabus</th><th>Valor Rebate Total</th><th>Coparticipação</th><th>Situação</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(r=>{const c=calcCoparticipacaoDetalhe(r);return `<tr><td>${r.cliente}</td><td>${r.vendedor}</td><td>${r.loja}</td><td>${r.modelo}</td><td>${c.modeloTabela||'<span class="warn">Não encontrado</span>'}</td><td>${money(r.valorFinanciado)}</td><td>${c.ok?pct(c.rebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?pct(c.parteBrabus):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.valorRebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.coparticipacao):'<span class="warn">Modelo não encontrado na tabela de taxa</span>'}</td><td>${r.situacaoB3||''}</td><td>${iso(r.data)}</td><td>${r.chassi}</td></tr>`}).join('')||'<tr><td colspan="13" class="muted">Nenhum coparticipado encontrado no filtro atual.</td></tr>'}</tbody></table></div></div>`}
+// Fase UX-Grupo-3.0, Item 3: "Coparticipados" vira "Coparticipados / Subsidiados",
+// com uma visão dedicada para cada um dentro do mesmo painel (Part R: navegação
+// clara, sem novo tab de nível superior). Ambas as visões usam a MESMA fonte já
+// carregada (DATA.fins, vinda de operational_score_coparticipated_data) e o MESMO
+// campo r.plano já classificado pelo backend (classifyPlan/regra oficial) --
+// nenhuma classificação nova, nenhuma inferência por nome de plano (Part S/AA).
+// Coparticipados preserva 100% o comportamento anterior (Part AB) -- só a visão
+// Subsidiados é nova.
+let currentCoparView='COPARTICIPADO';
+function setCoparView(view){currentCoparView=view;render()}
+function coparViewSwitcherHtml(){
+  return `<div class="tabs" style="margin-bottom:14px">
+    <div class="tab ${currentCoparView==='COPARTICIPADO'?'active':''}" onclick="setCoparView('COPARTICIPADO')">Visão Coparticipados</div>
+    <div class="tab ${currentCoparView==='SUBSIDIADO'?'active':''}" onclick="setCoparView('SUBSIDIADO')">Visão Subsidiados</div>
+  </div>`;
+}
+function renderCopa(fins){
+  if(currentCoparView==='SUBSIDIADO') return renderSubsidiados(fins);
+  const rows=fins.filter(r=>r.plano==='COPARTICIPADO');
+  document.getElementById('copart').innerHTML=`<div class="panel">${coparViewSwitcherHtml()}<h2>Planos Coparticipados</h2><p class="muted">Coparticipação calculada pela tabela <b>taxa coparticipado.xlsx</b>: Modelo × Rebate Total × Rebate Parte Brabus.</p><div class="tableWrap"><table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Loja</th><th>Modelo Base</th><th>Modelo Taxa</th><th>Valor Financiado</th><th>Rebate Total</th><th>Parte Brabus</th><th>Valor Rebate Total</th><th>Coparticipação</th><th>Situação</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(r=>{const c=calcCoparticipacaoDetalhe(r);return `<tr><td>${r.cliente}</td><td>${r.vendedor}</td><td>${r.loja}</td><td>${r.modelo}</td><td>${c.modeloTabela||'<span class="warn">Não encontrado</span>'}</td><td>${money(r.valorFinanciado)}</td><td>${c.ok?pct(c.rebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?pct(c.parteBrabus):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.valorRebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.coparticipacao):'<span class="warn">Modelo não encontrado na tabela de taxa</span>'}</td><td>${r.situacaoB3||''}</td><td>${iso(r.data)}</td><td>${r.chassi}</td></tr>`}).join('')||'<tr><td colspan="13" class="muted">Nenhum coparticipado encontrado no filtro atual.</td></tr>'}</tbody></table></div></div>`;
+}
+function renderSubsidiados(fins){
+  const rows=fins.filter(r=>r.plano==='SUBSIDIADO');
+  const lojas=new Set(rows.map(r=>r.loja)).size;
+  const vendedores=new Set(rows.map(r=>r.vendedor)).size;
+  document.getElementById('copart').innerHTML=`<div class="panel">${coparViewSwitcherHtml()}<h2>Planos Subsidiados</h2><p class="muted">Todas as operações classificadas como <b>SUBSIDIADO</b> no período (mesma regra oficial já usada nos indicadores do Portal: código IF = 999 ou "SUBSIDIADO" na Base 03).</p><div class="summary"><div class="summaryItem"><div class="k">Operações</div><div class="v">${num(rows.length)}</div></div><div class="summaryItem"><div class="k">Lojas</div><div class="v">${num(lojas)}</div></div><div class="summaryItem"><div class="k">Vendedores</div><div class="v">${num(vendedores)}</div></div></div><div class="tableWrap"><table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Loja</th><th>Departamento</th><th>Modelo</th><th>Valor Financiado</th><th>Retorno</th><th>SPF Extra</th><th>Situação</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.cliente}</td><td>${r.vendedor}</td><td>${r.loja}</td><td>${r.dept}</td><td>${r.modelo}</td><td>${money(r.valorFinanciado)}</td><td>${money(r.retorno)}</td><td>${money(r.receitaSPF)}</td><td>${r.situacaoB3||''}</td><td>${iso(r.data)}</td><td>${r.chassi}</td></tr>`).join('')||'<tr><td colspan="11" class="muted">Nenhum subsidiado encontrado no filtro atual.</td></tr>'}</tbody></table></div></div>`;
+}
 function renderDiag(f){const d=DATA.diagnostics;const planCounts=DATA.fins.reduce((a,r)=>(a[r.plano]=(a[r.plano]||0)+1,a),{});const txt=[`Base 01 linhas lidas: ${d.b1Rows||0}`,`Base 02 linhas lidas: ${d.b2Rows||0}`,`Base 03 linhas lidas: ${d.b3Rows||0}`,`Base 03 FANDI: ${d.b3Fandi||0}`,`Base vendedores linhas lidas: ${d.vendorBaseRows||0}`,`Vendedores válidos TIPO=VENDEDOR: ${d.vendors||0}`,`Tabela taxa coparticipado lida: ${d.taxasCopart||0} modelos`, `Vendedores não cadastrados: ${d.vendedoresNaoCadastrados||0}`, `Coparticipados sem modelo na tabela de taxa: ${d.copSemTaxa||0}`,`Vendas válidas antes do filtro: ${d.sales||0}`,`Financiamentos válidos antes do filtro: ${d.fins||0}`,`Financiamentos com Base 03 vinculada: ${d.matchedB3||0}`,`Planos antes do filtro: ${JSON.stringify(planCounts)}`,`Filtro atual: ${f.sales.length} vendas / ${f.fins.length} financiamentos / ${f.fins.filter(x=>x.plano==='COPARTICIPADO').length} coparticipados`].join('\n');document.getElementById('diagnostico').innerHTML=`<div class="panel"><h2>Diagnóstico de Leitura</h2><pre class="diag">${txt}</pre></div>`}
 function excelDateValue(value){
   if(!value)return '';
@@ -659,6 +685,38 @@ function exportarCoparticipados(){
   XLSX.utils.book_append_sheet(wb,ws,'Coparticipados');
   wb.Workbook={Views:[{RTL:false}]};
   const filename=`Coparticipados_Score_FI_${excelFileStamp()}.xlsx`;
+  XLSX.writeFile(wb,filename,{bookType:'xlsx',cellDates:true});
+}
+// Fase UX-Grupo-3.0, Item 3: mesma fonte/regra oficial de plano (r.plano),
+// só filtra SUBSIDIADO em vez de COPARTICIPADO -- sem coluna de rebate/
+// coparticipação (não se aplica a este tipo de plano).
+function exportarSubsidiados(){
+  const f=currentFiltered();
+  const fins=f.fins.filter(r=>r.plano==='SUBSIDIADO');
+  if(!fins.length){alert('Nenhum subsidiado encontrado no filtro atual.');return}
+  const headers=['Nome do cliente','Vendedor','Loja vinculada','Departamento','Modelo do carro','Família do carro','Valor de venda','Valor financiado','Retorno','SPF Extra','Situação','Prazo','Parcela','Data da venda','Chassi'];
+  const rows=fins.map(r=>[
+    r.cliente||'',
+    r.vendedor||'',
+    r.loja||'',
+    r.dept||'',
+    r.modelo||'',
+    r.familia||'',
+    Number(r.valorVenda)||0,
+    Number(r.valorFinanciado)||0,
+    Number(r.retorno)||0,
+    Number(r.receitaSPF)||0,
+    r.situacaoB3||'',
+    r.parcelas?Number(r.parcelas):'',
+    r.pmt?Number(r.pmt):'',
+    excelDateValue(r.data)||'',
+    r.chassi||''
+  ]);
+  const wb=XLSX.utils.book_new();
+  const ws=buildStyledWorksheet(headers, rows, 'Subsidiados');
+  XLSX.utils.book_append_sheet(wb,ws,'Subsidiados');
+  wb.Workbook={Views:[{RTL:false}]};
+  const filename=`Subsidiados_Score_FI_${excelFileStamp()}.xlsx`;
   XLSX.writeFile(wb,filename,{bookType:'xlsx',cellDates:true});
 }</script>
 <script src="../assets/js/score-coparticipated-secure-adapter.js"></script>
