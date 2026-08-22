@@ -5287,7 +5287,7 @@ function fitColsFromJson(json, min=10, max=42){
   return keys.map(k=>({wch:Math.min(max,Math.max(min,k.length+2,...json.slice(0,200).map(r=>String(r[k]??'').length+2)))}));
 }
 
-function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx',isPreview=false,spfAuditData=null){
+function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx',isPreview=false,spfAuditData=null,chassisDetailData=null){
   if(!rows||!rows.length){alert('Nenhum snapshot carregado para exportar.');return}
   // Checkpoint C4: um snapshot histórico é fotografia imutável. NUNCA substituir
   // por recálculo ao vivo (calcularPreviewFechamentoCompetencia/calcGestorFIGrupo
@@ -5423,6 +5423,44 @@ function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx',isPr
   // Checkpoint C.2 (Fase C.2-C): fonte segura de detalhe por operação —
   // chassi sempre mascarado, cliente/CPF de cliente NUNCA retornados
   // (contrato validado em carregarDetalhesOperacionaisSeguro).
+  // Incidente Excel-RH-DP-3.0: mapeamento dedicado para o detalhe HISTÓRICO
+  // (abas 5/6), usando seller_name já resolvido pela própria RPC (evita
+  // nomeVendedorPorSellerId, que depende do período ATUALMENTE selecionado
+  // na tela e poderia resolver o vendedor errado para uma competência
+  // histórica diferente). Conjunto de colunas deliberadamente menor que
+  // detalheOperacionalRow (Prévia) -- SPF/rentabilidade por operação já têm
+  // aba própria (7_AUDITORIA_SPF); aqui o objetivo é auditar a composição de
+  // vendas/financiamentos, não repetir o detalhe de SPF.
+  function chassisDetailRowHistoricoAba6(row){
+    return {
+      Loja:row.store||'',
+      Departamento:row.department||'',
+      Vendedor:row.seller_name||'',
+      Data:excelDateBR(row.date||''),
+      'Chassi Mascarado':row.chassis_masked||'',
+      Modelo:row.vehicle_model||'',
+      Financiado:row.financed?'SIM':'NÃO',
+      'Valor Venda':+(row.sale_value||0),
+      Retorno:+(row.return_considered||0)
+    };
+  }
+  function chassisDetailRowHistoricoAba5(row){
+    return {
+      Loja:row.store||'',
+      Departamento:row.department||'',
+      Vendedor:row.seller_name||'',
+      Data:excelDateBR(row.date||''),
+      'Chassi Mascarado':row.chassis_masked||'',
+      Modelo:row.vehicle_model||'',
+      // Distinção determinística (não inferida): finance_date só é
+      // preenchido pela RPC quando existe is_real_financing para o chassi;
+      // um financed=true sem finance_date só pode vir do fallback de
+      // retorno tardio (is_later_return) -- Incidente Salary-Details-Later-Return.
+      'Tipo Financeiro':row.finance_date?'FINANCIAMENTO PRINCIPAL':'RETORNO POSTERIOR',
+      'Valor Financiado/Serviço':+(row.financed_value||0),
+      Retorno:+(row.return_considered||0)
+    };
+  }
   function detalheOperacionalRow(row){
     return {
       Loja:row.store||'',
@@ -5458,12 +5496,23 @@ function exportSnapshotExcel(rows,filename='Relatorio_Comissoes_RH_DP.xlsx',isPr
       allRows=msg; finRows=msg;
     }
   }else if(secureModeExport){
-    // Histórico em modo seguro: o detalhe por operação não foi armazenado no
-    // snapshot congelado — não reconstruir com a RPC operacional atual
-    // (misturaria o período do snapshot com dados de hoje). Ver 8_MEMORIA_DE_CALCULO
-    // para os totais por pessoa que efetivamente foram congelados.
-    const aviso=[{Aviso:'Detalhe operacional por chassi não foi armazenado neste snapshot histórico. Consulte a aba 8_MEMORIA_DE_CALCULO para os totais por pessoa efetivamente congelados nesta competência.'}];
-    finRows=aviso; allRows=aviso;
+    // Incidente Excel-RH-DP-3.0: o detalhe por operação não foi armazenado no
+    // snapshot congelado, mas pode ser reconstruído com segurança a partir de
+    // operational_salary_details QUANDO chassisDetailData já chegou aqui
+    // pré-reconciliado (vendedor a vendedor) contra os totais congelados pelo
+    // chamador (buscarDetalheOperacionalParaFechamento) — nunca recalculado
+    // aqui, só formatado. Se não houver detalhe reconciliado disponível,
+    // mantém o aviso original (nunca inventa dado).
+    if(chassisDetailData&&chassisDetailData.length){
+      const incluidos=chassisDetailData.filter(r=>r.included_in_commission)
+        .slice().sort((a,b)=>(a.store+a.department+a.seller_name+a.date+a.chassis_masked).localeCompare(b.store+b.department+b.seller_name+b.date+b.chassis_masked));
+      const financiados=incluidos.filter(r=>r.financed);
+      allRows=incluidos.length?incluidos.map(chassisDetailRowHistoricoAba6):[{Aviso:'Nenhuma operação registrada para o período desta competência.'}];
+      finRows=financiados.length?financiados.map(chassisDetailRowHistoricoAba5):[{Aviso:'Nenhuma operação financiada no período desta competência.'}];
+    }else{
+      const aviso=[{Aviso:'Detalhe operacional por chassi não foi armazenado neste snapshot histórico. Consulte a aba 8_MEMORIA_DE_CALCULO para os totais por pessoa efetivamente congelados nesta competência.'}];
+      finRows=aviso; allRows=aviso;
+    }
   }else{
     finRows=chassisRowsReport(true);
     allRows=chassisRowsReport(false);
@@ -5580,13 +5629,68 @@ async function buscarAuditoriaSpfParaFechamento(fechamentoId){
   }
   return data;
 }
+// Incidente Excel-RH-DP-3.0: abas 5/6 do export histórico reconstroem o
+// detalhe por chassi a partir da fonte operacional ATUAL (operational_
+// salary_details), já que o snapshot congelado nunca armazenou essa
+// granularidade (Checkpoint C4 continua intacto -- os TOTAIS do snapshot
+// nunca são recalculados/substituídos, só o detalhe complementar é novo).
+// Antes de apresentar essa reconstrução como se fosse memória histórica
+// confiável, valida -- vendedor a vendedor -- que ela reconcilia
+// EXATAMENTE com vendidas/financiadas já congelados no próprio
+// fechamento. Se qualquer vendedor divergir (drift de importação/
+// elegibilidade desde o fechamento), bloqueia a exportação inteira: abas
+// 5/6 incompletas nunca são apresentadas como auditoria confiável
+// (mesmo princípio fail-closed já usado em buscarAuditoriaSpfParaFechamento).
+async function buscarDetalheOperacionalParaFechamento(fechamentoId,snapshotRows){
+  const secureMode=String(PORTAL_RUNTIME_CONFIG.authMode||'').toLowerCase()==='secure';
+  if(!secureMode) return null;
+  const fechamento=(FECHAMENTOS_COMISSAO||[]).find(f=>String(f.id)===String(fechamentoId));
+  if(!fechamento||!fechamento.data_inicio||!fechamento.data_fim) return null;
+  const {data,error}=await supabaseClient.rpc('operational_salary_details',{
+    p_start:fechamento.data_inicio,p_end:fechamento.data_fim,p_seller_id:null
+  });
+  if(error){
+    toastAdmin('Não foi possível carregar o detalhe operacional desta competência: '+error.message,'err');
+    return undefined;
+  }
+  const rows=Array.isArray(data?.rows)?data.rows:[];
+  const porVendedorDetalhe={};
+  rows.forEach(r=>{
+    if(!r.included_in_commission) return;
+    const nome=r.seller_name||'';
+    if(!porVendedorDetalhe[nome]) porVendedorDetalhe[nome]={vendidas:0,financiadas:0};
+    porVendedorDetalhe[nome].vendidas++;
+    if(r.financed) porVendedorDetalhe[nome].financiadas++;
+  });
+  const porVendedorSnapshot={};
+  (snapshotRows||[]).filter(r=>String(r.perfil||'').toUpperCase()==='VENDEDOR').forEach(r=>{
+    const nome=r.nome||'';
+    if(!porVendedorSnapshot[nome]) porVendedorSnapshot[nome]={vendidas:0,financiadas:0};
+    porVendedorSnapshot[nome].vendidas+=+(r.vendidas||0);
+    porVendedorSnapshot[nome].financiadas+=+(r.financiadas||0);
+  });
+  const nomes=new Set([...Object.keys(porVendedorDetalhe),...Object.keys(porVendedorSnapshot)]);
+  let divergente=false;
+  nomes.forEach(nome=>{
+    const d=porVendedorDetalhe[nome]||{vendidas:0,financiadas:0};
+    const s=porVendedorSnapshot[nome]||{vendidas:0,financiadas:0};
+    if(d.vendidas!==s.vendidas||d.financiadas!==s.financiadas) divergente=true;
+  });
+  if(divergente){
+    toastAdmin('O detalhe operacional atual não corresponde ao snapshot congelado desta competência. A exportação foi interrompida para preservar a integridade da auditoria.','err');
+    return undefined;
+  }
+  return rows;
+}
 async function exportarRelatorioHistoricoSelecionado(){
   const id=document.getElementById('histFechamentoSel')?.value||document.getElementById('relFechamentoSel')?.value;
   if(!id){alert('Selecione uma competência.');return}
   const rows=await getSnapshotFechamento(id);
   const spfAuditData=await buscarAuditoriaSpfParaFechamento(id);
   if(spfAuditData===undefined) return;
-  exportSnapshotExcel(rows,'Relatorio_Comissoes_RH_DP_'+id+'.xlsx',false,spfAuditData);
+  const chassisDetailData=await buscarDetalheOperacionalParaFechamento(id,rows);
+  if(chassisDetailData===undefined) return;
+  exportSnapshotExcel(rows,'Relatorio_Comissoes_RH_DP_'+id+'.xlsx',false,spfAuditData,chassisDetailData);
 }
 async function imprimirRelatorioHistoricoSelecionado(){
   const id=document.getElementById('histFechamentoSel')?.value||document.getElementById('relFechamentoSel')?.value;
@@ -5618,7 +5722,7 @@ function abrirExportarHistoricoModal(id,nomePeriodo){
     title:'Exportar competência',
     text:`Competência: <b>${escapeOperationalHtml(nomePeriodo||'')}</b>`,
     fieldHtml:`<div class="adminActions" style="justify-content:flex-start">
-      <button class="adminActionBtn good" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');const spf=await buscarAuditoriaSpfParaFechamento('${id}');if(spf===undefined)return;exportSnapshotExcel(r,'Relatorio_Comissoes_${id}.xlsx',false,spf);closeAdminModal();})()">Excel</button>
+      <button class="adminActionBtn good" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');const spf=await buscarAuditoriaSpfParaFechamento('${id}');if(spf===undefined)return;const det=await buscarDetalheOperacionalParaFechamento('${id}',r);if(det===undefined)return;exportSnapshotExcel(r,'Relatorio_Comissoes_${id}.xlsx',false,spf,det);closeAdminModal();})()">Excel</button>
       <button class="adminActionBtn warn" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');imprimirSnapshotPDF(r,'Relatório ${escapeOperationalHtml(nomePeriodo||'').replace(/'/g,"\\'")}');closeAdminModal();})()">PDF</button>
     </div>`,
     confirmText:'Fechar',
@@ -5690,7 +5794,9 @@ async function exportarRhDpOficialHistorico(periodoId){
   const rows=await getSnapshotFechamento(fechamento.id);
   const spfAuditData=await buscarAuditoriaSpfParaFechamento(fechamento.id);
   if(spfAuditData===undefined) return;
-  exportSnapshotExcel(rows,'Relatorio_Comissoes_RH_DP_'+fechamento.id+'.xlsx',false,spfAuditData);
+  const chassisDetailData=await buscarDetalheOperacionalParaFechamento(fechamento.id,rows);
+  if(chassisDetailData===undefined) return;
+  exportSnapshotExcel(rows,'Relatorio_Comissoes_RH_DP_'+fechamento.id+'.xlsx',false,spfAuditData,chassisDetailData);
 }
 async function imprimirRhDpOficialHistorico(periodoId){
   const fechamento=fechamentoAtivoDoPeriodo(periodoId);
