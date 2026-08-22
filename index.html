@@ -1334,6 +1334,27 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
 @media(max-width:1180px){.audRow{grid-template-columns:1fr 1.1fr 1.3fr auto}.audRow .audColResultado{display:none}}
 @media(max-width:760px){.audRow{grid-template-columns:1fr;gap:8px}}
 
+/* Incidente UX-Grupo-3.0, Item 1: Convites de novo usuário em telas
+   estreitas. Desktop mantém a tabela original (.tableWrap); abaixo de
+   760px a tabela some e cada convite vira um card -- elimina o corte de
+   conteúdo causado por .tableWrap{overflow-x:hidden!important} (regra
+   tardia em #commission-style-final) combinado com células nowrap. */
+.conviteCardsWrap{display:none}
+.conviteCard{background:#151515;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+.conviteCardHead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.conviteCardNome{font-weight:950;font-size:15px}
+.conviteCardBody{display:flex;flex-direction:column;gap:6px}
+.conviteCardRow{display:flex;justify-content:space-between;gap:12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:6px}
+.conviteCardRow:last-child{border-bottom:0;padding-bottom:0}
+.conviteCardRow .k{color:var(--muted);font-weight:800;text-transform:uppercase;font-size:11px;letter-spacing:.3px;flex:0 0 auto}
+.conviteCardRow .v{text-align:right;overflow-wrap:anywhere;word-break:break-word}
+.conviteCardActions{margin-top:12px;display:flex}
+.conviteCardActions button{width:100%}
+@media(max-width:760px){
+  .conviteCardsWrap{display:block}
+  .convitesSectionWrap>.tableWrap{display:none}
+}
+
 .adminListIndicadores{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
 .adminListToolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
 .adminListFiltros{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
@@ -1453,8 +1474,8 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
     if(tipo==='GERENTE'&&has('NOVOS')&&has('SEMINOVOS'))return['simuladorSeminovos','simuladorCompleto','gestao','comissoes'];
     if(tipo==='GERENTE'&&has('NOVOS'))return['simuladorCompleto','gestao','comissoes'];
     if(tipo==='GERENTE'&&has('SEMINOVOS'))return['simuladorSeminovos','gestao','comissoes'];
-    if(tipo==='VENDEDOR'&&has('NOVOS'))return['simuladorCompleto','comissoes','gestao'];
-    if(tipo==='VENDEDOR'&&has('SEMINOVOS'))return['simuladorSeminovos','comissoes','gestao'];
+    if(tipo==='VENDEDOR'&&has('NOVOS'))return['simuladorCompleto','comissoes','gestao','dashbi'];
+    if(tipo==='VENDEDOR'&&has('SEMINOVOS'))return['simuladorSeminovos','comissoes','gestao','dashbi'];
     return['comissoes'];
   };
   window.renderPortalHome=function(){

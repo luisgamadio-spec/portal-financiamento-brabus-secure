@@ -3283,17 +3283,23 @@ async function renderConvitesSection(){
   // (admin-resend-user-invite, generateLink, reaproveita a identidade).
   // Usuário já ativo (usuario_ativo=true) nunca recebe nenhum botão —
   // reenvio não se aplica e a conta já ativada não pode ser afetada.
-  const rows=convites.map(c=>{
-    let acao='';
-    if(c.status!=='ACEITO'){
-      if(c.usuario_ativo){
-        acao='';
-      }else if(c.usuario_auth_user_id && c.usuario_primeiro_acesso){
-        acao=`<button class="adminActionBtn warn" onclick="abrirReenvioConviteConfirm('${c.usuario_id}','${escapeOperationalHtml(c.email||'')}')">Reenviar convite</button>`;
-      }else{
-        acao=`<button class="adminActionBtn warn" onclick="reenviarConvite('${c.id}')">Reenviar</button>`;
-      }
+  // Incidente UX-Grupo-3.0, Item 1: .tableWrap tem overflow-x:hidden!important
+  // (regra tardia em index.html#commission-style-final, sobrepondo o overflow:auto
+  // original) combinado com células "white-space:nowrap" -- em telas estreitas o
+  // conteúdo excedente da tabela de 7 colunas fica CORTADO (não rolável, não
+  // acessível), não apenas com scroll feio. Correção: manter a tabela para desktop
+  // (inalterada) e adicionar um segundo markup em cards, alternados por CSS
+  // (.conviteCards/.conviteCardsWrap ocultos ≥760px, .tableWrap oculto <760px) --
+  // ver bloco @media correspondente em index.html.
+  const acaoDoConvite=c=>{
+    if(c.status==='ACEITO'||c.usuario_ativo) return '';
+    if(c.usuario_auth_user_id && c.usuario_primeiro_acesso){
+      return `<button class="adminActionBtn warn" onclick="abrirReenvioConviteConfirm('${c.usuario_id}','${escapeOperationalHtml(c.email||'')}')">Reenviar convite</button>`;
     }
+    return `<button class="adminActionBtn warn" onclick="reenviarConvite('${c.id}')">Reenviar</button>`;
+  };
+  const rows=convites.map(c=>{
+    const acao=acaoDoConvite(c);
     return `<tr>
     <td>${escapeOperationalHtml(c.nome||'')}<br><span class="note">${escapeOperationalHtml(c.cpf||'')}</span></td>
     <td>${escapeOperationalHtml(c.email||'')}</td>
@@ -3302,10 +3308,31 @@ async function renderConvitesSection(){
     <td>${c.convidado_em?new Date(c.convidado_em).toLocaleString('pt-BR'):'-'}</td>
     <td>${acao}</td>
   </tr>`;}).join('');
+  const cards=convites.map(c=>{
+    const acao=acaoDoConvite(c);
+    return `<div class="conviteCard">
+      <div class="conviteCardHead">
+        <div class="conviteCardNome">${escapeOperationalHtml(c.nome||'')}</div>
+        <span class="adminStatus ${badge(c.status)}">${escapeOperationalHtml(c.status||'')}</span>
+      </div>
+      <div class="conviteCardBody">
+        <div class="conviteCardRow"><span class="k">CPF</span><span class="v">${escapeOperationalHtml(c.cpf||'')}</span></div>
+        <div class="conviteCardRow"><span class="k">E-mail</span><span class="v">${escapeOperationalHtml(c.email||'')}</span></div>
+        <div class="conviteCardRow"><span class="k">Perfil</span><span class="v">${escapeOperationalHtml(c.perfil||'')}</span></div>
+        <div class="conviteCardRow"><span class="k">Loja</span><span class="v">${escapeOperationalHtml(c.loja||'')}</span></div>
+        <div class="conviteCardRow"><span class="k">Convidado em</span><span class="v">${c.convidado_em?new Date(c.convidado_em).toLocaleString('pt-BR'):'-'}</span></div>
+        ${c.erro_mensagem?`<div class="conviteCardRow"><span class="k">Erro</span><span class="v" style="color:#ff6b61">${escapeOperationalHtml(c.erro_mensagem)}</span></div>`:''}
+      </div>
+      ${acao?`<div class="conviteCardActions">${acao}</div>`:''}
+    </div>`;
+  }).join('');
   return `<h3 style="margin-top:24px">Convites de novo usuário</h3>
+    <div class="convitesSectionWrap">
     <div class="tableWrap"><table class="adminTable">
     <thead><tr><th>Nome / CPF</th><th>E-mail</th><th>Perfil</th><th>Loja</th><th>Status</th><th>Convidado em</th><th>Ações</th></tr></thead>
-    <tbody>${rows}</tbody></table></div>`;
+    <tbody>${rows}</tbody></table></div>
+    <div class="conviteCardsWrap">${cards}</div>
+    </div>`;
 }
 
 // Incidente 12.1 (Parte A) — perfis cujo departamento operacional
