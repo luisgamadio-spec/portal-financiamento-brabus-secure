@@ -1,0 +1,26 @@
+-- Incidente: Integridade Cadastral 2.0 -- CPF normalizado duplicado (Patch B)
+-- Prevencao estrutural de NOVAS duplicidades.
+--
+-- usuarios.cpf so tinha UNIQUE sobre o texto BRUTO -- "123.456.789-00" e
+-- "12345678900" coexistem hoje, pois sao valores de texto diferentes,
+-- mesmo normalizando para o mesmo CPF (usuarios.cpf_normalizado, coluna
+-- GERADA como normalizar_cpf(cpf)).
+--
+-- population check antes de aplicar (fresh, 2026-08-23): 0 grupos de
+-- cpf_normalizado com count(*) > 1 em usuarios; 0 usuarios com cpf nulo ou
+-- vazio; 0 usuarios com cpf_normalizado = '00000000000' (normalizar_cpf
+-- teria zero-padded um CPF vazio para esse valor). A populacao atual esta
+-- limpa -- este indice pode ser criado diretamente, sem necessidade de
+-- saneamento previo (Patch C nao foi necessario nesta rodada porque nao
+-- ha duplicidade legada real para migrar).
+--
+-- cpf_normalizado ja e uma coluna GERADA ALWAYS (armazenada), entao um
+-- indice UNIQUE direto sobre a coluna e suficiente -- nao precisa repetir
+-- a expressao regexp_replace/lpad como indice funcional.
+--
+-- Nao usa CONCURRENTLY: migrations deste projeto rodam dentro de uma
+-- unica transacao (CREATE INDEX CONCURRENTLY nao e permitido dentro de
+-- bloco de transacao); dada a tabela usuarios ser pequena (105 linhas) o
+-- lock breve e aceitavel.
+CREATE UNIQUE INDEX IF NOT EXISTS usuarios_cpf_normalizado_unique_idx
+  ON public.usuarios (cpf_normalizado);
