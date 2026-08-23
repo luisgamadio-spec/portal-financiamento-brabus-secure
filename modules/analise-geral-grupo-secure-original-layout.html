@@ -133,7 +133,7 @@
     .modelDetailModalHead{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px}
     .modelDetailModalHead h2{margin:0;font-size:18px}
     .modelDetailGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
-    .modelDetailGrid .mdgItem{background:#101927;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+    .modelDetailGrid .mdgItem{background:var(--panel2,#171717);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
     .modelDetailGrid .mdgItem .k{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:800;letter-spacing:.3px}
     .modelDetailGrid .mdgItem .v{font-size:15px;font-weight:950;margin-top:4px;overflow-wrap:anywhere}
 
@@ -1306,11 +1306,89 @@
   font-size:22px;
   font-weight:950;
 }
+/* UX-Grupo-3.1, Bloco A/B/C: componente executivo proprio do Ranking
+   (Top 10 Vendedores / Top Lojas / Top Departamentos) -- substitui o
+   table()->cards generico especificamente aqui. O helper compartilhado
+   table() continua servindo as ~28 outras tabelas do modulo sem
+   alteracao (Bloco E1); aqui a estrutura e desenhada para ranking desde
+   a origem, nao convertida de linha de tabela. */
+.rankingCardGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(290px, 1fr));
+  gap:16px;
+}
+.rankingCard{
+  background:linear-gradient(180deg,rgba(21,21,21,.95),rgba(13,13,13,.95));
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+}
+.rankingCard.top3{
+  border-color:rgba(201,173,100,.35);
+  border-top:3px solid #c9ad64;
+}
+.rankingCard .rcPos{
+  font-size:22px;
+  font-weight:950;
+  color:#c9ad64;
+  margin-bottom:6px;
+}
+.rankingCard .rcName{
+  font-size:17px;
+  font-weight:950;
+  line-height:1.25;
+  white-space:normal;
+  overflow-wrap:break-word;
+  word-break:break-word;
+}
+.rankingCard .rcSub{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  margin-top:2px;
+  margin-bottom:12px;
+}
+.rankingCard .rcDivider{
+  border-top:1px solid var(--line);
+  margin:10px 0;
+}
+.rankingCard .rcRow{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:10px;
+  padding:3px 0;
+  font-size:13px;
+}
+.rankingCard .rcRow .rcLabel{
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  white-space:normal;
+}
+.rankingCard .rcRow .rcVal{
+  font-weight:900;
+  text-align:right;
+  white-space:nowrap;
+}
+.rankingCard .rcRow.rcHighlight .rcLabel{color:#e8e8e8}
+.rankingCard .rcRow.rcHighlight .rcVal{color:#c9ad64;font-size:15px}
 @media(max-width:1500px){
   .lojaKpis{grid-template-columns:repeat(3,minmax(0,1fr)) !important;}
 }
 @media(max-width:900px){
   .lojaKpis,.rankingHero{grid-template-columns:1fr !important;}
+  /* .rankingCardGrid nao precisa de override: auto-fit com minmax(290px,1fr)
+     ja produz 2 colunas em ~768px e 1 coluna em ~390px naturalmente,
+     batendo exatamente com o breakpoint pedido sem forcar. */
 }
 </style>
 
@@ -4276,6 +4354,44 @@ function rankingHeroHtml(topRows){
     </div>`).join("")}</div>`;
 }
 
+// UX-Grupo-3.1, Bloco A/B/C/E: renderer proprio do Ranking (nao usa o
+// table()->cards generico) -- desenhado desde a origem como card
+// executivo (posicao -> identidade -> indicadores -> receita ->
+// producao/retorno), nao como tabela convertida. "vendedor" recebe nome +
+// departamento/loja como cabecalho; "loja"/"dept" usam o proprio nome
+// como titulo do card (Bloco B1), sem linha de label artificial.
+function renderRankingCard(r, pos, kind){
+  let nome = r.Nome, sub = "";
+  if(kind === "vendedor"){
+    const partes = String(r.Nome || "").split(" | ");
+    nome = partes[0] || r.Nome;
+    sub = partes.length > 1 ? partes.slice(1).join(" · ") : "";
+  }
+  const top3 = pos <= 3 ? " top3" : "";
+  return `<div class="rankingCard${top3}">
+    <div class="rcPos">${medalha(pos)}</div>
+    <div class="rcName">${nome}</div>
+    ${sub ? `<div class="rcSub">${sub}</div>` : ""}
+    <div class="rcRow"><span class="rcLabel">Vendas</span><span class="rcVal">${num(r.vendas)}</span></div>
+    <div class="rcRow"><span class="rcLabel">Financiamentos</span><span class="rcVal">${num(r.fin)}</span></div>
+    <div class="rcRow"><span class="rcLabel">Penetração</span><span class="rcVal">${pctPenetracao(r.penetracao)}</span></div>
+    <div class="rcDivider"></div>
+    <div class="rcRow rcHighlight"><span class="rcLabel">Receita Total</span><span class="rcVal">${money(r.receitaTotal || r.receita)}</span></div>
+    <div class="rcRow"><span class="rcLabel">Receita</span><span class="rcVal">${money(r.receita)}</span></div>
+    <div class="rcRow"><span class="rcLabel">Receita SPF</span><span class="rcVal">${money(r.receitaSPF)}</span></div>
+    <div class="rcDivider"></div>
+    <div class="rcRow"><span class="rcLabel">Produção</span><span class="rcVal">${money(r.producao)}</span></div>
+    <div class="rcRow"><span class="rcLabel">Retorno</span><span class="rcVal">${pct(r.retorno)}</span></div>
+  </div>`;
+}
+
+function renderRankingGrid(title, rows, kind){
+  if(!rows.length) return "";
+  return `<div class="panel"><h2>${title}</h2>
+    <div class="rankingCardGrid">${rows.map((r,i)=>renderRankingCard(r, i+1, kind)).join("")}</div>
+  </div>`;
+}
+
 function renderRanking(results, salesView, finsView){
   const el = document.getElementById("ranking");
   if(!el) return;
@@ -4289,42 +4405,9 @@ function renderRanking(results, salesView, finsView){
       <p class="muted">Ordenado por maior valor de receita captada, respeitando o período selecionado.</p>
       ${rankingHeroHtml(vendedores)}
     </div>`+
-    table("TOP 10 vendedores · Maior receita captada", addMedals(vendedores), [
-      {k:"Posicao",label:"Posição"},
-      {k:"Nome",label:"Vendedor | Departamento | Loja"},
-      {k:"Vendas",label:"Vendas",f:(v)=>num(v)},
-      {k:"Financiamentos",label:"Financiamentos",f:(v)=>num(v)},
-      {k:"Penetracao",label:"Penetração",f:pctPenetracao},
-      {k:"Receita",label:"Receita",f:money},
-      {k:"ReceitaSPF",label:"Receita SPF",f:money},
-      {k:"ReceitaTotal",label:"Receita Total",f:money},
-      {k:"Producao",label:"Produção",f:money},
-      {k:"Retorno",label:"Retorno",f:pct}
-    ])+
-    table("TOP lojas · Maior receita captada", addMedals(lojas), [
-      {k:"Posicao",label:"Posição"},
-      {k:"Nome",label:"Loja"},
-      {k:"Vendas",label:"Vendas",f:(v)=>num(v)},
-      {k:"Financiamentos",label:"Financiamentos",f:(v)=>num(v)},
-      {k:"Penetracao",label:"Penetração",f:pctPenetracao},
-      {k:"Receita",label:"Receita",f:money},
-      {k:"ReceitaSPF",label:"Receita SPF",f:money},
-      {k:"ReceitaTotal",label:"Receita Total",f:money},
-      {k:"Producao",label:"Produção",f:money},
-      {k:"Retorno",label:"Retorno",f:pct}
-    ])+
-    table("TOP departamentos · Maior receita captada", addMedals(depts), [
-      {k:"Posicao",label:"Posição"},
-      {k:"Nome",label:"Departamento"},
-      {k:"Vendas",label:"Vendas",f:(v)=>num(v)},
-      {k:"Financiamentos",label:"Financiamentos",f:(v)=>num(v)},
-      {k:"Penetracao",label:"Penetração",f:pctPenetracao},
-      {k:"Receita",label:"Receita",f:money},
-      {k:"ReceitaSPF",label:"Receita SPF",f:money},
-      {k:"ReceitaTotal",label:"Receita Total",f:money},
-      {k:"Producao",label:"Produção",f:money},
-      {k:"Retorno",label:"Retorno",f:pct}
-    ]);
+    renderRankingGrid("TOP 10 vendedores · Maior receita captada", vendedores, "vendedor")+
+    renderRankingGrid("TOP lojas · Maior receita captada", lojas, "loja")+
+    renderRankingGrid("TOP departamentos · Maior receita captada", depts, "dept");
 }
 
 
