@@ -25,7 +25,7 @@
     simuladorSeminovos: 'Simulador de Seminovos',
     dashbi: 'Análise Geral do Grupo',
     gestao: 'Análise F&I do Grupo',
-    coparticipadoPortal: 'Coparticipados',
+    coparticipadoPortal: 'Coparticipados / Subsidiados',
     analiseScoreVendedores: 'Análise de Score',
     comissoes: 'Acompanhamento de Salário'
   };

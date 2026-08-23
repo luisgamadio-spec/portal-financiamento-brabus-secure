@@ -17,42 +17,42 @@
       --white:#fff; --shadow:0 18px 50px rgba(0,0,0,.35); --radius:18px;
     }
     *{box-sizing:border-box}
-    body{margin:0;background:linear-gradient(135deg,#050b14,#0a1729 45%,#111e31);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);}
-    header{padding:28px 28px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(7,17,31,.94);backdrop-filter:blur(10px);z-index:10}
+    body{margin:0;background:linear-gradient(135deg,#050505,#0a0a0a 45%,#111111);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);}
+    header{padding:28px 28px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(7,7,7,.94);backdrop-filter:blur(10px);z-index:10}
     .title{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
     h1{margin:0;font-size:28px;letter-spacing:-.5px}
     .subtitle{margin:8px 0 0;color:var(--muted);font-size:14px}
     .badge{padding:8px 12px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px}
     main{padding:24px;max-width:1500px;margin:auto}
     .upload{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:16px;margin-bottom:18px}
-    .drop{background:rgba(14,27,45,.85);border:1px dashed #3d5a82;border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+    .drop{background:rgba(16,16,16,.85);border:1px dashed #3a3a3a;border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
     .drop label{display:block;font-weight:700;margin-bottom:8px}
     .drop small{display:block;color:var(--muted);margin-bottom:12px;line-height:1.35}
-    input[type=file]{width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:#091525;color:var(--text)}
-    button{border:0;border-radius:14px;padding:13px 18px;font-weight:800;cursor:pointer;color:#06101d;background:linear-gradient(135deg,var(--green),#8af7d0);box-shadow:0 10px 28px rgba(56,211,159,.25)}
-    button.secondary{background:#16263d;color:var(--text);border:1px solid var(--line);box-shadow:none}
+    input[type=file]{width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:#0d0d0d;color:var(--text)}
+    button{border:0;border-radius:14px;padding:13px 18px;font-weight:800;cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--red,#e30613),#9b0009);box-shadow:0 10px 28px rgba(227,6,19,.25)}
+    button.secondary{background:#181818;color:var(--text);border:1px solid var(--line);box-shadow:none}
     .actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0 22px}
     .status{color:var(--muted);font-size:13px}
     .cards{display:grid;grid-template-columns:repeat(5,minmax(160px,1fr));gap:14px;margin:20px 0}
-    .card{background:linear-gradient(180deg,rgba(19,36,58,.95),rgba(14,27,45,.95));border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+    .card{background:linear-gradient(180deg,rgba(21,21,21,.95),rgba(13,13,13,.95));border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
     .card .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.8px}
     .card .v{font-size:27px;font-weight:900;margin-top:8px}
     .card .s{color:var(--muted);font-size:12px;margin-top:6px}
     .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}
-    .tab{padding:10px 13px;border-radius:999px;background:#0c1829;border:1px solid var(--line);color:var(--muted);cursor:pointer;font-weight:700;font-size:13px}
-    .tab.active{background:var(--blue);color:white;border-color:var(--blue)}
+    .tab{padding:10px 13px;border-radius:999px;background:#181818;border:1px solid var(--line);color:var(--muted);cursor:pointer;font-weight:700;font-size:13px}
+    .tab.active{background:var(--red,#e30613);color:white;border-color:var(--red,#e30613)}
     section{display:none}
     section.active{display:block}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-    .panel{background:rgba(14,27,45,.85);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:18px;box-shadow:var(--shadow)}
+    .panel{background:rgba(16,16,16,.85);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:18px;box-shadow:var(--shadow)}
     h2{font-size:20px;margin:0 0 14px}
-    h3{font-size:16px;margin:4px 0 12px;color:#dce9ff}
+    h3{font-size:16px;margin:4px 0 12px;color:#f0f0f0}
     .tableWrap{overflow:auto;border-radius:14px;border:1px solid var(--line)}
-    table{width:100%;border-collapse:collapse;min-width:650px;background:#091525}
-    th,td{padding:10px 12px;border-bottom:1px solid #1e324f;text-align:right;white-space:nowrap;font-size:13px}
+    table{width:100%;border-collapse:collapse;min-width:650px;background:#0d0d0d}
+    th,td{padding:10px 12px;border-bottom:1px solid var(--line,#2b2b2b);text-align:right;white-space:nowrap;font-size:13px}
     th:first-child,td:first-child{text-align:left}
-    th{position:sticky;top:0;background:#14243a;color:#dce9ff;z-index:1}
-    tr:hover td{background:#0e1c30}
+    th{position:sticky;top:0;background:#181818;color:#f0f0f0;z-index:1}
+    tr:hover td{background:#1a1a1a}
     /* Fase UX-Grupo-3.0, Item 4: transforma tabela em lista de cards (1 card
        por linha) -- elimina rolagem horizontal sem esconder nenhuma coluna.
        tableWide (>7 colunas, ex.: Indicadores por modelo com 18) sempre em
@@ -61,48 +61,55 @@
     .tableWrap.tableWide table,.tableWrap.tableWide thead,.tableWrap.tableWide tbody,.tableWrap.tableWide th,.tableWrap.tableWide td,.tableWrap.tableWide tr{display:block;min-width:0}
     .tableWrap.tableWide thead tr{position:absolute;top:-9999px;left:-9999px}
     .tableWrap.tableWide tbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-    .tableWrap.tableWide tr{margin:0;border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#0a1627}
-    .tableWrap.tableWide td{border:none;border-bottom:1px solid #1e324f;position:relative;padding:7px 0 7px 46%;text-align:right;white-space:normal;overflow-wrap:anywhere}
+    .tableWrap.tableWide tr{margin:0;border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel2,#171717)}
+    /* UX-Grupo-3.1: rotulo (::before) deixou de ser position:absolute --
+       nesse modo ele nao contribuia para a altura do <td>, entao um rotulo
+       longo (ex.: "Vendedor | Departamento | Loja" na tabela de Ranking)
+       quebrava em varias linhas e vazava visualmente sobre o campo
+       seguinte. Agora <td> vira flex (rotulo + valor lado a lado, cada um
+       ocupando sua faixa), entao a altura do <td> sempre reflete o rotulo
+       OU o valor, o que for maior -- nunca some da caixa. */
+    .tableWrap.tableWide td{border:none;border-bottom:1px solid var(--line,#2b2b2b);display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;text-align:right;white-space:normal;overflow-wrap:anywhere}
     .tableWrap.tableWide td:last-child{border-bottom:0}
-    .tableWrap.tableWide td::before{content:attr(data-label);position:absolute;left:0;width:44%;padding-right:8px;white-space:normal;text-align:left;font-weight:800;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
-    .tableWrap.tableWide td:first-child{padding-left:0;text-align:left;font-weight:900;border-bottom:2px solid #26436a;margin-bottom:4px}
+    .tableWrap.tableWide td::before{content:attr(data-label);flex:0 0 44%;padding-right:8px;white-space:normal;text-align:left;font-weight:800;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+    .tableWrap.tableWide td:first-child{display:block;padding:0 0 8px;text-align:left;font-weight:900;border-bottom:2px solid rgba(227,6,19,.35);margin-bottom:4px}
     .tableWrap.tableWide td:first-child::before{content:none}
     @media(max-width:760px){
       .tableWrap:not(.tableWide){overflow:visible;border:0}
       .tableWrap:not(.tableWide) table,.tableWrap:not(.tableWide) thead,.tableWrap:not(.tableWide) tbody,.tableWrap:not(.tableWide) th,.tableWrap:not(.tableWide) td,.tableWrap:not(.tableWide) tr{display:block;min-width:0}
       .tableWrap:not(.tableWide) thead tr{position:absolute;top:-9999px;left:-9999px}
-      .tableWrap:not(.tableWide) tr{margin-bottom:12px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#0a1627}
-      .tableWrap:not(.tableWide) td{border:none;border-bottom:1px solid #1e324f;position:relative;padding:7px 0 7px 46%;text-align:right;white-space:normal;overflow-wrap:anywhere}
+      .tableWrap:not(.tableWide) tr{margin-bottom:12px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel2,#171717)}
+      .tableWrap:not(.tableWide) td{border:none;border-bottom:1px solid var(--line,#2b2b2b);display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;text-align:right;white-space:normal;overflow-wrap:anywhere}
       .tableWrap:not(.tableWide) td:last-child{border-bottom:0}
-      .tableWrap:not(.tableWide) td::before{content:attr(data-label);position:absolute;left:0;width:44%;padding-right:8px;white-space:normal;text-align:left;font-weight:800;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
-      .tableWrap:not(.tableWide) td:first-child{padding-left:0;text-align:left;font-weight:900;border-bottom:2px solid #26436a;margin-bottom:4px}
+      .tableWrap:not(.tableWide) td::before{content:attr(data-label);flex:0 0 44%;padding-right:8px;white-space:normal;text-align:left;font-weight:800;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+      .tableWrap:not(.tableWide) td:first-child{display:block;padding:0 0 8px;text-align:left;font-weight:900;border-bottom:2px solid rgba(227,6,19,.35);margin-bottom:4px}
       .tableWrap:not(.tableWide) td:first-child::before{content:none}
     }
     .muted{color:var(--muted)}
     .warn{color:var(--yellow)}
     .bad{color:var(--red)}
     .ok{color:var(--green)}
-    .pill{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:#0e1b2d;color:var(--muted);font-size:12px}
+    .pill{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:#181818;color:var(--muted);font-size:12px}
     .barCell{min-width:160px}
-    .bar{height:8px;background:#1d3554;border-radius:999px;overflow:hidden;margin-top:5px}
-    .bar span{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:999px}
+    .bar{height:8px;background:#2b2b2b;border-radius:999px;overflow:hidden;margin-top:5px}
+    .bar span{display:block;height:100%;background:linear-gradient(90deg,var(--red,#e30613),var(--green));border-radius:999px}
     .footer{color:var(--muted);font-size:12px;margin:28px 0}
     @media(max-width:1000px){.upload,.cards,.grid2{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   
     .mainTabs{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 18px}
-    .mainTab{padding:14px 22px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,#12233a,#0b1728);color:#b8c9e3;cursor:pointer;font-weight:900;letter-spacing:.5px;box-shadow:0 10px 28px rgba(0,0,0,.18)}
-    .mainTab.active{background:linear-gradient(135deg,#4da3ff,#38d39f);color:#06101d;border-color:transparent}
+    .mainTab{padding:14px 22px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,#1c1c1c,#0f0f0f);color:#d8d8d8;cursor:pointer;font-weight:900;letter-spacing:.5px;box-shadow:0 10px 28px rgba(0,0,0,.18)}
+    .mainTab.active{background:linear-gradient(135deg,#e30613,#9b0009);color:#fff;border-color:transparent}
     .modelHero{display:grid;grid-template-columns:repeat(3,minmax(240px,1fr));gap:18px;margin:20px 0}
-    .vehicleCard{position:relative;min-height:220px;border:1px solid #315074;border-radius:24px;background:radial-gradient(circle at 50% 20%,rgba(77,163,255,.22),rgba(14,27,45,.94) 56%,rgba(7,17,31,.99));overflow:hidden;cursor:pointer;box-shadow:0 22px 60px rgba(0,0,0,.38);transition:.2s transform,.2s border-color}
-    .vehicleCard:hover{transform:translateY(-4px);border-color:#66b7ff}
+    .vehicleCard{position:relative;min-height:220px;border:1px solid #3a3a3a;border-radius:24px;background:radial-gradient(circle at 50% 20%,rgba(227,6,19,.16),rgba(20,20,20,.94) 56%,rgba(10,10,10,.99));overflow:hidden;cursor:pointer;box-shadow:0 22px 60px rgba(0,0,0,.38);transition:.2s transform,.2s border-color}
+    .vehicleCard:hover{transform:translateY(-4px);border-color:rgba(227,6,19,.55)}
     .vehicleCard.active{border-color:var(--green);box-shadow:0 24px 70px rgba(56,211,159,.22)}
     .vehicleCard img{position:absolute;left:50%;top:53%;transform:translate(-50%,-50%);max-width:112%;max-height:78%;object-fit:contain;filter:drop-shadow(0 18px 30px rgba(0,0,0,.75));opacity:.98}
     .vehicleCard .vehicleName{position:absolute;left:18px;bottom:16px;font-size:18px;font-weight:950;letter-spacing:.7px;text-transform:uppercase;text-shadow:0 3px 14px rgba(0,0,0,.85)}
-    .vehicleCard .vehicleHint{position:absolute;left:18px;top:16px;color:#b8c9e3;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.9px}
+    .vehicleCard .vehicleHint{position:absolute;left:18px;top:16px;color:#c9c9c9;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.9px}
     .modelHeader{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
     .modelTitle{font-size:24px;font-weight:950;margin:0}
     .miniGrid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:12px;margin:12px 0 18px}
-    .metricBox{background:#0a1627;border:1px solid var(--line);border-radius:16px;padding:14px}
+    .metricBox{background:var(--panel2,#171717);border:1px solid var(--line);border-radius:16px;padding:14px}
     .metricBox .mk{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
     .metricBox .mv{font-size:20px;font-weight:950;margin-top:5px}
     @media(max-width:1000px){.modelHero,.miniGrid{grid-template-columns:1fr}}
@@ -113,16 +120,16 @@
        que abre modal com as 18 métricas completas -- nenhuma informação
        da tabela original é perdida (Parte AL), só reorganizada. */
     .modelIndicatorGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
-    .modelIndicatorCard{background:#0a1627;border:1px solid var(--line);border-radius:16px;padding:16px}
+    .modelIndicatorCard{background:var(--panel2,#171717);border:1px solid var(--line);border-radius:16px;padding:16px}
     .modelIndicatorCard .micName{font-weight:950;font-size:15px;margin-bottom:10px;overflow-wrap:anywhere}
-    .modelIndicatorCard .micRow{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;padding:5px 0;border-bottom:1px solid #1e324f}
+    .modelIndicatorCard .micRow{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line,#2b2b2b)}
     .modelIndicatorCard .micRow .mick{color:var(--muted);font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.3px}
     .modelIndicatorCard .micRow .micv{font-weight:900}
     .modelIndicatorCard .micDetailsBtn{width:100%;margin-top:12px;padding:9px;border-radius:10px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-weight:900;cursor:pointer;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
-    .modelIndicatorCard .micDetailsBtn:hover{background:var(--blue);color:#06101d}
+    .modelIndicatorCard .micDetailsBtn:hover{background:var(--blue);color:#fff}
     .modelDetailModalBack{position:fixed;inset:0;background:rgba(2,6,12,.78);z-index:5000;display:none;align-items:center;justify-content:center;padding:18px}
     .modelDetailModalBack.open{display:flex}
-    .modelDetailModalBox{width:min(720px,96vw);max-height:88vh;overflow:auto;background:#0b111a;border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.65)}
+    .modelDetailModalBox{width:min(720px,96vw);max-height:88vh;overflow:auto;background:var(--panel,#101010);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.65)}
     .modelDetailModalHead{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px}
     .modelDetailModalHead h2{margin:0;font-size:18px}
     .modelDetailGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
@@ -150,9 +157,9 @@
     html{scroll-behavior:smooth}
     body{
       background:
-        radial-gradient(circle at top left, rgba(72,224,164,.12), transparent 30%),
-        radial-gradient(circle at 80% 10%, rgba(78,162,255,.12), transparent 32%),
-        linear-gradient(135deg,#03060a 0%,#07101b 48%,#0a111d 100%);
+        radial-gradient(circle at top left, rgba(227,6,19,.06), transparent 30%),
+        radial-gradient(circle at 80% 10%, rgba(201,173,100,.06), transparent 32%),
+        linear-gradient(135deg,#050505 0%,#0a0a0a 48%,#0d0d0d 100%);
       font-family:"Inter","Segoe UI",Roboto,Arial,sans-serif;
       color:var(--text);
       letter-spacing:-.01em;
@@ -160,7 +167,7 @@
     header{
       padding:30px 32px 24px;
       border-bottom:1px solid rgba(255,255,255,.08);
-      background:rgba(4,8,13,.82);
+      background:rgba(7,7,7,.82);
       backdrop-filter:blur(18px);
       box-shadow:0 10px 40px rgba(0,0,0,.25);
     }
@@ -172,14 +179,14 @@
     }
     .subtitle{
       margin-top:8px;
-      color:#b6c4d8;
+      color:#b8b8b8;
       font-size:15px;
       font-weight:600;
     }
     .badge{
-      background:rgba(78,162,255,.08);
-      border:1px solid rgba(78,162,255,.30);
-      color:#c9d8ee;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.16);
+      color:#d8d8d8;
       font-weight:800;
       padding:10px 16px;
     }
@@ -189,8 +196,8 @@
       margin-bottom:18px;
     }
     .drop{
-      background:linear-gradient(180deg,rgba(14,22,34,.94),rgba(8,15,25,.94));
-      border:1px solid rgba(78,162,255,.25);
+      background:linear-gradient(180deg,rgba(20,20,20,.94),rgba(10,10,10,.94));
+      border:1px solid rgba(255,255,255,.14);
       border-radius:24px;
       padding:22px;
       box-shadow:var(--shadow);
@@ -217,11 +224,11 @@
     }
     input[type=file]{
       position:relative;
-      background:#050b13;
+      background:#0d0d0d;
       border:1px solid rgba(255,255,255,.13);
       border-radius:16px;
       padding:12px;
-      color:#d7e4f7;
+      color:#e8e8e8;
     }
     button{
       border-radius:18px;
@@ -239,14 +246,14 @@
       box-shadow:0 20px 46px rgba(72,224,164,.35);
     }
     button.secondary{
-      background:linear-gradient(180deg,#121d2d,#0c1522);
-      color:#eef6ff;
+      background:linear-gradient(180deg,#1c1c1c,#121212);
+      color:#f0f0f0;
       border:1px solid rgba(255,255,255,.12);
       box-shadow:0 12px 30px rgba(0,0,0,.24);
     }
     .status{
       font-weight:700;
-      color:#aabbd1;
+      color:#b0b0b0;
     }
     .cards{
       grid-template-columns:repeat(5,minmax(180px,1fr));
@@ -255,7 +262,7 @@
     }
     .card{
       background:
-        linear-gradient(180deg,rgba(17,28,43,.96),rgba(8,15,25,.98));
+        linear-gradient(180deg,rgba(22,22,22,.96),rgba(10,10,10,.98));
       border:1px solid rgba(255,255,255,.10);
       border-radius:24px;
       padding:22px;
@@ -267,11 +274,11 @@
       content:"";
       position:absolute;
       left:0;right:0;top:0;height:3px;
-      background:linear-gradient(90deg,#48e0a4,#4ea2ff);
+      background:linear-gradient(90deg,#e30613,#c9ad64);
       opacity:.85;
     }
     .card .k{
-      color:#9fb2cc;
+      color:#a8a8a8;
       font-size:12px;
       font-weight:900;
       letter-spacing:1.05px;
@@ -283,13 +290,13 @@
       font-weight:950;
     }
     .card .s{
-      color:#9fb2cc;
+      color:#a8a8a8;
       font-size:12px;
       font-weight:700;
       margin-top:10px;
     }
     .mainTabs{
-      background:rgba(6,12,20,.72);
+      background:rgba(10,10,10,.72);
       border:1px solid rgba(255,255,255,.08);
       border-radius:24px;
       padding:8px;
@@ -304,19 +311,19 @@
       border-radius:18px;
       border:1px solid transparent;
       background:transparent;
-      color:#9fb2cc;
+      color:#a8a8a8;
       padding:13px 24px;
       box-shadow:none;
       font-size:13px;
       letter-spacing:.7px;
     }
     .mainTab.active{
-      background:linear-gradient(135deg,#48e0a4,#4ea2ff);
-      color:#03100b;
-      box-shadow:0 12px 30px rgba(72,224,164,.22);
+      background:linear-gradient(135deg,#e30613,#9b0009);
+      color:#fff;
+      box-shadow:0 12px 30px rgba(227,6,19,.22);
     }
     .tabs{
-      background:rgba(6,12,20,.72);
+      background:rgba(10,10,10,.72);
       border:1px solid rgba(255,255,255,.08);
       border-radius:22px;
       padding:8px;
@@ -330,19 +337,19 @@
       border-radius:16px;
       border:1px solid transparent;
       background:transparent;
-      color:#9fb2cc;
+      color:#a8a8a8;
       padding:12px 18px;
       font-weight:900;
       font-size:13px;
     }
     .tab.active{
-      background:#eef6ff;
-      color:#07101b;
-      border-color:#eef6ff;
-      box-shadow:0 12px 30px rgba(255,255,255,.10);
+      background:#e30613;
+      color:#fff;
+      border-color:#e30613;
+      box-shadow:0 12px 30px rgba(227,6,19,.18);
     }
     .panel{
-      background:linear-gradient(180deg,rgba(16,25,39,.96),rgba(8,14,23,.96));
+      background:linear-gradient(180deg,rgba(20,20,20,.96),rgba(10,10,10,.96));
       border:1px solid rgba(255,255,255,.09);
       border-radius:26px;
       padding:22px;
@@ -360,12 +367,12 @@
       box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
     }
     table{
-      background:#07101a;
+      background:#0a0a0a;
       min-width:780px;
     }
     th{
-      background:#101b2b;
-      color:#dbeafe;
+      background:#171717;
+      color:#e8e8e8;
       font-size:12px;
       font-weight:950;
       letter-spacing:.45px;
@@ -373,14 +380,14 @@
       padding:13px 14px;
     }
     td{
-      color:#eef5ff;
+      color:#f0f0f0;
       border-bottom:1px solid rgba(255,255,255,.07);
       padding:12px 14px;
       font-size:13px;
       font-weight:650;
     }
     tr:hover td{
-      background:rgba(78,162,255,.07);
+      background:rgba(255,255,255,.04);
     }
     .pill{
       background:rgba(72,224,164,.09);
@@ -392,8 +399,8 @@
     .vehicleCard{
       background:
         radial-gradient(circle at 50% 28%,rgba(255,255,255,.10),transparent 28%),
-        radial-gradient(circle at 50% 70%,rgba(78,162,255,.15),transparent 48%),
-        linear-gradient(180deg,rgba(18,29,45,.98),rgba(6,12,20,.98));
+        radial-gradient(circle at 50% 70%,rgba(227,6,19,.10),transparent 48%),
+        linear-gradient(180deg,rgba(22,22,22,.98),rgba(10,10,10,.98));
       border:1px solid rgba(255,255,255,.12);
       border-radius:28px;
       min-height:245px;
@@ -1505,15 +1512,20 @@ html body #kpis.cards > .card{
   box-shadow:0 12px 30px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.055) !important;
 }
 
+/* UX-Grupo-3.1: removido o fundo azul-marinho (#13284a/#0d1b31/#09111e) --
+   fora da identidade do Portal. Cards 4-7 (Receita, Receita SPF, Receita
+   Total, Valor de Produção Total) voltam ao mesmo grafite/preto dos demais
+   cards, diferenciados apenas pela borda superior dourada (mesmo dourado
+   já usado em outras telas do Portal, ex.: index.html --gold:#c9ad64). */
 html body #kpis.cards > .card:nth-child(4),
 html body #kpis.cards > .card:nth-child(5),
 html body #kpis.cards > .card:nth-child(6),
 html body #kpis.cards > .card:nth-child(7){
   background:
-    linear-gradient(145deg, #13284a 0%, #0d1b31 48%, #09111e 100%) !important;
-  border:1px solid rgba(199,165,75,.42) !important;
-  border-top:3px solid #c7a54b !important;
-  box-shadow:0 12px 30px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.06) !important;
+    linear-gradient(145deg, #242424 0%, #151515 48%, #0d0d0d 100%) !important;
+  border:1px solid rgba(201,173,100,.30) !important;
+  border-top:3px solid #c9ad64 !important;
+  box-shadow:0 12px 30px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.055) !important;
 }
 
 html body #kpis.cards > .card > .k{
