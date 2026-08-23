@@ -2223,12 +2223,19 @@ function secureModelRows(data, family){
 
   const known = FAMILY_MODELS[family] || [];
   known.forEach(model=>{
-    const normalized = normalizeText(model);
-    if(!grouped[normalized]) grouped[normalized] = {
-      Modelo:normalized, volume:0, financiada:0, producao:0, receita:0,
+    // UX-Grupo-3.1: FAMILY_MODELS ja guarda o nome canonico EXATO que
+    // modeloPadrao() produz para dados reais (ex.: "ECLIPSE CROSS HPE-S
+    // 4x2", x minusculo) -- normalizeText() forcava .toUpperCase(), criando
+    // uma chave DIFERENTE ("...4X2") para a linha-placeholder (zerada) da
+    // mesma usada pelos dados reais, duplicando o modelo na tabela com um
+    // "fantasma" sempre zerado ao lado do real. A string do FAMILY_MODELS
+    // ja e a chave certa, sem reprocessar.
+    if(!grouped[model]) grouped[model] = {
+      Modelo:model, volume:0, financiada:0, producao:0, receita:0,
       receitaSPF:0, receitaTotal:0, parcelasWeighted:0, parcelasWeight:0,
       pmtWeighted:0, pmtWeight:0, entradaQtd:0, entradaTotal:0,
-      valorVendaTotal:0, linearQtd:0, balaoQtd:0, reversaoQtd:0, balaoMed:0
+      valorVendaTotal:0, linearQtd:0, balaoQtd:0, reversaoQtd:0, balaoMed:0,
+      balaoWeighted:0, balaoWeight:0
     };
   });
 
