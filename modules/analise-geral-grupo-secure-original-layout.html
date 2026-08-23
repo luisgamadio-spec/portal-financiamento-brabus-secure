@@ -1392,6 +1392,126 @@
 }
 </style>
 
+<style id="share-performance-cards-uxgrupo32">
+/* UX-Grupo-3.2: mesma linguagem visual do Ranking aprovado (grafite/preto,
+   borda discreta, dourado para destaque, verde/vermelho semantico ja
+   herdado de .compDelta), mas classes 100% isoladas -- nao compartilha
+   nenhuma regra com .rankingCard/.rcRow/etc, so os tokens de cor
+   (var(--line)/var(--muted)) ja usados no arquivo inteiro. */
+.sharePerformanceGrid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:16px;
+}
+/* Card denso (3 blocos x 3 metricas, cada uma com linha de comparativo) --
+   colunas fixas por breakpoint em vez de auto-fit, senao a largura
+   disponivel em telas grandes produz mais colunas do que o card
+   comporta com legibilidade (medido: auto-fit(290px) dava 4 colunas em
+   1920/1366). Alvo explicito do usuario: 3 em 1920/1366, 2 em 1024/768,
+   1 em 390. */
+@media(min-width:768px){
+  .sharePerformanceGrid{grid-template-columns:repeat(2, minmax(0,1fr));}
+}
+@media(min-width:1280px){
+  .sharePerformanceGrid{grid-template-columns:repeat(3, minmax(0,1fr));}
+}
+.sharePerformanceCard{
+  background:linear-gradient(180deg,rgba(21,21,21,.95),rgba(13,13,13,.95));
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+}
+.sharePerformanceCard .spcName{
+  font-size:17px;
+  font-weight:950;
+  line-height:1.25;
+  white-space:normal;
+  overflow-wrap:break-word;
+  word-break:break-word;
+}
+.sharePerformanceCard .spcSub{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  margin-top:2px;
+  margin-bottom:8px;
+}
+.sharePerformanceCard .spcDivider{
+  border-top:1px solid var(--line);
+  margin:10px 0;
+}
+.sharePerformanceCard .spcBlock{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.sharePerformanceCard .shareMetric{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.sharePerformanceCard .shareMetricRow{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:10px;
+}
+.sharePerformanceCard .shareMetricLabel{
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  white-space:normal;
+}
+.sharePerformanceCard .shareMetricVal{
+  font-weight:900;
+  font-size:15px;
+  text-align:right;
+  white-space:nowrap;
+  overflow-wrap:break-word;
+}
+.sharePerformanceCard .shareMetricHighlight .shareMetricLabel{color:#e8e8e8}
+.sharePerformanceCard .shareMetricHighlight .shareMetricVal{color:#c9ad64;font-size:17px}
+
+/* Reaproveita metricCompareBlock()/formatDelta() sem alterar a funcao --
+   mesmas classes ja usadas em #modelos/#kpis (prevBlock/prevLabel/
+   prevValue/compDelta), mesma logica semantica verde/vermelho de
+   formatDelta -- so estilo local, escopado a este card. compDelta NUNCA
+   usa nowrap aqui de proposito: variacoes extremas (ex.: +683.222,1%)
+   precisam poder quebrar linha em vez de vazar da borda do card. */
+.sharePerformanceCard .prevBlock{
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.sharePerformanceCard .prevLabel{
+  color:rgba(255,255,255,.42);
+  font-size:10px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  white-space:nowrap;
+}
+.sharePerformanceCard .prevValue{
+  color:rgba(255,255,255,.72);
+  font-size:12px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.sharePerformanceCard .compDelta{
+  font-size:12px;
+  font-weight:900;
+  overflow-wrap:break-word;
+}
+</style>
 
 
 
@@ -4354,6 +4474,62 @@ function rankingHeroHtml(topRows){
     </div>`).join("")}</div>`;
 }
 
+// UX-Grupo-3.2: renderer proprio de Share/Penetracao (nao usa o
+// table()->cards generico, mesmo principio do Ranking abaixo) -- so
+// reorganiza apresentacao dos MESMOS campos ja calculados em
+// shareLojaDept/prevShareLojaDeptMap (vendas/fin/penetracao/receita/
+// receitaSPF/receitaTotal/producao/retorno), reutilizando exatamente
+// pctPenetracao/money/pct/num/metricCompareBlock/rowKeyValue -- nenhum
+// numero e recalculado aqui. "anterior" vira bloco secundario por
+// metrica (metricCompareBlock, mesma logica semantica de verde/vermelho
+// de formatDelta) em vez da antiga coluna lateral fixa.
+function renderSharePerformanceCard(r, comparisonMap){
+  const partes = String(r["Loja | Dept"] || "").split(" | ");
+  const nome = partes[0] || r["Loja | Dept"] || "";
+  const sub = partes.length > 1 ? partes.slice(1).join(" · ") : "";
+  const prev = comparisonMap ? (comparisonMap[rowKeyValue(r)] || null) : null;
+
+  const metric = (label, curVal, curFormatted, prevKey, highlight)=>{
+    const prevRaw = prev ? prev[prevKey] : null;
+    const isPct = label==="Penetração" || label==="Retorno médio";
+    const isCount = label==="Vendas" || label==="Financiamentos";
+    const prevFmt = prev ? (isPct ? pct(prevRaw) : (isCount ? num(prevRaw) : money(prevRaw))) : null;
+    const cmp = prev ? metricCompareBlock(curVal, prevRaw, prevFmt) : "";
+    return `<div class="shareMetric${highlight?' shareMetricHighlight':''}">
+      <div class="shareMetricRow"><span class="shareMetricLabel">${label}</span><span class="shareMetricVal">${curFormatted}</span></div>
+      ${cmp}
+    </div>`;
+  };
+
+  return `<div class="sharePerformanceCard">
+    <div class="spcName">${nome}</div>
+    ${sub ? `<div class="spcSub">${sub}</div>` : ""}
+    <div class="spcBlock">
+      ${metric("Vendas", r.vendas, num(r.vendas), "vendas")}
+      ${metric("Financiamentos", r.fin, num(r.fin), "fin")}
+      ${metric("Penetração", r.penetracao, pctPenetracao(r.penetracao), "penetracao")}
+    </div>
+    <div class="spcDivider"></div>
+    <div class="spcBlock">
+      ${metric("Receita", r.receita, money(r.receita), "receita")}
+      ${metric("Receita SPF", r.receitaSPF, money(r.receitaSPF), "receitaSPF")}
+      ${metric("Receita Total", r.receitaTotal, money(r.receitaTotal), "receitaTotal", true)}
+    </div>
+    <div class="spcDivider"></div>
+    <div class="spcBlock">
+      ${metric("Produção", r.producao, money(r.producao), "producao")}
+      ${metric("Retorno médio", r.retorno, pct(r.retorno), "retorno")}
+    </div>
+  </div>`;
+}
+
+function renderSharePerformanceGrid(title, rows, comparisonMap){
+  if(!rows.length) return `<div class="panel"><h2>${title}</h2><div class="muted">Sem dados.</div></div>`;
+  return `<div class="panel"><h2>${title}</h2>
+    <div class="sharePerformanceGrid">${rows.map(r=>renderSharePerformanceCard(r, comparisonMap)).join("")}</div>
+  </div>`;
+}
+
 // UX-Grupo-3.1, Bloco A/B/C/E: renderer proprio do Ranking (nao usa o
 // table()->cards generico) -- desenhado desde a origem como card
 // executivo (posicao -> identidade -> indicadores -> receita ->
@@ -4678,9 +4854,7 @@ function render(r){
     ]);
 
   document.getElementById("share").innerHTML =
-    table("Share / Penetração por loja e departamento", shareLojaDept, [
-      {k:"Loja | Dept",label:"Loja | Departamento"}, {k:"vendas",label:"Vendas",f:(v)=>num(v),compare:true}, {k:"fin",label:"Financiamentos",f:(v)=>num(v),compare:true}, {k:"penetracao",label:"Penetração",f:pctPenetracao,compare:true}, {k:"receita",label:"Receita",f:money,compare:true}, {k:"receitaSPF",label:"Receita SPF",f:money,compare:true}, {k:"receitaTotal",label:"Receita Total",f:money,compare:true}, {k:"producao",label:"Produção",f:money,compare:true}, {k:"retorno",label:"Retorno médio",f:pct,compare:true}
-    ], prevShareLojaDeptMap);
+    renderSharePerformanceGrid("Share / Penetração por loja e departamento", shareLojaDept, prevShareLojaDeptMap);
 
   renderRanking(filteredResults, salesView, finsView);
 
