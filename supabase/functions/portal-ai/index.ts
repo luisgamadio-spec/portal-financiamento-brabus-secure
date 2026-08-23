@@ -519,7 +519,7 @@ function buildMetricsBlock(args: ResultadoInput, result: any): any {
       { key: "financed", label: "Financiamentos", value: result.financed, format: "int" },
       { key: "share_percent", label: "Share", value: result.share_percent, format: "percent" },
       { key: "production", label: "Produção", value: result.production, format: "currency" },
-      { key: "return", label: "Retorno", value: result.return, format: "percent" },
+      { key: "return", label: "Retorno", value: result.return, format: "currency" },
       { key: "spf", label: "SPF", value: result.spf, format: "currency" }
     ]
   };
@@ -534,7 +534,7 @@ function buildComparisonBlock(args: CompararInput, result: any): any {
       { key: "financed", label: "Financiamentos", value: sideResult.financed, format: "int" },
       { key: "share_percent", label: "Share", value: sideResult.share_percent, format: "percent" },
       { key: "production", label: "Produção", value: sideResult.production, format: "currency" },
-      { key: "return", label: "Retorno", value: sideResult.return, format: "percent" },
+      { key: "return", label: "Retorno", value: sideResult.return, format: "currency" },
       { key: "spf", label: "SPF", value: sideResult.spf, format: "currency" }
     ]
   });

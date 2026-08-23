@@ -286,7 +286,7 @@
   }
 
   var BAI_RANKING_METRIC_LABELS = { sales: 'Vendas', financed: 'Financiamentos', share_percent: 'Share', production: 'Produção', return: 'Retorno', spf: 'SPF' };
-  var BAI_RANKING_METRIC_FORMATS = { sales: 'int', financed: 'int', share_percent: 'percent', production: 'currency', return: 'percent', spf: 'currency' };
+  var BAI_RANKING_METRIC_FORMATS = { sales: 'int', financed: 'int', share_percent: 'percent', production: 'currency', return: 'currency', spf: 'currency' };
   var BAI_MEDALS = { 1: '\u{1F947}', 2: '\u{1F948}', 3: '\u{1F949}' };
 
   function baiBuildRankingBlock(block) {
