@@ -2178,7 +2178,8 @@ function secureModelRows(data, family){
         Modelo:model, volume:0, financiada:0, producao:0, receita:0,
         receitaSPF:0, receitaTotal:0, parcelasWeighted:0, parcelasWeight:0,
         pmtWeighted:0, pmtWeight:0, entradaQtd:0, entradaTotal:0,
-        valorVendaTotal:0, linearQtd:0, balaoQtd:0, reversaoQtd:0, balaoMed:0
+        valorVendaTotal:0, linearQtd:0, balaoQtd:0, reversaoQtd:0, balaoMed:0,
+        balaoWeighted:0, balaoWeight:0
       };
     }
     const target = grouped[model];
@@ -2205,7 +2206,16 @@ function secureModelRows(data, family){
     (row.plan_breakdown || []).forEach(group=>{
       const groupCount = Number(group.financed_count) || 0;
       const planType = String(group.plan_type || "LINEAR").toUpperCase();
-      if(planType === "BALÃO") target.balaoQtd += groupCount;
+      if(planType === "BALÃO"){
+        target.balaoQtd += groupCount;
+        // Incidente UX-Grupo-3.1: average_balloon_value vem do backend como
+        // a media do grupo (store+modelo+plano) -- pondera pela quantidade
+        // de cada grupo antes de somar entre lojas do mesmo modelo, mesmo
+        // padrao ja usado para pmtMed/parcelasMed (average_installment_value).
+        const avgBalao = Number(group.average_balloon_value) || 0;
+        target.balaoWeighted += avgBalao * groupCount;
+        target.balaoWeight += avgBalao > 0 ? groupCount : 0;
+      }
       else if(planType === "REVERSÃO") target.reversaoQtd += groupCount;
       else if(planType === "LINEAR") target.linearQtd += groupCount;
     });
@@ -2230,6 +2240,7 @@ function secureModelRows(data, family){
     parcelasMed:row.parcelasWeight ? row.parcelasWeighted/row.parcelasWeight : 0,
     prazoMedio:row.parcelasWeight ? row.parcelasWeighted/row.parcelasWeight : 0,
     pmtMed:row.pmtWeight ? row.pmtWeighted/row.pmtWeight : 0,
+    balaoMed:row.balaoWeight ? row.balaoWeighted/row.balaoWeight : 0,
     retornoMedio:row.producao ? row.receita/row.producao : 0,
     entradaMed:row.entradaQtd ? row.entradaTotal/row.entradaQtd : 0,
     entradaPct:row.valorVendaTotal ? row.entradaTotal/row.valorVendaTotal : 0

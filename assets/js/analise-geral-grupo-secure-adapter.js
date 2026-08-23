@@ -76,7 +76,13 @@
             producao: distribute(number(group.production_value), groupCount, index),
             parcelas: 0,
             pmt: 0,
-            balaoValor: planType === "BALÃO" ? 1 : 0,
+            // Incidente UX-Grupo-3.1: antes gravava so a flag 1/0 (nao um
+            // valor monetario), entao "Valor Medio Balao" sempre dava R$1,00
+            // rio abaixo. average_balloon_value ja vem em R$ do backend
+            // (media do grupo store+modelo+plano) -- atribuir o mesmo valor
+            // a cada uma das groupCount linhas sinteticas preserva a media
+            // correta quando agregado de novo mais adiante (sum/count).
+            balaoValor: planType === "BALÃO" ? number(group.average_balloon_value) : 0,
             planoClassificado: planType,
             isCoparticipadoFlag: planType === "COPARTICIPADO",
             isSubsidiadoFlag: planType === "SUBSIDIADO",
