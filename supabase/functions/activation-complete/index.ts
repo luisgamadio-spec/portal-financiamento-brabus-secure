@@ -176,8 +176,16 @@ Deno.serve(async (req)=>{
     // Retomada segura: Auth já foi atualizado numa tentativa anterior,
     // só falta sincronizar usuarios/revisões — NÃO repete o update de Auth.
     if (prep.data?.codigo === "AGUARDANDO_FINALIZACAO" && prep.data?.ativacao_id) {
+      // Incidente Seguranca-de-Ativacao-1.0: activation_finalize agora
+      // recebe o proprio continuacao_token_hash (a mesma prova de posse
+      // que activation_prepare_complete ja exigiu), nunca mais um
+      // ativacao_id opaco -- fecha o IDOR de defesa em profundidade
+      // (sessao A nao conseguia mais finalizar a ativacao de B, mas o
+      // banco tambem nao amarrava isso por si so). tokenHash e
+      // deterministico a partir do MESMO continuationToken que o cliente
+      // reenviou nesta retomada, entao nao muda nada do fluxo observavel.
       const fin = await callRpc("activation_finalize", {
-        p_ativacao_id: prep.data.ativacao_id
+        p_continuacao_token_hash: tokenHash
       });
       if (fin.ok && fin.data?.ok === true) {
         if (fin.data?.ja_concluida !== true) await notificarMasterSeNecessario(fin.data);
@@ -241,8 +249,10 @@ Deno.serve(async (req)=>{
     await callRpc("activation_mark_auth_ok", {
       p_ativacao_id: ativacao_id
     });
+    // Incidente Seguranca-de-Ativacao-1.0: mesmo raciocinio do branch de
+    // retomada acima -- token_hash, nao ativacao_id.
     const fin = await callRpc("activation_finalize", {
-      p_ativacao_id: ativacao_id
+      p_continuacao_token_hash: tokenHash
     });
     if (!fin.ok || fin.data?.ok !== true) {
       // Auth já está correto; usuarios/revisões ficam pendentes de
