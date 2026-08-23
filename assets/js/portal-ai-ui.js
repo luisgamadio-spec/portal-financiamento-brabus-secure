@@ -68,11 +68,56 @@
     if (lastIndex < text.length) parent.appendChild(document.createTextNode(text.slice(lastIndex)));
   }
 
-  function baiBuildTable(lines) {
+  // Fase IA-2C.1, Parte D/L/K — fallback de segurança para Markdown table
+  // livre do modelo (não um block estruturado — este parser continua
+  // existindo para qualquer tabela que o modelo ainda produza por conta
+  // própria, apesar da instrução no system prompt para preferir blocks).
+  // Tabelas de até 3 colunas cabem bem como <table> de verdade — mantidas
+  // como estavam. Tabelas de 4+ colunas SEMPRE viravam scroll horizontal
+  // interno na largura do drawer (medido: 615px de conteúdo em 340px
+  // disponíveis) — convertidas em cartões empilhados (rótulo: valor),
+  // mesmo princípio já usado no Ranking/Share do Portal: nunca tabela
+  // apertada, cartão executivo.
+  var BAI_TABLE_CARD_THRESHOLD = 3;
+
+  function baiBuildTableAsCards(headerRow, bodyRows) {
     var wrap = document.createElement('div');
-    wrap.className = 'brabusAiTableWrap';
-    var table = document.createElement('table');
-    table.className = 'brabusAiTable';
+    wrap.className = 'brabusAiBlockPanel brabusAiTableCards';
+    var list = document.createElement('div');
+    list.className = 'brabusAiRankingList';
+    bodyRows.forEach(function (r) {
+      var card = document.createElement('div');
+      card.className = 'brabusAiRankingItem';
+      // Primeira coluna vira o título do cartão (mesmo padrão do
+      // Ranking: identidade primeiro, métricas depois).
+      var head = document.createElement('div');
+      head.className = 'brabusAiRankingHead';
+      var name = document.createElement('span');
+      name.className = 'brabusAiRankingName';
+      baiRenderInline(name, r[0] || '');
+      head.appendChild(name);
+      card.appendChild(head);
+      if (headerRow) {
+        var metricsWrap = document.createElement('div');
+        metricsWrap.className = 'brabusAiRankingMetrics';
+        for (var i = 1; i < r.length; i++) {
+          var m = document.createElement('span');
+          m.className = 'brabusAiRankingMetric';
+          m.appendChild(document.createTextNode((headerRow[i] || '') + ': '));
+          var b = document.createElement('b');
+          baiRenderInline(b, r[i] || '');
+          m.appendChild(b);
+          metricsWrap.appendChild(m);
+        }
+        card.appendChild(metricsWrap);
+      }
+      list.appendChild(card);
+    });
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function baiBuildTable(lines) {
     var rows = lines.map(function (l) {
       return l.replace(/^\||\|$/g, '').split('|').map(function (c) { return c.trim(); });
     });
@@ -81,6 +126,15 @@
       headerRow = rows[0];
       bodyRows = rows.slice(2);
     }
+
+    if (headerRow && headerRow.length > BAI_TABLE_CARD_THRESHOLD) {
+      return baiBuildTableAsCards(headerRow, bodyRows);
+    }
+
+    var wrap = document.createElement('div');
+    wrap.className = 'brabusAiTableWrap';
+    var table = document.createElement('table');
+    table.className = 'brabusAiTable';
     if (headerRow) {
       var thead = document.createElement('thead');
       var trh = document.createElement('tr');
@@ -107,6 +161,23 @@
     return wrap;
   }
 
+  function baiBuildCallout(lines) {
+    var box = document.createElement('div');
+    box.className = 'brabusAiCallout';
+    var icon = document.createElement('span');
+    icon.className = 'brabusAiCalloutIcon';
+    icon.textContent = '⚠'; // ⚠ — texto fixo, nunca vindo do modelo
+    var textWrap = document.createElement('div');
+    textWrap.className = 'brabusAiCalloutText';
+    lines.forEach(function (l, i) {
+      if (i > 0) textWrap.appendChild(document.createElement('br'));
+      baiRenderInline(textWrap, l.replace(/^>\s?/, ''));
+    });
+    box.appendChild(icon);
+    box.appendChild(textWrap);
+    return box;
+  }
+
   function baiRenderMarkdown(container, text) {
     var blocks = String(text).replace(/\r\n/g, '\n').split(/\n{2,}/);
     blocks.forEach(function (block) {
@@ -115,6 +186,13 @@
       var lines = block.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l.length; });
       if (!lines.length) return;
 
+      // Fase IA-2C.1 — bloco de citação Markdown ("> texto") vira destaque
+      // visual (Parte N). Igual às demais construções, sempre via árvore
+      // DOM — nunca innerHTML com conteúdo do modelo.
+      if (lines.every(function (l) { return /^>\s?/.test(l); })) {
+        container.appendChild(baiBuildCallout(lines));
+        return;
+      }
       if (lines.length >= 2 && lines.every(function (l) { return /^\|.*\|$/.test(l); })) {
         container.appendChild(baiBuildTable(lines));
         return;
@@ -150,6 +228,222 @@
     });
   }
 
+  // ---------- Fase IA-2C.1 — blocos visuais estruturados ----------
+  // Princípio (Parte G): estes blocos vêm PRONTOS do backend, calculados
+  // pelas tools — nunca recalculados aqui. O frontend só formata e
+  // apresenta. Toda montagem via createElement/textContent (nunca
+  // innerHTML), mesma disciplina de segurança do restante deste arquivo,
+  // mesmo os campos vindo de dados (nome de vendedor/loja), não do texto
+  // livre do modelo.
+
+  function baiFormatValue(value, format) {
+    if (value === null || value === undefined || typeof value !== 'number' || !isFinite(value)) {
+      return { text: '—', title: null };
+    }
+    if (format === 'currency') {
+      var full = value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (Math.abs(value) >= 1000000) {
+        var compact = 'R$ ' + (value / 1000000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' mi';
+        return { text: compact, title: full };
+      }
+      return { text: full, title: null };
+    }
+    if (format === 'percent') {
+      return { text: value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%', title: null };
+    }
+    return { text: value.toLocaleString('pt-BR'), title: null };
+  }
+
+  function baiApplyValue(el, formatted) {
+    el.textContent = formatted.text;
+    if (formatted.title) el.title = formatted.title;
+  }
+
+  function baiBuildMetricsBlock(block) {
+    var panel = document.createElement('div');
+    panel.className = 'brabusAiBlockPanel';
+    var title = document.createElement('div');
+    title.className = 'brabusAiBlockTitle';
+    title.textContent = block.title || 'Resultado';
+    panel.appendChild(title);
+    var grid = document.createElement('div');
+    grid.className = 'brabusAiMetricsGrid';
+    (block.items || []).forEach(function (item) {
+      var card = document.createElement('div');
+      card.className = 'brabusAiMetricCard';
+      var label = document.createElement('span');
+      label.className = 'brabusAiMetricLabel';
+      label.textContent = item.label != null ? String(item.label) : '';
+      var val = document.createElement('span');
+      val.className = 'brabusAiMetricValue';
+      baiApplyValue(val, baiFormatValue(item.value, item.format));
+      card.appendChild(label);
+      card.appendChild(val);
+      grid.appendChild(card);
+    });
+    panel.appendChild(grid);
+    return panel;
+  }
+
+  var BAI_RANKING_METRIC_LABELS = { sales: 'Vendas', financed: 'Financiamentos', share_percent: 'Share', production: 'Produção', return: 'Retorno', spf: 'SPF' };
+  var BAI_RANKING_METRIC_FORMATS = { sales: 'int', financed: 'int', share_percent: 'percent', production: 'currency', return: 'percent', spf: 'currency' };
+  var BAI_MEDALS = { 1: '\u{1F947}', 2: '\u{1F948}', 3: '\u{1F949}' };
+
+  function baiBuildRankingBlock(block) {
+    var panel = document.createElement('div');
+    panel.className = 'brabusAiBlockPanel';
+    var title = document.createElement('div');
+    title.className = 'brabusAiBlockTitle';
+    title.textContent = block.title || 'Ranking';
+    panel.appendChild(title);
+    var list = document.createElement('div');
+    list.className = 'brabusAiRankingList';
+    (block.items || []).forEach(function (item) {
+      var row = document.createElement('div');
+      row.className = 'brabusAiRankingItem' + (item.position <= 3 ? ' brabusAiTop3' : '');
+      var head = document.createElement('div');
+      head.className = 'brabusAiRankingHead';
+      var pos = document.createElement('span');
+      pos.className = 'brabusAiRankingPos';
+      pos.textContent = (BAI_MEDALS[item.position] ? BAI_MEDALS[item.position] + ' ' : '') + item.position + 'º';
+      var name = document.createElement('span');
+      name.className = 'brabusAiRankingName';
+      name.textContent = item.name != null ? String(item.name) : '';
+      head.appendChild(pos);
+      head.appendChild(name);
+      row.appendChild(head);
+
+      var metricsWrap = document.createElement('div');
+      metricsWrap.className = 'brabusAiRankingMetrics';
+      // Métrica que originou o ranking sempre aparece primeiro, em
+      // destaque — as demais completam o contexto (Parte I: "adaptar
+      // campos conforme a pergunta", sem presumir sempre as mesmas).
+      var orderedKeys = ['sales', 'financed', 'share_percent', 'production', 'return', 'spf'];
+      if (block.metric && orderedKeys.indexOf(block.metric) !== -1) {
+        orderedKeys = [block.metric].concat(orderedKeys.filter(function (k) { return k !== block.metric; }));
+      }
+      orderedKeys.forEach(function (key) {
+        if (!(key in item)) return;
+        var m = document.createElement('span');
+        m.className = 'brabusAiRankingMetric';
+        var label = BAI_RANKING_METRIC_LABELS[key] || key;
+        var formatted = baiFormatValue(item[key], BAI_RANKING_METRIC_FORMATS[key]);
+        var b = document.createElement('b');
+        baiApplyValue(b, formatted);
+        m.appendChild(document.createTextNode(label + ': '));
+        m.appendChild(b);
+        metricsWrap.appendChild(m);
+      });
+      row.appendChild(metricsWrap);
+      list.appendChild(row);
+    });
+    panel.appendChild(list);
+    return panel;
+  }
+
+  function baiFormatDelta(delta) {
+    if (!delta || delta.percent === null || delta.percent === undefined || !isFinite(delta.percent)) {
+      return { text: '— sem base anterior', cls: 'na' };
+    }
+    var cls = delta.percent > 0 ? 'up' : (delta.percent < 0 ? 'down' : 'flat');
+    var icon = delta.percent > 0 ? '▲' : (delta.percent < 0 ? '▼' : '▬');
+    var val = Math.abs(delta.percent).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    return { text: icon + ' ' + (delta.percent >= 0 ? '+' : '') + val + '%', cls: cls };
+  }
+
+  function baiBuildComparisonSide(side) {
+    var card = document.createElement('div');
+    card.className = 'brabusAiComparisonCard';
+    var name = document.createElement('div');
+    name.className = 'brabusAiComparisonName';
+    name.textContent = side.label != null ? String(side.label) : '';
+    card.appendChild(name);
+    (side.items || []).forEach(function (item) {
+      var row = document.createElement('div');
+      row.className = 'brabusAiComparisonRow';
+      var label = document.createElement('span');
+      label.className = 'brabusAiRankingMetric';
+      label.textContent = item.label != null ? String(item.label) : '';
+      var val = document.createElement('b');
+      baiApplyValue(val, baiFormatValue(item.value, item.format));
+      row.appendChild(label);
+      row.appendChild(val);
+      card.appendChild(row);
+    });
+    return card;
+  }
+
+  var BAI_DELTA_LABELS = { sales: 'Vendas', financed: 'Financiamentos', share_points: 'Share (p.p.)', production: 'Produção', return: 'Retorno', spf: 'SPF' };
+
+  function baiBuildComparisonBlock(block) {
+    var panel = document.createElement('div');
+    panel.className = 'brabusAiBlockPanel';
+    var title = document.createElement('div');
+    title.className = 'brabusAiBlockTitle';
+    title.textContent = block.title || 'Comparação';
+    panel.appendChild(title);
+    var grid = document.createElement('div');
+    grid.className = 'brabusAiComparisonGrid';
+    if (block.a) grid.appendChild(baiBuildComparisonSide(block.a));
+    if (block.b) grid.appendChild(baiBuildComparisonSide(block.b));
+    panel.appendChild(grid);
+
+    if (block.deltas) {
+      var deltasWrap = document.createElement('div');
+      deltasWrap.className = 'brabusAiComparisonDeltas';
+      Object.keys(block.deltas).forEach(function (key) {
+        var raw = block.deltas[key];
+        var row = document.createElement('div');
+        row.className = 'brabusAiDeltaRow';
+        var label = document.createElement('span');
+        label.className = 'brabusAiDeltaLabel';
+        label.textContent = BAI_DELTA_LABELS[key] || key;
+        var val = document.createElement('span');
+        val.className = 'brabusAiDeltaVal';
+        if (key === 'share_points') {
+          // share_points é diferença simples em pontos percentuais, não
+          // um delta relativo — sem ícone/cor de "variação percentual".
+          val.textContent = (typeof raw === 'number' && isFinite(raw)) ? ((raw >= 0 ? '+' : '') + raw.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' p.p.') : '—';
+        } else {
+          var f = baiFormatDelta(raw);
+          val.textContent = f.text;
+          val.className += ' ' + f.cls;
+        }
+        row.appendChild(label);
+        row.appendChild(val);
+        deltasWrap.appendChild(row);
+      });
+      panel.appendChild(deltasWrap);
+    }
+    return panel;
+  }
+
+  function baiBuildBlock(block) {
+    if (!block || typeof block !== 'object') return null;
+    try {
+      if (block.type === 'metrics' && Array.isArray(block.items)) return baiBuildMetricsBlock(block);
+      if (block.type === 'ranking' && Array.isArray(block.items)) return baiBuildRankingBlock(block);
+      if (block.type === 'comparison' && block.a && block.b) return baiBuildComparisonBlock(block);
+    } catch (e) {
+      // Parte AK — bloco inválido nunca derruba o chat: ignora silenciosamente,
+      // a resposta em texto (sempre presente) continua chegando normal.
+      return null;
+    }
+    return null;
+  }
+
+  function baiBuildBlocksWrap(blocks) {
+    if (!Array.isArray(blocks) || !blocks.length) return null;
+    var wrap = document.createElement('div');
+    wrap.className = 'brabusAiBlocks';
+    var any = false;
+    blocks.forEach(function (b) {
+      var el = baiBuildBlock(b);
+      if (el) { wrap.appendChild(el); any = true; }
+    });
+    return any ? wrap : null;
+  }
+
   function baiBuildBubble(role, content) {
     var bubble = document.createElement('div');
     bubble.className = 'brabusAiBubble ' + (role === 'user' ? 'brabusAiBubbleUser' : 'brabusAiBubbleAi');
@@ -159,6 +453,24 @@
       baiRenderMarkdown(bubble, content);
     }
     return bubble;
+  }
+
+  // Fase IA-2C.1, Parte U/AL — mensagens do usuário continuam bolha pura
+  // (comportamento intocado). Mensagens da IA sem blocks (histórico
+  // antigo, ou resposta puramente textual) também continuam só a bolha —
+  // 100% compatível com o formato anterior. Só quando blocks existe e
+  // produz pelo menos 1 elemento válido é que a mensagem vira um wrapper
+  // com a bolha (texto curto) + blocos soltos, largura cheia do body.
+  function baiBuildMessage(msg) {
+    var bubble = baiBuildBubble(msg.role, msg.content);
+    if (msg.role === 'user') return bubble;
+    var blocksWrap = baiBuildBlocksWrap(msg.blocks);
+    if (!blocksWrap) return bubble;
+    var wrap = document.createElement('div');
+    wrap.className = 'brabusAiMessage';
+    wrap.appendChild(bubble);
+    wrap.appendChild(blocksWrap);
+    return wrap;
   }
 
   function baiBuildErrorBubble(message) {
@@ -184,6 +496,7 @@
       '<div class="brabusAiSubtitle">Inteligência operacional conectada aos dados do Portal.</div></div>' +
       '<div class="brabusAiHeaderActions">' +
       '<button type="button" class="brabusAiNewChatBtn" onclick="novaConversaBrabusAI()">Nova conversa</button>' +
+      '<button type="button" id="brabusAiExpandBtn" class="brabusAiExpandBtn" aria-label="Expandir" aria-pressed="false" onclick="toggleBrabusAIExpand()">⤢</button>' +
       '<button type="button" class="brabusAiCloseBtn" aria-label="Fechar" onclick="fecharBrabusAI()">✕</button>' +
       '</div></div>' +
       '<div class="brabusAiBody" id="brabusAiBody"></div>' +
@@ -225,7 +538,7 @@
       body.appendChild(sugWrap);
     } else {
       AI_CONVERSATION.forEach(function (msg) {
-        body.appendChild(baiBuildBubble(msg.role, msg.content));
+        body.appendChild(baiBuildMessage(msg));
       });
       if (AI_SENDING) body.appendChild(baiBuildLoadingBubble());
     }
@@ -264,7 +577,12 @@
         return;
       }
 
-      var priorTurns = AI_CONVERSATION.slice(0, -1).slice(-8);
+      // Envia só {role, content} — blocks é dado já servido ao cliente,
+      // reenviá-lo no histórico não ajuda o modelo e só infla o payload
+      // (Parte AC).
+      var priorTurns = AI_CONVERSATION.slice(0, -1).slice(-8).map(function (m) {
+        return { role: m.role, content: m.content };
+      });
       var resp;
       try {
         resp = await fetch(SUPABASE_URL + '/functions/v1/portal-ai', {
@@ -293,7 +611,9 @@
       AI_SENDING = false;
 
       if (resp.ok && typeof result.reply === 'string') {
-        AI_CONVERSATION.push({ role: 'assistant', content: result.reply });
+        // blocks é opcional (Parte AL) — undefined/null aqui produz o
+        // mesmo comportamento de sempre (só a bolha de texto).
+        AI_CONVERSATION.push({ role: 'assistant', content: result.reply, blocks: Array.isArray(result.blocks) ? result.blocks : null });
         baiRenderBody();
         window.brabusAiOnInput();
         return;
@@ -334,6 +654,20 @@
   window.fecharBrabusAI = function () {
     var overlay = document.getElementById('brabusAiOverlay');
     if (overlay) overlay.classList.remove('show');
+  };
+
+  // Parte Q/R — alternância manual, nunca automática. Sem persistência
+  // entre sessões (mesmo princípio de "conversa só em memória") — reabrir
+  // o drawer volta ao estado normal.
+  window.toggleBrabusAIExpand = function () {
+    var drawer = document.getElementById('brabusAiDrawer');
+    var btn = document.getElementById('brabusAiExpandBtn');
+    if (!drawer) return;
+    var expanded = drawer.classList.toggle('brabusAiExpanded');
+    if (btn) {
+      btn.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+      btn.setAttribute('aria-label', expanded ? 'Recolher' : 'Expandir');
+    }
   };
 
   window.novaConversaBrabusAI = function () {
@@ -414,6 +748,8 @@
     if (btn) btn.remove();
     var overlay = document.getElementById('brabusAiOverlay');
     if (overlay) overlay.classList.remove('show');
+    var drawer = document.getElementById('brabusAiDrawer');
+    if (drawer) drawer.classList.remove('brabusAiExpanded');
     AI_CONVERSATION = [];
     AI_SENDING = false;
   };
