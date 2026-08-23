@@ -158,7 +158,14 @@ begin
 end;
 $function$;
 
-REVOKE ALL ON FUNCTION public.portal_reconcile_user_facts_core(uuid) FROM PUBLIC, anon;
+-- authenticated tambem precisa ser revogado explicitamente: CREATE FUNCTION
+-- aplica os privilegios padrao do schema (que neste projeto incluem EXECUTE
+-- para authenticated) a qualquer funcao NOVA -- sem este REVOKE, qualquer
+-- usuario logado poderia chamar a reconciliacao para um p_usuario_id
+-- arbitrario, contornando o gate is_master() que so existe no wrapper
+-- publico. Achado durante a promocao LIVE (grants antes/depois divergiam
+-- do esperado) e corrigido antes de qualquer outra verificacao.
+REVOKE ALL ON FUNCTION public.portal_reconcile_user_facts_core(uuid) FROM PUBLIC, anon, authenticated;
 
 -- portal_reconcile_user_facts (publica, botao Master) vira wrapper fino:
 -- mesma assinatura, mesmo comportamento observavel, unica mudanca e que a
