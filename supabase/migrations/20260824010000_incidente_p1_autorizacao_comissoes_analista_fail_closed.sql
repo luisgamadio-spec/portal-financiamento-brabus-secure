@@ -229,6 +229,12 @@ begin
     from sales_global_latest s
     join eligible_sellers es on es.id = s.seller_id
     where s.sale_date between p_start and p_end
+      -- Incidente IA-1B: mesmo principio do IA-1A -- para DIRETOR, autorizacao
+      -- vale sobre o departamento EFETIVO (temporal) do fato. Esta funcao
+      -- agrega por LOJA (nao expoe "department" no output), mas o vazamento
+      -- e o mesmo: fatos fora do departamento do DIRETOR contaminando o
+      -- total da loja. No-op para MASTER/GERENTE/ANALISTA/VENDEDOR
+      -- (v_is_director sempre false) -- nao afeta calculo real de comissao.
       and (
         not v_is_director
         or upper(trim(coalesce(public.resolve_department_temporal(es.id, s.sale_date, null), es.status, 'SEM DEPARTAMENTO'))) = any(v_departments)
@@ -252,6 +258,9 @@ begin
      and lb.source_type in ('FINANCE_CURRENT', 'FINANCE_HISTORY')
     join eligible_sellers es on es.id = coalesce(f.seller_user_id, f.seller_id)
     where f.operation_date between p_start and p_end
+      -- Incidente IA-1B: mesmo gate de visible_sales_env -- fecha finance e,
+      -- por derivacao (spf_by_window faz join a visible_finance_env), SPF
+      -- tambem.
       and (
         not v_is_director
         or upper(trim(coalesce(public.resolve_department_temporal(es.id, f.operation_date, null), es.status, 'SEM DEPARTAMENTO'))) = any(v_departments)
