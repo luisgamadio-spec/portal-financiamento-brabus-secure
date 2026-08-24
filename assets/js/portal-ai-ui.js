@@ -285,8 +285,15 @@
     return panel;
   }
 
-  var BAI_RANKING_METRIC_LABELS = { sales: 'Vendas', financed: 'Financiamentos', share_percent: 'Share', production: 'Produção', return: 'Retorno', spf: 'SPF' };
-  var BAI_RANKING_METRIC_FORMATS = { sales: 'int', financed: 'int', share_percent: 'percent', production: 'currency', return: 'currency', spf: 'currency' };
+  var BAI_RANKING_METRIC_LABELS = { sales: 'Vendas', financed: 'Financiamentos', share_percent: 'Share', production: 'Produção', return: 'Retorno', return_avg_percent: 'Retorno Médio', spf: 'SPF', profitability: 'Rentabilidade' };
+  var BAI_RANKING_METRIC_FORMATS = { sales: 'int', financed: 'int', share_percent: 'percent', production: 'currency', return: 'currency', return_avg_percent: 'percent', spf: 'currency', profitability: 'currency' };
+  // Fase IA-2C.2 — o nome da métrica que originou o ranking (block.metric,
+  // ex.: "share", "return_avg") nem sempre é igual à chave do item que a
+  // contém (ex.: "share_percent", "return_avg_percent"). Sem este mapa, a
+  // métrica escolhida pelo usuário nunca aparecia em destaque no card —
+  // bug pré-existente da IA-2C.1 (afetava "share"), agora corrigido junto
+  // com as métricas novas desta fase.
+  var BAI_RANKING_METRIC_KEY = { sales: 'sales', financed: 'financed', share: 'share_percent', production: 'production', return: 'return', return_avg: 'return_avg_percent', spf: 'spf', profitability: 'profitability' };
   var BAI_MEDALS = { 1: '\u{1F947}', 2: '\u{1F948}', 3: '\u{1F949}' };
 
   function baiBuildRankingBlock(block) {
@@ -318,12 +325,17 @@
       // Métrica que originou o ranking sempre aparece primeiro, em
       // destaque — as demais completam o contexto (Parte I: "adaptar
       // campos conforme a pergunta", sem presumir sempre as mesmas).
-      var orderedKeys = ['sales', 'financed', 'share_percent', 'production', 'return', 'spf'];
-      if (block.metric && orderedKeys.indexOf(block.metric) !== -1) {
-        orderedKeys = [block.metric].concat(orderedKeys.filter(function (k) { return k !== block.metric; }));
+      var orderedKeys = ['sales', 'financed', 'share_percent', 'production', 'return', 'return_avg_percent', 'spf', 'profitability'];
+      var priorityKey = block.metric ? BAI_RANKING_METRIC_KEY[block.metric] : null;
+      if (priorityKey && orderedKeys.indexOf(priorityKey) !== -1) {
+        orderedKeys = [priorityKey].concat(orderedKeys.filter(function (k) { return k !== priorityKey; }));
       }
       orderedKeys.forEach(function (key) {
-        if (!(key in item)) return;
+        // Fase IA-2C.2 — null (não só ausente) também não vira card: campos
+        // que não existem no grão da consulta (ex.: SPF/Rentabilidade num
+        // ranking por modelo) vêm explicitamente null da tool, nunca "—"
+        // fantasma sugerindo um dado que a fonte não tem (Parte Y).
+        if (!(key in item) || item[key] === null || item[key] === undefined) return;
         var m = document.createElement('span');
         m.className = 'brabusAiRankingMetric';
         var label = BAI_RANKING_METRIC_LABELS[key] || key;
