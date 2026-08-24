@@ -1470,6 +1470,13 @@ function renderOperationalSecureContent(){
   }
   const analystRows=operationalAuthorizedAnalystRows();
   const podeVerAnalista=USER.tipo==='MASTER'||USER.tipo==='ANALISTA'||isDiretorComissao(USER);
+  // Incidente P1 Autorizacao-Comissoes 1.0 -- a linha de GERENTE era montada
+  // e exibida para QUALQUER perfil (Vendedor/Analista incluidos), sem o
+  // mesmo gate ja aplicado 3 linhas abaixo para a secao Analista
+  // (podeVerAnalista). Matriz oficial: somente MASTER, DIRETOR e o proprio
+  // GERENTE (ja restrito por loja+departamento nas RPCs operational_*)
+  // podem ver a linha do Gerente -- Vendedor e Analista nunca.
+  const podeVerGerente=USER.tipo==='MASTER'||USER.tipo==='GERENTE'||isDiretorComissao(USER);
   // Incidente 3.21: se a RPC de Analistas falhar (ex.: timeout — o custo cresce a
   // cada ausência ativa, pois cada uma recomputa operational_commission_metrics
   // para sua própria janela de cobertura), loadOperationalCommissionMetrics()
@@ -1496,7 +1503,7 @@ function renderOperationalSecureContent(){
       sectionRows
         .sort((a,b)=>String(a.seller_name||'').localeCompare(String(b.seller_name||''),'pt-BR'))
         .forEach(row=>{html+=operationalAggregateRowHtml(row)});
-      if(section.key!=='NOVOS/SEMINOVOS'){
+      if(section.key!=='NOVOS/SEMINOVOS'&&podeVerGerente){
         html+=operationalManagerRowHtml(
           `GERENTE ${section.label}`,
           sectionRows,
