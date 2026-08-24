@@ -5115,6 +5115,20 @@ async function getSnapshotFechamento(fechamentoId){
   if(error){toastAdmin('Erro ao carregar snapshot: '+error.message,'err'); return []}
   return (Array.isArray(data?.rows)?data.rows:[]).map(snapshotNormalizedRow);
 }
+// Incidente P2 Fail-Closed RH/DP -- caminho exclusivo dos botões de
+// EXPORTAÇÃO/IMPRESSÃO oficial (nunca da visualização/comparação em
+// tela, que continuam usando getSnapshotFechamento acima sem gate).
+// master_commission_snapshot_export nega server-side (não é possível
+// contornar via chamada direta da RPC) quando o fechamento tem 100%
+// das linhas com comissão zero E detalhes ausente -- nunca por causa
+// de zeros parciais legítimos. Retorna undefined (não []) em bloqueio,
+// mesmo padrão já usado por buscarDetalheOperacionalParaFechamento,
+// para o chamador abortar a exportação em vez de gerar arquivo vazio.
+async function getSnapshotFechamentoParaExportacao(fechamentoId){
+  const {data,error}=await supabaseClient.rpc('master_commission_snapshot_export',{p_closing_id:fechamentoId});
+  if(error){toastAdmin(error.message,'err'); return undefined}
+  return (Array.isArray(data?.rows)?data.rows:[]).map(snapshotNormalizedRow);
+}
 function aggregateSnapshot(rows=[]){
   return rows.reduce((a,r)=>{
     a.vendidas+=+(r.vendidas||0);a.financiadas+=+(r.financiadas||0);a.producao+=+(r.producao||0);a.retorno+=+(r.retorno||0);a.spf_extra+=+(r.spf_extra||0);a.comissao_total+=+(r.comissao_total||0);
@@ -5719,7 +5733,8 @@ async function buscarDetalheOperacionalParaFechamento(fechamentoId,snapshotRows)
 async function exportarRelatorioHistoricoSelecionado(){
   const id=document.getElementById('histFechamentoSel')?.value||document.getElementById('relFechamentoSel')?.value;
   if(!id){alert('Selecione uma competência.');return}
-  const rows=await getSnapshotFechamento(id);
+  const rows=await getSnapshotFechamentoParaExportacao(id);
+  if(rows===undefined) return;
   const spfAuditData=await buscarAuditoriaSpfParaFechamento(id);
   if(spfAuditData===undefined) return;
   const chassisDetailData=await buscarDetalheOperacionalParaFechamento(id,rows);
@@ -5729,7 +5744,8 @@ async function exportarRelatorioHistoricoSelecionado(){
 async function imprimirRelatorioHistoricoSelecionado(){
   const id=document.getElementById('histFechamentoSel')?.value||document.getElementById('relFechamentoSel')?.value;
   if(!id){alert('Selecione uma competência.');return}
-  const rows=await getSnapshotFechamento(id);
+  const rows=await getSnapshotFechamentoParaExportacao(id);
+  if(rows===undefined) return;
   imprimirSnapshotPDF(rows);
 }
 async function compararCompetenciasHistorico(){
@@ -5756,8 +5772,8 @@ function abrirExportarHistoricoModal(id,nomePeriodo){
     title:'Exportar competência',
     text:`Competência: <b>${escapeOperationalHtml(nomePeriodo||'')}</b>`,
     fieldHtml:`<div class="adminActions" style="justify-content:flex-start">
-      <button class="adminActionBtn good" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');const spf=await buscarAuditoriaSpfParaFechamento('${id}');if(spf===undefined)return;const det=await buscarDetalheOperacionalParaFechamento('${id}',r);if(det===undefined)return;exportSnapshotExcel(r,'Relatorio_Comissoes_${id}.xlsx',false,spf,det);closeAdminModal();})()">Excel</button>
-      <button class="adminActionBtn warn" onclick="(async()=>{const r=await getSnapshotFechamento('${id}');imprimirSnapshotPDF(r,'Relatório ${escapeOperationalHtml(nomePeriodo||'').replace(/'/g,"\\'")}');closeAdminModal();})()">PDF</button>
+      <button class="adminActionBtn good" onclick="(async()=>{const r=await getSnapshotFechamentoParaExportacao('${id}');if(r===undefined)return;const spf=await buscarAuditoriaSpfParaFechamento('${id}');if(spf===undefined)return;const det=await buscarDetalheOperacionalParaFechamento('${id}',r);if(det===undefined)return;exportSnapshotExcel(r,'Relatorio_Comissoes_${id}.xlsx',false,spf,det);closeAdminModal();})()">Excel</button>
+      <button class="adminActionBtn warn" onclick="(async()=>{const r=await getSnapshotFechamentoParaExportacao('${id}');if(r===undefined)return;imprimirSnapshotPDF(r,'Relatório ${escapeOperationalHtml(nomePeriodo||'').replace(/'/g,"\\'")}');closeAdminModal();})()">PDF</button>
     </div>`,
     confirmText:'Fechar',
     onConfirm:()=>closeAdminModal()
@@ -5825,7 +5841,8 @@ async function abrirCompetenciaAtivaHistorico(periodoId){
 async function exportarRhDpOficialHistorico(periodoId){
   const fechamento=fechamentoAtivoDoPeriodo(periodoId);
   if(!fechamento){toastAdmin('Esta competência não possui fechamento ativo para exportar.','err');return}
-  const rows=await getSnapshotFechamento(fechamento.id);
+  const rows=await getSnapshotFechamentoParaExportacao(fechamento.id);
+  if(rows===undefined) return;
   const spfAuditData=await buscarAuditoriaSpfParaFechamento(fechamento.id);
   if(spfAuditData===undefined) return;
   const chassisDetailData=await buscarDetalheOperacionalParaFechamento(fechamento.id,rows);
@@ -5835,7 +5852,8 @@ async function exportarRhDpOficialHistorico(periodoId){
 async function imprimirRhDpOficialHistorico(periodoId){
   const fechamento=fechamentoAtivoDoPeriodo(periodoId);
   if(!fechamento){toastAdmin('Esta competência não possui fechamento ativo para imprimir.','err');return}
-  const rows=await getSnapshotFechamento(fechamento.id);
+  const rows=await getSnapshotFechamentoParaExportacao(fechamento.id);
+  if(rows===undefined) return;
   imprimirSnapshotPDF(rows,'Relatório '+(fechamento.nome_periodo||''));
 }
 // Prévia sempre opera sobre #dtIni/#dtFim — sincroniza com o período
