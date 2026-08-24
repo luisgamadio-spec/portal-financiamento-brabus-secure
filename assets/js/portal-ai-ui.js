@@ -430,12 +430,102 @@
     return panel;
   }
 
+  // Fase IA-2C.3, Parte U/V — bloco "operations": lista de operações
+  // individuais (Coparticipado/Subsidiado), sempre cards (nunca tabela
+  // horizontal, mesmo no desktop — Parte V é explícita: cada operação é
+  // uma linha de negócio, não uma célula de planilha). Cada campo já
+  // chega seguro do backend (referência mascarada, nunca cliente/chassi
+  // completo) — aqui só formata, textContent em tudo, igual ao resto
+  // deste arquivo.
+  function baiBuildOperationsBlock(block) {
+    var panel = document.createElement('div');
+    panel.className = 'brabusAiBlockPanel';
+    var title = document.createElement('div');
+    title.className = 'brabusAiBlockTitle';
+    title.textContent = block.title || 'Operações';
+    panel.appendChild(title);
+
+    var summary = document.createElement('div');
+    summary.className = 'brabusAiOperationsSummary';
+    var summaryText = (block.total_count != null ? block.total_count : (block.items || []).length) + ' operação(ões)';
+    if (block.total_financed_value != null) {
+      summaryText += ' · Financiado: ' + baiFormatValue(block.total_financed_value, 'currency').text;
+    }
+    summary.textContent = summaryText;
+    panel.appendChild(summary);
+
+    var list = document.createElement('div');
+    list.className = 'brabusAiOperationsList';
+    (block.items || []).forEach(function (op) {
+      var card = document.createElement('div');
+      card.className = 'brabusAiOperationCard';
+
+      var head = document.createElement('div');
+      head.className = 'brabusAiOperationHead';
+      var ref = document.createElement('span');
+      ref.className = 'brabusAiOperationRef';
+      ref.textContent = op.reference != null ? String(op.reference) : '—';
+      head.appendChild(ref);
+      if (op.date) {
+        var dateEl = document.createElement('span');
+        dateEl.className = 'brabusAiOperationDate';
+        dateEl.textContent = String(op.date);
+        head.appendChild(dateEl);
+      }
+      card.appendChild(head);
+
+      var loc = document.createElement('div');
+      loc.className = 'brabusAiOperationLine';
+      loc.textContent = [op.store, op.department].filter(Boolean).join(' · ');
+      card.appendChild(loc);
+
+      if (op.model) {
+        var modelEl = document.createElement('div');
+        modelEl.className = 'brabusAiOperationLine';
+        modelEl.textContent = String(op.model);
+        card.appendChild(modelEl);
+      }
+      if (op.seller) {
+        var sellerEl = document.createElement('div');
+        sellerEl.className = 'brabusAiOperationLine brabusAiOperationSeller';
+        sellerEl.textContent = String(op.seller);
+        card.appendChild(sellerEl);
+      }
+
+      var metricsWrap = document.createElement('div');
+      metricsWrap.className = 'brabusAiRankingMetrics';
+      [['financed_value', 'Financiado', 'currency'], ['return_value', 'Retorno', 'currency']].forEach(function (m) {
+        if (op[m[0]] === null || op[m[0]] === undefined) return;
+        var span = document.createElement('span');
+        span.className = 'brabusAiRankingMetric';
+        var b = document.createElement('b');
+        baiApplyValue(b, baiFormatValue(op[m[0]], m[2]));
+        span.appendChild(document.createTextNode(m[1] + ': '));
+        span.appendChild(b);
+        metricsWrap.appendChild(span);
+      });
+      card.appendChild(metricsWrap);
+
+      list.appendChild(card);
+    });
+    panel.appendChild(list);
+
+    if (block.truncated) {
+      var note = document.createElement('div');
+      note.className = 'brabusAiOperationsNote';
+      note.textContent = 'Mostrando ' + (block.shown_count != null ? block.shown_count : (block.items || []).length) + ' de ' + block.total_count + ' operações no total.';
+      panel.appendChild(note);
+    }
+    return panel;
+  }
+
   function baiBuildBlock(block) {
     if (!block || typeof block !== 'object') return null;
     try {
       if (block.type === 'metrics' && Array.isArray(block.items)) return baiBuildMetricsBlock(block);
       if (block.type === 'ranking' && Array.isArray(block.items)) return baiBuildRankingBlock(block);
       if (block.type === 'comparison' && block.a && block.b) return baiBuildComparisonBlock(block);
+      if (block.type === 'operations' && Array.isArray(block.items)) return baiBuildOperationsBlock(block);
     } catch (e) {
       // Parte AK — bloco inválido nunca derruba o chat: ignora silenciosamente,
       // a resposta em texto (sempre presente) continua chegando normal.

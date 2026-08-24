@@ -1364,6 +1364,22 @@ if(location.hostname==='127.0.0.1'||location.hostname==='localhost'){
 .brabusAiRankingMetric{font-size:11.5px;color:var(--muted);white-space:nowrap}
 .brabusAiRankingMetric b{color:#f0f0f0;font-weight:900}
 
+/* Fase IA-2C.3 -- bloco "operations" (Coparticipados/Subsidiados): SEMPRE
+   cards, nunca tabela horizontal (Parte V), mesmo no desktop -- cada
+   operacao e uma linha de negocio, nao uma celula de planilha. Mesma
+   linguagem visual de .brabusAiRankingItem, classes proprias por
+   clareza semantica. */
+.brabusAiOperationsSummary{font-size:12px;color:var(--muted);margin-bottom:12px}
+.brabusAiOperationsList{display:flex;flex-direction:column;gap:10px}
+.brabusAiOperationCard{background:#181818;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 14px;min-width:0}
+.brabusAiOperationHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.brabusAiOperationRef{font-family:'IBM Plex Mono','SFMono-Regular',monospace;font-size:13px;font-weight:900;color:#c9ad64;letter-spacing:.02em}
+.brabusAiOperationDate{font-size:11px;color:var(--muted)}
+.brabusAiOperationLine{font-size:12.5px;color:#f0f0f0;overflow-wrap:break-word;margin-bottom:2px}
+.brabusAiOperationSeller{color:var(--muted)}
+.brabusAiOperationCard .brabusAiRankingMetrics{margin-top:8px}
+.brabusAiOperationsNote{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-size:11.5px;color:var(--muted)}
+
 .brabusAiComparisonGrid{display:grid;grid-template-columns:1fr;gap:12px}
 .brabusAiExpanded .brabusAiComparisonGrid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .brabusAiComparisonCard{background:#181818;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 14px;min-width:0}
