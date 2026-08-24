@@ -519,6 +519,190 @@
     return panel;
   }
 
+  // Fase IA-2C.4 — classificação do Score sempre aparece como TEXTO no
+  // badge (Parte AV/AW: nunca só cor). A cor é só reforço visual, dentro
+  // da paleta já aprovada (grafite/preto, dourado, verde/vermelho
+  // semântico já usados em .brabusAiDeltaVal) — sem azul, mesmo
+  // score.html usando azul para "Alto" (não replicado aqui de propósito).
+  function baiScoreClassKey(classification) {
+    var s = String(classification || '').toLowerCase();
+    if (s.indexOf('excel') !== -1) return 'excelencia';
+    if (s.indexOf('alto') !== -1) return 'alto';
+    if (s.indexOf('bom') !== -1) return 'bom';
+    if (s.indexOf('desenvolvimento') !== -1) return 'desenvolvimento';
+    return 'baixo';
+  }
+
+  var BAI_SCORE_CLASS_LABELS = { excelencia: 'Excelência', alto: 'Alto', bom: 'Bom', em_desenvolvimento: 'Em desenvolvimento', baixo: 'Baixo' };
+
+  function baiBuildScoreBadge(classification) {
+    var badge = document.createElement('span');
+    var key = baiScoreClassKey(classification);
+    badge.className = 'brabusAiScoreBadge ' + key;
+    badge.textContent = classification != null ? String(classification) : '—';
+    return badge;
+  }
+
+  // Fase IA-2C.4, Parte AU — bloco "score_ranking": lista compacta de
+  // vendedores por Score, mesma linguagem visual de .brabusAiRankingItem.
+  // Nunca mostra os componentes internos (isso é exclusivo do
+  // score_breakdown, Parte AU: só cria elemento novo quando agrega valor
+  // real).
+  function baiBuildScoreRankingBlock(block) {
+    var panel = document.createElement('div');
+    panel.className = 'brabusAiBlockPanel';
+    var title = document.createElement('div');
+    title.className = 'brabusAiBlockTitle';
+    title.textContent = block.title || 'Score F&I dos Vendedores';
+    panel.appendChild(title);
+
+    if (block.classification_counts) {
+      var summary = document.createElement('div');
+      summary.className = 'brabusAiScoreSummary';
+      var cc = block.classification_counts;
+      var parts = [];
+      if (block.total_scored != null) parts.push(block.total_scored + ' vendedor(es) pontuado(s)');
+      var order = ['excelencia', 'alto', 'bom', 'em_desenvolvimento', 'baixo'];
+      order.forEach(function (k) {
+        if (cc[k] != null) parts.push(BAI_SCORE_CLASS_LABELS[k] + ': ' + cc[k]);
+      });
+      summary.textContent = parts.join(' · ');
+      panel.appendChild(summary);
+    }
+
+    var list = document.createElement('div');
+    list.className = 'brabusAiScoreList';
+    (block.items || []).forEach(function (item) {
+      var row = document.createElement('div');
+      row.className = 'brabusAiScoreItem' + (item.rank <= 3 ? ' brabusAiTop3' : '');
+
+      var head = document.createElement('div');
+      head.className = 'brabusAiScoreHead';
+      var pos = document.createElement('span');
+      pos.className = 'brabusAiScorePos';
+      pos.textContent = (BAI_MEDALS[item.rank] ? BAI_MEDALS[item.rank] + ' ' : '') + item.rank + 'º';
+      var name = document.createElement('span');
+      name.className = 'brabusAiScoreName';
+      name.textContent = item.seller != null ? String(item.seller) : '';
+      var val = document.createElement('span');
+      val.className = 'brabusAiScoreValue';
+      val.textContent = item.score != null ? String(item.score) : '—';
+      head.appendChild(pos);
+      head.appendChild(name);
+      head.appendChild(val);
+      head.appendChild(baiBuildScoreBadge(item.classification));
+      row.appendChild(head);
+
+      var meta = document.createElement('div');
+      meta.className = 'brabusAiScoreMeta';
+      meta.textContent = [item.store, item.department].filter(Boolean).join(' · ') +
+        (item.sales != null ? ' · Vendas: ' + item.sales : '') +
+        (item.financed != null ? ' · Financiamentos: ' + item.financed : '');
+      row.appendChild(meta);
+
+      list.appendChild(row);
+    });
+    panel.appendChild(list);
+    return panel;
+  }
+
+  // Fase IA-2C.4, Parte AU/AV — bloco "score_breakdown": única visão que
+  // mostra a composição interna do Score de UM vendedor. Componentes
+  // vêm PRONTOS do backend (calcScoresTs) — nunca recalculados aqui; a
+  // barra de progresso é só a formatação visual de points/max já
+  // calculado. Ausência de um componente (Mix de famílias/planos para
+  // Seminovos) significa que ele nem existe no array — nunca é
+  // desenhado como 0 (Parte AT).
+  function baiBuildScoreBreakdownBlock(block) {
+    var panel = document.createElement('div');
+    panel.className = 'brabusAiBlockPanel';
+    var title = document.createElement('div');
+    title.className = 'brabusAiBlockTitle';
+    title.textContent = block.title || 'Score F&I';
+    panel.appendChild(title);
+
+    var head = document.createElement('div');
+    head.className = 'brabusAiScoreBreakdownHead';
+    var circleWrap = document.createElement('div');
+    var circleValue = document.createElement('div');
+    circleValue.className = 'brabusAiScoreCircleValue';
+    circleValue.textContent = block.score != null ? String(block.score) : '—';
+    var circleMax = document.createElement('div');
+    circleMax.className = 'brabusAiScoreCircleMax';
+    circleMax.textContent = 'de 1000';
+    circleWrap.appendChild(circleValue);
+    circleWrap.appendChild(circleMax);
+    head.appendChild(circleWrap);
+    head.appendChild(baiBuildScoreBadge(block.classification));
+    if (block.rank != null) {
+      var rankEl = document.createElement('span');
+      rankEl.className = 'brabusAiScoreMeta';
+      rankEl.textContent = block.rank + 'º colocado';
+      head.appendChild(rankEl);
+    }
+    panel.appendChild(head);
+
+    var meta = document.createElement('div');
+    meta.className = 'brabusAiScoreBreakdownMeta';
+    var metaParts = [[block.store, block.department].filter(Boolean).join(' · ')];
+    if (block.sales != null) metaParts.push('Vendas: ' + block.sales);
+    if (block.financed != null) metaParts.push('Financiamentos: ' + block.financed);
+    if (block.penetration_percent != null) metaParts.push('Penetração: ' + baiFormatValue(block.penetration_percent, 'percent').text);
+    if (block.average_return_percent != null) metaParts.push('Retorno médio: ' + baiFormatValue(block.average_return_percent, 'percent').text);
+    meta.textContent = metaParts.filter(Boolean).join(' · ');
+    panel.appendChild(meta);
+
+    var comps = document.createElement('div');
+    comps.className = 'brabusAiScoreComponents';
+    (block.components || []).forEach(function (c) {
+      var card = document.createElement('div');
+      card.className = 'brabusAiScoreComponent';
+      var top = document.createElement('div');
+      top.className = 'brabusAiScoreComponentTop';
+      var label = document.createElement('span');
+      label.className = 'brabusAiScoreComponentLabel';
+      label.textContent = c.label != null ? String(c.label) : '';
+      var pts = document.createElement('span');
+      pts.className = 'brabusAiScoreComponentPoints';
+      pts.textContent = (c.value != null ? c.value : '—') + ' / ' + (c.max != null ? c.max : '—');
+      top.appendChild(label);
+      top.appendChild(pts);
+      card.appendChild(top);
+      var bar = document.createElement('div');
+      bar.className = 'brabusAiScoreBar';
+      var fill = document.createElement('span');
+      var pct = (c.max && typeof c.value === 'number') ? Math.max(0, Math.min(100, (c.value / c.max) * 100)) : 0;
+      fill.style.width = pct + '%';
+      bar.appendChild(fill);
+      card.appendChild(bar);
+      comps.appendChild(card);
+    });
+    panel.appendChild(comps);
+
+    if (block.plan_mix && Object.keys(block.plan_mix).length) {
+      var mixWrap = document.createElement('div');
+      mixWrap.className = 'brabusAiScorePlanMix';
+      var mixTitle = document.createElement('div');
+      mixTitle.className = 'brabusAiScorePlanMixTitle';
+      mixTitle.textContent = 'Financiamentos por plano';
+      mixWrap.appendChild(mixTitle);
+      Object.keys(block.plan_mix).forEach(function (plan) {
+        var row = document.createElement('div');
+        row.className = 'brabusAiScorePlanMixRow';
+        var name = document.createElement('span');
+        name.textContent = plan;
+        var count = document.createElement('b');
+        count.textContent = String(block.plan_mix[plan]);
+        row.appendChild(name);
+        row.appendChild(count);
+        mixWrap.appendChild(row);
+      });
+      panel.appendChild(mixWrap);
+    }
+
+    return panel;
+  }
+
   function baiBuildBlock(block) {
     if (!block || typeof block !== 'object') return null;
     try {
@@ -526,6 +710,8 @@
       if (block.type === 'ranking' && Array.isArray(block.items)) return baiBuildRankingBlock(block);
       if (block.type === 'comparison' && block.a && block.b) return baiBuildComparisonBlock(block);
       if (block.type === 'operations' && Array.isArray(block.items)) return baiBuildOperationsBlock(block);
+      if (block.type === 'score_ranking' && Array.isArray(block.items)) return baiBuildScoreRankingBlock(block);
+      if (block.type === 'score_breakdown' && Array.isArray(block.components)) return baiBuildScoreBreakdownBlock(block);
     } catch (e) {
       // Parte AK — bloco inválido nunca derruba o chat: ignora silenciosamente,
       // a resposta em texto (sempre presente) continua chegando normal.
