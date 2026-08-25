@@ -1509,6 +1509,53 @@
   font-weight:900;
   overflow-wrap:break-word;
 }
+
+/* UX-Grupo-3.3: estado compacto/expandido dos cards Share/Penetracao --
+   Vendas/Financiamentos/Penetracao + Receita Total sempre visiveis;
+   Receita/Receita SPF/Producao/Retorno medio movidos para uma area
+   expansivel por card (estado independente, sem accordion exclusivo).
+   Nenhum dado/formula alterado -- reusa exatamente as mesmas chamadas a
+   metric() de antes, apenas reorganizadas entre os dois blocos. */
+.spcDetailsToggle{
+  display:flex!important;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  width:100%;
+  margin-top:12px;
+  padding:10px 14px!important;
+  min-height:40px;
+  border-radius:999px!important;
+  border:1px solid var(--line)!important;
+  background:rgba(255,255,255,.03)!important;
+  color:var(--muted)!important;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  cursor:pointer;
+  box-shadow:none!important;
+  transition:background .15s ease,color .15s ease,border-color .15s ease;
+}
+.spcDetailsToggle:hover{background:rgba(255,255,255,.07)!important;color:var(--text)!important}
+.spcDetailsToggle:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.spcDetailsToggleIcon{display:inline-block;font-size:13px;line-height:1}
+.spcDetails{
+  display:grid;
+  grid-template-rows:0fr;
+  opacity:0;
+  transition:grid-template-rows .28s ease,opacity .2s ease;
+}
+.sharePerformanceCard.spcOpen .spcDetails{
+  grid-template-rows:1fr;
+  opacity:1;
+}
+.spcDetailsInner{overflow:hidden;min-height:0}
+.spcDetailsInner .spcDivider{margin-top:14px}
+@media (prefers-reduced-motion: reduce){
+  .spcDetails{transition:none}
+}
 </style>
 
 
@@ -4481,11 +4528,12 @@ function rankingHeroHtml(topRows){
 // numero e recalculado aqui. "anterior" vira bloco secundario por
 // metrica (metricCompareBlock, mesma logica semantica de verde/vermelho
 // de formatDelta) em vez da antiga coluna lateral fixa.
-function renderSharePerformanceCard(r, comparisonMap){
+function renderSharePerformanceCard(r, comparisonMap, idx){
   const partes = String(r["Loja | Dept"] || "").split(" | ");
   const nome = partes[0] || r["Loja | Dept"] || "";
   const sub = partes.length > 1 ? partes.slice(1).join(" · ") : "";
   const prev = comparisonMap ? (comparisonMap[rowKeyValue(r)] || null) : null;
+  const cardId = `spc_${idx}`;
 
   const metric = (label, curVal, curFormatted, prevKey, highlight)=>{
     const prevRaw = prev ? prev[prevKey] : null;
@@ -4499,6 +4547,10 @@ function renderSharePerformanceCard(r, comparisonMap){
     </div>`;
   };
 
+  // UX-Grupo-3.3: estado compacto mostra Vendas/Financiamentos/Penetracao +
+  // Receita Total; Receita/Receita SPF/Producao/Retorno medio ficam numa
+  // area expansivel por card (toggleSharePerformanceDetails), sem alterar
+  // nenhuma das chamadas a metric() acima -- so a organizacao entre blocos.
   return `<div class="sharePerformanceCard">
     <div class="spcName">${nome}</div>
     ${sub ? `<div class="spcSub">${sub}</div>` : ""}
@@ -4509,22 +4561,43 @@ function renderSharePerformanceCard(r, comparisonMap){
     </div>
     <div class="spcDivider"></div>
     <div class="spcBlock">
-      ${metric("Receita", r.receita, money(r.receita), "receita")}
-      ${metric("Receita SPF", r.receitaSPF, money(r.receitaSPF), "receitaSPF")}
       ${metric("Receita Total", r.receitaTotal, money(r.receitaTotal), "receitaTotal", true)}
     </div>
-    <div class="spcDivider"></div>
-    <div class="spcBlock">
-      ${metric("Produção", r.producao, money(r.producao), "producao")}
-      ${metric("Retorno médio", r.retorno, pct(r.retorno), "retorno")}
+    <button type="button" class="spcDetailsToggle" id="${cardId}_btn" aria-expanded="false" aria-controls="${cardId}_details" onclick="toggleSharePerformanceDetails('${cardId}')">
+      <span class="spcDetailsToggleLabel">Detalhes</span><span class="spcDetailsToggleIcon" aria-hidden="true">↓</span>
+    </button>
+    <div class="spcDetails" id="${cardId}_details" role="region" aria-labelledby="${cardId}_btn">
+      <div class="spcDetailsInner">
+        <div class="spcDivider"></div>
+        <div class="spcBlock">
+          ${metric("Receita", r.receita, money(r.receita), "receita")}
+          ${metric("Receita SPF", r.receitaSPF, money(r.receitaSPF), "receitaSPF")}
+          ${metric("Produção", r.producao, money(r.producao), "producao")}
+          ${metric("Retorno médio", r.retorno, pct(r.retorno), "retorno")}
+        </div>
+      </div>
     </div>
   </div>`;
+}
+
+function toggleSharePerformanceDetails(cardId){
+  const details = document.getElementById(cardId + '_details');
+  const btn = document.getElementById(cardId + '_btn');
+  if(!details || !btn) return;
+  const card = details.closest('.sharePerformanceCard');
+  const willOpen = !card.classList.contains('spcOpen');
+  card.classList.toggle('spcOpen', willOpen);
+  btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  const label = btn.querySelector('.spcDetailsToggleLabel');
+  const icon = btn.querySelector('.spcDetailsToggleIcon');
+  if(label) label.textContent = willOpen ? 'Recolher' : 'Detalhes';
+  if(icon) icon.textContent = willOpen ? '↑' : '↓';
 }
 
 function renderSharePerformanceGrid(title, rows, comparisonMap){
   if(!rows.length) return `<div class="panel"><h2>${title}</h2><div class="muted">Sem dados.</div></div>`;
   return `<div class="panel"><h2>${title}</h2>
-    <div class="sharePerformanceGrid">${rows.map(r=>renderSharePerformanceCard(r, comparisonMap)).join("")}</div>
+    <div class="sharePerformanceGrid">${rows.map((r,i)=>renderSharePerformanceCard(r, comparisonMap, i)).join("")}</div>
   </div>`;
 }
 
