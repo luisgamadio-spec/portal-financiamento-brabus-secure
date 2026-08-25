@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://yacqlelpzchcotgngwbh.supabase.co wss://yacqlelpzchcotgngwbh.supabase.co; frame-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>MITWEEK — Campanha Especial Mitsubishi</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0" integrity="sha384-De+l/Df7qym5QBDVocD3+gW1S7IjR3epf+6KbRDjB3FCCzM/LqVTwqckT6FhFar8" crossorigin="anonymous"></script>
+<script src="../assets/js/portal-runtime-config.production.js"></script>
+<script src="../assets/js/portal-runtime-config.local.js"></script>
 <style>
 :root{--red:#e60012;--black:#101010;--dark:#161b2f;--navy:#121a3d;--gold:#cdb56b;--light:#f4f4f4;--muted:#a8afc4;--line:rgba(255,255,255,.22);--green:#1f8a57;--danger:#ff4d4d}*{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(135deg,#0c1024,#161b38 50%,#0b0b0d);color:#fff}.topbar{background:#242424;border-bottom:7px solid var(--red);min-height:112px;display:flex;align-items:center;justify-content:space-between;padding:22px 38px;position:relative;overflow:hidden}.title h1{margin:0;font-size:32px;font-weight:300;letter-spacing:.5px}.title strong{display:block;font-size:34px;font-weight:900}.car-strip{position:absolute;right:170px;top:0;height:112px;width:540px;background:linear-gradient(110deg,transparent 0 9%,#fff 9% 90%,transparent 90%);opacity:.98}.car-strip:before{content:'TRITON  •  ECLIPSE CROSS  •  OUTLANDER';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#161616;font-weight:900;letter-spacing:1px}.brand{z-index:2;text-align:center;font-weight:900}.brand img{display:block;max-width:190px;max-height:74px;object-fit:contain}.diamonds{width:44px;height:44px;margin:0 auto 4px;position:relative}.diamonds span{position:absolute;width:20px;height:20px;background:var(--red);transform:rotate(45deg)}.diamonds span:nth-child(1){left:12px;top:0}.diamonds span:nth-child(2){left:0;top:21px}.diamonds span:nth-child(3){left:24px;top:21px}.wrap{padding:28px 38px 36px}.grid{display:grid;grid-template-columns:520px 1fr;gap:34px}.panel{background:rgba(17,25,58,.92);border:1px solid rgba(205,181,107,.7);box-shadow:0 20px 50px rgba(0,0,0,.24);border-radius:0}.select-card{border:1px dashed var(--gold);text-align:center;margin-bottom:12px;background:rgba(8,12,32,.6)}.select-card label{display:block;color:var(--gold);font-weight:800;font-size:17px;padding-top:9px;padding-left:8px;padding-right:8px}.select-card select{appearance:none;width:100%;background:transparent;color:#fff;border:0;font-size:18px;font-weight:900;text-align-last:center;text-align:center;padding:11px 18px 13px;outline:none;min-height:54px;line-height:1.25;white-space:normal}.select-card option{background:#10152d;color:#fff;white-space:normal;font-size:15px}.min-entry{text-align:right;font-weight:900;margin:-3px 0 7px}.form-card{padding:0}.field{border-bottom:1px solid var(--line);padding:22px 18px}.field:last-child{border-bottom:0}.field label{display:block;font-size:24px;font-weight:900;margin-bottom:10px}.field input{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:7px;font-size:24px;font-weight:800;padding:13px 14px;outline:none}.field input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(205,181,107,.18)}.field.invalid input{border-color:var(--danger);box-shadow:0 0 0 3px rgba(255,77,77,.25);background:rgba(255,77,77,.08)}.calc-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:var(--gold);font-size:23px;font-weight:900}.small{font-size:13px;color:var(--muted);margin-top:7px}.bank{display:flex;align-items:center;margin-top:50px}.bank img{display:block;max-width:245px;max-height:82px;object-fit:contain}.bank-mark{border:2px solid var(--gold);border-radius:50%;width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:22px}.notice{background:var(--gold);color:#08133a;font-weight:900;text-align:center;padding:18px;border:1px solid rgba(255,255,255,.7);margin-bottom:70px;letter-spacing:.2px}.terms{display:grid;grid-template-columns:repeat(6,1fr);gap:0;border:1px solid rgba(255,255,255,.75)}.term{border-right:1px solid rgba(255,255,255,.75);background:#151d42;text-align:center;min-height:142px}.term:last-child{border-right:0}.term h3{margin:0;background:var(--gold);color:#07133a;padding:9px 5px;font-size:22px}.payment{font-size:24px;font-weight:900;padding:12px 3px 5px}.rate{font-size:18px;color:#fff;margin-top:4px}.coef{display:none}.caption{color:var(--gold);font-weight:800;margin-top:8px}.section-line{height:2px;background:#fff;margin:34px 0 42px;opacity:.9}.rebates{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}.rebate-card{background:rgba(255,255,255,.04);border-top:4px solid var(--gold);padding:16px;text-align:center}.rebate-card.feature{background:rgba(205,181,107,.13);border:1px solid var(--gold);border-top:4px solid var(--gold)}.rebate-card h3{margin:0 0 8px;font-size:18px}.rebate-card .money{font-size:24px;font-weight:900}.rebate-card .pct{font-size:13px;color:var(--muted);margin-top:6px}.final{margin:40px auto 0;max-width:660px;text-align:center}.final h2{color:var(--gold);font-size:29px;margin:0 0 12px}.final-value{border:2px solid var(--gold);padding:15px;font-size:37px;font-weight:900;background:#111a3d}.status{margin-top:14px;min-height:34px}.alert{display:none;border:2px solid var(--danger);border-left:8px solid var(--danger);background:linear-gradient(135deg,rgba(255,77,77,.32),rgba(255,77,77,.14));padding:14px 16px;font-weight:900;color:#fff;border-radius:8px;box-shadow:0 0 0 3px rgba(255,77,77,.18);margin-top:12px;line-height:1.35}.ok{display:none;border-left:5px solid var(--green);background:rgba(31,138,87,.13);padding:12px 14px;font-weight:800;color:#d5ffe8}.hint{color:var(--muted);font-size:13px;line-height:1.45;margin-top:16px}.footer{margin-top:26px;text-align:center;color:#9aa3bd;font-size:12px}@media(max-width:1100px){.grid{grid-template-columns:1fr}.notice{margin-bottom:28px}.terms{grid-template-columns:repeat(3,1fr)}.car-strip{display:none}.topbar{padding:22px}.title h1{font-size:25px}.title strong{font-size:28px}}@media(max-width:680px){.wrap{padding:18px}.terms{grid-template-columns:1fr}.term{border-right:0;border-bottom:1px solid rgba(255,255,255,.6)}.rebates{grid-template-columns:1fr}.field label{font-size:20px}.topbar{display:block}.brand{margin-top:16px}.bank{font-size:36px}}
 
@@ -54,7 +59,7 @@ html{width:100%;overflow-x:hidden}body{width:100%;min-height:100vh;overflow-x:hi
 .rate{display:block!important;font-weight:400!important;color:#e9eefc!important;font-size:clamp(13px,1.2vw,16px)!important;margin-top:5px!important;}
 .caption{display:block!important;font-weight:500!important;color:rgba(205,181,107,.9)!important;font-size:clamp(11px,1vw,13px)!important;margin-top:4px!important;}
 .coef{display:none!important;}
-.terms{grid-template-columns:repeat(6,minmax(0,1fr))!important;}
+.terms{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important;}
 .term{min-width:0!important;}
 .term h3{white-space:nowrap!important;font-size:clamp(13px,1.25vw,18px)!important;}
 .payment{font-size:clamp(15px,1.45vw,21px)!important;line-height:1.05!important;}
@@ -92,11 +97,26 @@ html{width:100%;overflow-x:hidden}body{width:100%;min-height:100vh;overflow-x:hi
 </div>
 <script src="../assets/data/mitweek-2026.js"></script>
 <script>
-// MITWEEK: motor de calculo REUTILIZADO do Coparticipado (PRAZOS, TX_COEF,
-// coefFor, formula de calc()) -- apenas MODELS vem de outra fonte (dados
-// estaticos MITWEEK, sem chamada a Supabase/Gestao de Bases) e um campo
-// novo (tradein) e exibido. Nenhuma formula foi alterada.
-const PRAZOS=[12,18,24,36,48,60];
+// MITWEEK: MODELS (modelo/entrada/rebate/hpe/brabus/trade-in/taxa por prazo)
+// vem exclusivamente de window.MITWEEK_DATA.models (assets/data/mitweek-2026.js)
+// -- dado comercial 100% estatico, nunca de RPC/Coparticipado/Gestao de Bases.
+// Isolamento comprovado -- ver RELATORIO FINAL MITWEEK-1.
+var MODELS=(window.MITWEEK_DATA && Array.isArray(window.MITWEEK_DATA.models)) ? window.MITWEEK_DATA.models.map(function(m){
+  return {name:m.name, entry:m.entry, rebate:m.rebate, hpe:m.hpe, brabus:m.brabus, tradein:m.tradein, rates:m.rates};
+}) : [];
+// MITWEEK-1.3: prazos exibidos vem dos proprios dados MITWEEK (uniao dos
+// prazos presentes em rates de todos os modelos), nao de uma lista fixa --
+// se uma proxima planilha mudar os prazos da campanha, a tela acompanha
+// sem precisar editar codigo. Hoje: 12/18/24/36/48 (planilha atual nao
+// tem mais 60 meses).
+const MITWEEK_PRAZOS=Array.from(new Set(MODELS.flatMap(function(m){return Object.keys(m.rates||{}).map(Number);}))).sort(function(a,b){return a-b;});
+// TX_COEF: tabela GENERICA financeira (prazo+taxa -> coeficiente), a mesma
+// fonte oficial que o Plano Coparticipado usa. NAO e dado comercial do
+// Coparticipado (nao inclui modelo/rebate/trade-in) -- e a tabela de
+// coeficientes de "Gestao dos Simuladores", legitimamente compartilhada
+// entre planos. Este e o snapshot embutido (ultimo conhecido, usado como
+// fail-closed enquanto a busca ao vivo abaixo nao responde/nao tem sessao)
+// -- ver loadLiveCoefficients().
 var TX_COEF={
 12:{0:0.08783725,0.0019:0.08892075,0.0049:0.090641},
 18:{0:0.05882875,0.0019:0.059891,0.0039:0.061021,0.0059:0.0621635,0.0089:0.0639005},
@@ -105,12 +125,6 @@ var TX_COEF={
 48:{0.0039:0.0243665,0.0049:0.02494575,0.0059:0.02553325,0.0069:0.02612875,0.0079:0.0267325,0.0089:0.02734425,0.0099:0.027964,0.0109:0.028592},
 60:{0.0059:0.021135,0.0069:0.0217425,0.0079:0.02236025,0.0089:0.022988,0.0099:0.02362575,0.0109:0.02427325,0.0119:0.0249315}
 };
-// MITWEEK: MODELS vem de window.MITWEEK_DATA.models (assets/data/mitweek-2026.js),
-// nao de hardcode nem de RPC. Isolamento de dados garantido -- ver RELATORIO
-// FINAL MITWEEK-1 para tabela de comparacao campo a campo com o Coparticipado.
-var MODELS=(window.MITWEEK_DATA && Array.isArray(window.MITWEEK_DATA.models)) ? window.MITWEEK_DATA.models.map(function(m){
-  return {name:m.name, entry:m.entry, rebate:m.rebate, hpe:m.hpe, brabus:m.brabus, tradein:m.tradein, rates:m.rates};
-}) : [];
 const fmtBRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});const fmtPct=new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2});
 const el=id=>document.getElementById(id);const cents=s=>(String(s).replace(/\D/g,'')||0)/100;function maskCurrency(input){input.addEventListener('input',()=>{input.value=fmtBRL.format(cents(input.value));calc();});input.addEventListener('blur',()=>{if(!input.value)input.value=fmtBRL.format(0);calc();});}
 function coefFor(p,t){const obj=TX_COEF[p];const key=Object.keys(obj).find(k=>Math.abs(Number(k)-t)<0.0000001);return key?obj[key]:null}function rateLabel(v){return (v*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%'}
@@ -118,7 +132,7 @@ function selectedModel(){return MODELS.find(m=>m.name===el('model').value)||MODE
 function parsePercentInput(v){const n=Number(String(v||'').replace('%','').replace(',','.').replace(/[^0-9.]/g,''));return Number.isFinite(n)?n/100:0}
 function setPercentInputFromRatio(r){if(!el('entryPercent'))return; if(document.activeElement===el('entryPercent'))return; el('entryPercent').value=r>0?(r*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:2}):''}
 function init(){el('model').innerHTML=MODELS.map(m=>`<option>${m.name}</option>`).join('');el('model').value=(MODELS.find(m=>m.name==='ECLIPSE CROSS HPE-S S-AWC')?'ECLIPSE CROSS HPE-S S-AWC':(MODELS[0]?MODELS[0].name:''));maskCurrency(el('saleValue'));maskCurrency(el('entryValue'));el('model').addEventListener('change',calc);if(el('entryPercent')){el('entryPercent').addEventListener('input',()=>{const sale=cents(el('saleValue').value);const pct=parsePercentInput(el('entryPercent').value);if(sale>0&&pct>0){el('entryValue').value=fmtBRL.format(sale*pct);}calc();});el('entryPercent').addEventListener('blur',()=>{const pct=parsePercentInput(el('entryPercent').value);el('entryPercent').value=pct>0?(pct*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:2}):'';calc();});}calc();}
-function calc(){const m=selectedModel();if(!m)return;const sale=cents(el('saleValue').value);const entry=cents(el('entryValue').value);const entryPct=sale>0?entry/sale:0;const minValue=sale*m.entry;const invalid=sale>0&&entry>0&&entry<minValue;const valid=sale>0&&entry>=minValue;const financed=valid?Math.max(sale-entry,0):0;el('minEntryLabel').textContent='Entrada mínima '+fmtPct.format(m.entry);el('financedValue').textContent=valid?fmtBRL.format(financed):'—';el('entryPctLabel').textContent=sale>0?fmtPct.format(entryPct)+' de entrada':'0,00% de entrada';setPercentInputFromRatio(entryPct);el('alertBox').style.display=invalid?'block':'none';el('okBox').style.display=valid?'block':'none';el('entryValue').closest('.field').classList.toggle('invalid',invalid);if(el('entryPercent'))el('entryPercent').classList.toggle('invalid-percent',invalid);if(el('entryPercentBox'))el('entryPercentBox').classList.toggle('invalid-percent',invalid);let html='';for(const p of PRAZOS){const rate=m.rates[p];const coef=coefFor(p,rate);const acrescimo=p<=24?0.0411:0.0622;const payment=(valid&&coef)?((financed*(1+acrescimo))*coef):null;html+=`<div class="term"><h3>${p} meses</h3><div class="payment">${payment===null?'—':fmtBRL.format(payment)}</div><div class="rate">${(rate===undefined||rate===null)?'—':rateLabel(rate)}</div><div class="caption">Taxa aplicada</div></div>`;}el('terms').innerHTML=html;const total=valid?financed*m.rebate:0;const brabus=total*m.brabus;const hpe=total*m.hpe;el('rebateTotal').textContent=valid?fmtBRL.format(total):'—';el('rebateBrabus').textContent=valid?fmtBRL.format(brabus):'—';el('rebateHpe').textContent=valid?fmtBRL.format(hpe):'—';el('rebateTotalPct').textContent=valid?fmtPct.format(m.rebate):'0,00%';el('rebateBrabusPct').textContent=valid?fmtPct.format(m.brabus):'0,00%';el('rebateHpePct').textContent=valid?fmtPct.format(m.hpe):'0,00%';el('finalSale').textContent=valid?fmtBRL.format(Math.max(sale-brabus,0)):'—';
+function calc(){const m=selectedModel();if(!m)return;const sale=cents(el('saleValue').value);const entry=cents(el('entryValue').value);const entryPct=sale>0?entry/sale:0;const minValue=sale*m.entry;const invalid=sale>0&&entry>0&&entry<minValue;const valid=sale>0&&entry>=minValue;const financed=valid?Math.max(sale-entry,0):0;el('minEntryLabel').textContent='Entrada mínima '+fmtPct.format(m.entry);el('financedValue').textContent=valid?fmtBRL.format(financed):'—';el('entryPctLabel').textContent=sale>0?fmtPct.format(entryPct)+' de entrada':'0,00% de entrada';setPercentInputFromRatio(entryPct);el('alertBox').style.display=invalid?'block':'none';el('okBox').style.display=valid?'block':'none';el('entryValue').closest('.field').classList.toggle('invalid',invalid);if(el('entryPercent'))el('entryPercent').classList.toggle('invalid-percent',invalid);if(el('entryPercentBox'))el('entryPercentBox').classList.toggle('invalid-percent',invalid);let html='';for(const p of MITWEEK_PRAZOS){const rate=m.rates[p];const coef=coefFor(p,rate);const acrescimo=p<=24?0.0411:0.0622;const payment=(valid&&coef)?((financed*(1+acrescimo))*coef):null;html+=`<div class="term"><h3>${p} meses</h3><div class="payment">${payment===null?'—':fmtBRL.format(payment)}</div><div class="rate">${(rate===undefined||rate===null)?'—':rateLabel(rate)}</div><div class="caption">Taxa aplicada</div></div>`;}el('terms').innerHTML=html;const total=valid?financed*m.rebate:0;const brabus=total*m.brabus;const hpe=total*m.hpe;el('rebateTotal').textContent=valid?fmtBRL.format(total):'—';el('rebateBrabus').textContent=valid?fmtBRL.format(brabus):'—';el('rebateHpe').textContent=valid?fmtBRL.format(hpe):'—';el('rebateTotalPct').textContent=valid?fmtPct.format(m.rebate):'0,00%';el('rebateBrabusPct').textContent=valid?fmtPct.format(m.brabus):'0,00%';el('rebateHpePct').textContent=valid?fmtPct.format(m.hpe):'0,00%';el('finalSale').textContent=valid?fmtBRL.format(Math.max(sale-brabus,0)):'—';
   // MITWEEK: campo novo, nao existe no Coparticipado. Nao depende de
   // valid/invalid (e uma condicao do modelo, nao da simulacao de entrada).
   const tradein=m.tradein;
@@ -130,8 +144,42 @@ function calc(){const m=selectedModel();if(!m)return;const sale=cents(el('saleVa
 // vencimento. Funcao pura testavel: aceita "now" opcional.
 const MITWEEK_DISABLE_FROM_ISO='2026-09-01T00:00:00-03:00'; // America/Sao_Paulo
 function isMitweekActive(now){now=now||new Date();return now.getTime() < new Date(MITWEEK_DISABLE_FROM_ISO).getTime();}
+
+// MITWEEK-1.3: busca ao vivo da tabela de coeficientes oficial (a MESMA
+// que o Plano Coparticipado consome, via simulador_get_coparticipado()) --
+// so a parte tx_coef e usada; matriz_modelos da resposta e descartada de
+// proposito (MODELS continua vindo somente de MITWEEK_DATA). Objetivo:
+// quando alguem atualizar um coeficiente em Gestao dos Simuladores, a
+// MITWEEK reflete sem precisar editar codigo. Fail-closed real: qualquer
+// falha (sem sessao, RPC indisponivel, formato inesperado) mantem o
+// TX_COEF embutido acima -- nunca lanca excecao, nunca deixa a tela
+// quebrada, nunca aproxima/inventa coeficiente.
+window.mitweekLiveCoefStatus='EMBUTIDO';
+async function loadLiveCoefficients(){
+  try{
+    const runtime=window.PORTAL_RUNTIME_CONFIG||{};
+    if(typeof window.supabase==='undefined'||!runtime.supabaseUrl||!runtime.supabasePublishableKey) return;
+    const client=window.supabase.createClient(runtime.supabaseUrl, runtime.supabasePublishableKey);
+    const session=await client.auth.getSession();
+    if(session.error||!session.data.session){ window.mitweekLiveCoefStatus='SEM_SESSAO'; return; }
+    const {data,error}=await client.rpc('simulador_get_coparticipado');
+    if(error||!data||data.ok===false){ window.mitweekLiveCoefStatus='RPC_INDISPONIVEL'; return; }
+    const txCoefLinhas=data.linhas&&data.linhas.tx_coef;
+    if(!Array.isArray(txCoefLinhas)||!txCoefLinhas.length){ window.mitweekLiveCoefStatus='TX_COEF_VAZIO'; return; }
+    const novoTxCoef={};
+    txCoefLinhas.forEach(function(x){ if(!novoTxCoef[x.prazo]) novoTxCoef[x.prazo]={}; novoTxCoef[x.prazo][x.taxa]=x.coeficiente; });
+    TX_COEF=novoTxCoef;
+    window.mitweekLiveCoefStatus='ATIVO';
+    if(isMitweekActive()) calc();
+  }catch(e){
+    window.mitweekLiveCoefStatus='ERRO';
+    console.warn('[MITWEEK] coeficientes ao vivo indisponiveis, mantendo tabela embutida.', e);
+  }
+}
+
 if(isMitweekActive()){
   init();
+  loadLiveCoefficients();
 }else{
   document.getElementById('mitweekApp').style.display='none';
   document.getElementById('mitweekExpiredBlock').classList.add('show');
