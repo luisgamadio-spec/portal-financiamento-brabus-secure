@@ -1755,6 +1755,245 @@ async function resolveCommissionSource(userClient: any, period: CommissionPeriod
   return { period, source_mode: "SNAPSHOT", closing: chosen, observacao };
 }
 
+// =========================================================
+// Fase IA-2C.5.1 — Prévia de Comissão ao Vivo
+//
+// Porte determinístico, campo a campo, de commissionCalc() (linha
+// 111), managerCommissionSummary()/o bloco GERENTE e o bloco
+// ANALISTA de calcularPreviewFechamentoCompetenciaSegura() (linha
+// 4859) e calcGestorFIGrupo() (linha 6221) de assets/js/portal-app.js
+// — lidos verbatim do fonte, nunca reescritos "por conta própria"
+// (Parte Q: "não simplificar fórmula"). Validado ANTES de existir
+// aqui: um teste Playwright carregou o Portal real, sem nenhuma
+// modificação, com sessão MASTER real, e chamou
+// calcularPreviewFechamentoCompetenciaSegura() genuína do navegador
+// sobre a competência EM CONFERÊNCIA real (21/08–20/09) — as 4 linhas
+// (1 vendedor, 1 gerente, 1 analista, 1 gestor) bateram exatamente
+// com uma réplica Python independente calculada antes desse teste.
+//
+// Parte K (achado desta fase): gestorFIIdentidadeSegura() — a função
+// que o Portal usa para descobrir o NOME do Gestor F&I em modo
+// seguro — só existe dentro de master_admin_security_data(), que
+// retorna TAMBÉM o CPF de todo usuário (comprovado chamando a RPC
+// real: o objeto de identidade do Gestor trouxe cpf explícito). Por
+// isso esta tool NUNCA chama essa RPC — usa sempre um rótulo genérico
+// ("Gestor F&I do Grupo") para essa linha, nunca o nome pessoal. Essa
+// é uma simplificação deliberada de privacidade, não um gap de
+// fidelidade da fórmula (os VALORES do Gestor são idênticos; só o
+// nome pessoal nunca é buscado).
+// =========================================================
+
+// DEFAULT_PORTAL_CONFIG — portal-app.js:64-78, verbatim.
+const COMMISSION_CONFIG_DEFAULTS: Record<string, number> = {
+  share_minimo: 40,
+  spf_liquido_percentual: 70,
+  bonus_spf_analista: 150,
+  limite_retorno_novos: 12000,
+  limite_retorno_seminovos: 8000,
+  vendedor_faixa_baixo_share_baixo: 10,
+  vendedor_faixa_baixo_share_alto: 15,
+  vendedor_faixa_alto_share_baixo: 15,
+  vendedor_faixa_alto_share_alto: 20,
+  gerente_faixa_share_baixo: 3,
+  gerente_faixa_share_alto: 4,
+  analista_faixa_share_baixo: 3.5,
+  analista_faixa_share_alto: 4.5
+};
+
+// carregarParametrosPortal()/cfgNum() — portal-app.js:80-98. Busca os
+// overrides reais (RPC operational_portal_config); no momento desta
+// fase, nenhuma chave de comissão está sobrescrita em produção (só
+// "permissoes_modulos_dinamicas" existe na tabela), mas a tool busca
+// ao vivo mesmo assim — nunca assume que os defaults valem para
+// sempre.
+async function fetchCommissionConfig(userClient: any): Promise<Record<string, number>> {
+  const cfg = { ...COMMISSION_CONFIG_DEFAULTS };
+  const { data, error } = await userClient.rpc("operational_portal_config");
+  if (error) return cfg; // Parte O — config é só leitura auxiliar; falha aqui não deve derrubar a prévia inteira
+  const rows = data?.rows ?? [];
+  for (const r of rows) {
+    if (Object.prototype.hasOwnProperty.call(cfg, r.chave)) {
+      const n = Number(String(r.valor).replace(",", "."));
+      if (Number.isFinite(n)) cfg[r.chave] = n;
+    }
+  }
+  return cfg;
+}
+
+interface LivePreviewMetrics {
+  vendidas: number; financiadas: number; producao: number; retorno: number; spf: number; spfQty: number;
+}
+
+// commissionCalc() — portal-app.js:111-131, verbatim.
+function liveCommissionCalc(status: string, m: LivePreviewMetrics, cls: "manager" | "analyst" | "seller", cfg: Record<string, number>) {
+  const share = m.vendidas ? (m.financiadas / m.vendidas) * 100 : 0;
+  const shareMin = cfg.share_minimo;
+  const spfLiquido = (m.spf || 0) * (cfg.spf_liquido_percentual / 100);
+  const rentTotal = (m.retorno || 0) + spfLiquido;
+  let faixa = 0, comissaoSpf = 0;
+  if (cls === "manager") {
+    faixa = share >= shareMin ? cfg.gerente_faixa_share_alto / 100 : cfg.gerente_faixa_share_baixo / 100;
+  } else if (cls === "analyst") {
+    faixa = share >= shareMin ? cfg.analista_faixa_share_alto / 100 : cfg.analista_faixa_share_baixo / 100;
+    comissaoSpf = (m.spfQty || 0) * cfg.bonus_spf_analista;
+  } else {
+    const statusUpper = String(status || "").toUpperCase();
+    const isSemi = statusUpper.includes("SEMINOVOS") && !statusUpper.includes("NOVOS/SEMINOVOS");
+    const limite = isSemi ? cfg.limite_retorno_seminovos : cfg.limite_retorno_novos;
+    if (rentTotal < limite) {
+      faixa = share >= shareMin ? cfg.vendedor_faixa_baixo_share_alto / 100 : cfg.vendedor_faixa_baixo_share_baixo / 100;
+    } else {
+      faixa = share >= shareMin ? cfg.vendedor_faixa_alto_share_alto / 100 : cfg.vendedor_faixa_alto_share_baixo / 100;
+    }
+  }
+  const comissaoPrincipal = rentTotal * faixa;
+  const comissaoTotal = comissaoPrincipal + comissaoSpf;
+  return { share, spfLiquido, rentTotal, faixa, comissaoPrincipal, comissaoSpf, comissaoTotal };
+}
+
+// norm() — portal-app.js:280, verbatim (usado só para casar loja+depto
+// do vendedor com operational_salary_manager_directory, exatamente
+// como o Portal faz — Parte Q).
+function normalizeManagerMatchKey(input: unknown): string {
+  const s = input === null || input === undefined ? "" : String(input);
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+interface LivePreviewLine {
+  perfil: CommissionProfile;
+  loja: string;
+  nome: string;
+  status: string;
+  m: LivePreviewMetrics;
+  share: number; faixa: number; spf_liquido: number; rent_total: number;
+  comissao_principal: number; comissao_spf: number; comissao_total: number;
+}
+
+// calcularPreviewFechamentoCompetenciaSegura() — portal-app.js:4859-4953,
+// ramo seguro, verbatim. Se qualquer uma das 3 fontes operacionais
+// falhar, retorna null — igual ao Portal real (Parte E: "não fabricar
+// linhas/zeros/fallback silencioso").
+async function fetchLivePreviewLines(userClient: any, start: string, end: string): Promise<LivePreviewLine[] | null> {
+  const cfg = await fetchCommissionConfig(userClient);
+
+  const [vendResp, analystResp, managerResp] = await Promise.all([
+    userClient.rpc("operational_commission_metrics", { p_start: start, p_end: end }),
+    userClient.rpc("operational_analyst_commission_metrics_v2", { p_start: start, p_end: end }),
+    userClient.rpc("operational_salary_manager_directory", { p_start: start, p_end: end })
+  ]);
+  if (vendResp.error || !vendResp.data?.rows || !vendResp.data?.totals) return null;
+  if (analystResp.error || !Array.isArray(analystResp.data?.rows)) return null;
+  if (managerResp.error || !Array.isArray(managerResp.data?.rows)) return null;
+
+  const vendRows: any[] = vendResp.data.rows;
+  const totals: any = vendResp.data.totals;
+  const analystRows: any[] = analystResp.data.rows;
+  const managerRows: any[] = managerResp.data.rows;
+
+  const lines: LivePreviewLine[] = [];
+
+  // VENDEDOR — 1:1 por linha (grão já é vendedor × loja × departamento).
+  for (const row of vendRows) {
+    const m: LivePreviewMetrics = {
+      vendidas: Number(row.sold_count) || 0, financiadas: Number(row.financed_count) || 0,
+      producao: Number(row.production_value) || 0, retorno: Number(row.return_value) || 0,
+      spf: Number(row.spf_value) || 0, spfQty: Number(row.spf_count) || 0
+    };
+    if (!(m.vendidas > 0 || m.financiadas > 0 || m.retorno > 0 || m.spf > 0)) continue;
+    const status = String(row.department || "");
+    const c = liveCommissionCalc(status, m, "seller", cfg);
+    lines.push({
+      perfil: "VENDEDOR", loja: row.store, nome: row.seller_name, status, m,
+      share: c.share, faixa: c.faixa, spf_liquido: c.spfLiquido, rent_total: c.rentTotal,
+      comissao_principal: c.comissaoPrincipal, comissao_spf: c.comissaoSpf, comissao_total: c.comissaoTotal
+    });
+  }
+
+  // GERENTE — soma os vendedores da mesma loja+departamento (um
+  // vendedor com departamento combinado "NOVOS/SEMINOVOS" contribui
+  // para os dois grupos, igual ao Portal).
+  const gerenteBuckets = new Map<string, { store: string; dep: string; m: LivePreviewMetrics }>();
+  for (const row of vendRows) {
+    const dep = String(row.department || "").toUpperCase();
+    const grupos: string[] = [];
+    if (dep.includes("NOVOS")) grupos.push("NOVOS");
+    if (dep.includes("SEMINOVOS")) grupos.push("SEMINOVOS");
+    for (const g of grupos) {
+      const key = `${row.store}|${g}`;
+      let b = gerenteBuckets.get(key);
+      if (!b) { b = { store: row.store, dep: g, m: { vendidas: 0, financiadas: 0, producao: 0, retorno: 0, spf: 0, spfQty: 0 } }; gerenteBuckets.set(key, b); }
+      b.m.vendidas += Number(row.sold_count) || 0;
+      b.m.financiadas += Number(row.financed_count) || 0;
+      b.m.producao += Number(row.production_value) || 0;
+      b.m.retorno += Number(row.return_value) || 0;
+      b.m.spf += Number(row.spf_value) || 0;
+      b.m.spfQty += Number(row.spf_count) || 0;
+    }
+  }
+  for (const b of gerenteBuckets.values()) {
+    if (!(b.m.vendidas > 0 || b.m.financiadas > 0 || b.m.retorno > 0 || b.m.spf > 0)) continue;
+    const dir = managerRows.find((r) => normalizeManagerMatchKey(r.store) === normalizeManagerMatchKey(b.store) && String(r.department || "").toUpperCase() === b.dep);
+    const status = `GERENTE ${b.dep}`;
+    const c = liveCommissionCalc(status, b.m, "manager", cfg);
+    lines.push({
+      perfil: "GERENTE", loja: b.store, nome: dir ? dir.manager_name : `${status} NÃO LOCALIZADO`, status, m: b.m,
+      share: c.share, faixa: c.faixa, spf_liquido: c.spfLiquido, rent_total: c.rentTotal,
+      comissao_principal: c.comissaoPrincipal, comissao_spf: c.comissaoSpf, comissao_total: c.comissaoPrincipal // Parte 4913 — GERENTE nunca tem bônus SPF; "comissao" do Portal usa só comissaoPrincipal aqui
+    });
+  }
+
+  // ANALISTA — já vem redistribuído (férias/ausências) pelo servidor
+  // via operational_analyst_commission_metrics_v2; nunca recalculado
+  // aqui (mesmo comentário do Portal, linha 4916).
+  for (const row of analystRows) {
+    const m: LivePreviewMetrics = {
+      vendidas: Number(row.sold_count) || 0, financiadas: Number(row.financed_count) || 0,
+      producao: Number(row.production_value) || 0, retorno: Number(row.return_value) || 0,
+      spf: Number(row.spf_value) || 0, spfQty: Number(row.spf_count) || 0
+    };
+    const c = liveCommissionCalc("ANALISTA", m, "analyst", cfg);
+    lines.push({
+      perfil: "ANALISTA", loja: row.store, nome: row.analyst_name, status: row.transfer ? "ANALISTA COBERTURA" : "ANALISTA", m,
+      share: c.share, faixa: c.faixa, spf_liquido: c.spfLiquido, rent_total: c.rentTotal,
+      comissao_principal: c.comissaoPrincipal, comissao_spf: c.comissaoSpf, comissao_total: c.comissaoTotal
+    });
+  }
+
+  // GESTOR F&I — soma o grupo inteiro a partir de totals (o mesmo
+  // total oficial não-duplicado que a Parte 08 da IA-2C.5 já havia
+  // identificado como a fonte segura para "total do grupo" — nunca a
+  // soma das linhas individuais). Faixa 0,16%/0,30% e bônus SPF ×30
+  // são hardcoded no Portal (não vêm de config) — replicados aqui
+  // exatamente, sem "simplificar" para reusar share_minimo/bonus_spf_analista.
+  const gm: LivePreviewMetrics = {
+    vendidas: Number(totals.sold_count) || 0, financiadas: Number(totals.financed_count) || 0,
+    producao: Number(totals.production_value) || 0, retorno: Number(totals.return_value) || 0,
+    spf: Number(totals.spf_value) || 0, spfQty: Number(totals.spf_count) || 0
+  };
+  if (gm.vendidas > 0 || gm.financiadas > 0 || gm.retorno > 0 || gm.spf > 0) {
+    const gShare = gm.vendidas ? (gm.financiadas / gm.vendidas) * 100 : 0;
+    const gFaixa = gShare < 40 ? 0.0016 : 0.0030; // portal-app.js:6246, literal — nunca cfg.share_minimo
+    const gSpfLiquido = (gm.spf || 0) * (cfg.spf_liquido_percentual / 100);
+    const gBase = (gm.retorno || 0) + gSpfLiquido;
+    const gPrincipal = gBase * gFaixa;
+    const gBonusSpf = (gm.spfQty || 0) * 30; // portal-app.js:6250, literal — nunca cfg.bonus_spf_analista
+    const gTotal = gPrincipal + gBonusSpf;
+    lines.push({
+      perfil: "GESTOR F&I", loja: "GRUPO", nome: "Gestor F&I do Grupo", status: "GESTOR F&I", m: gm,
+      share: gShare, faixa: gFaixa, spf_liquido: gSpfLiquido, rent_total: gBase,
+      comissao_principal: gPrincipal, comissao_spf: gBonusSpf, comissao_total: gTotal
+    });
+  }
+
+  return lines;
+}
+
 type CommissionProfile = "VENDEDOR" | "ANALISTA" | "GERENTE" | "GESTOR F&I";
 const COMMISSION_PROFILES: CommissionProfile[] = ["VENDEDOR", "ANALISTA", "GERENTE", "GESTOR F&I"];
 const COMMISSION_PERSON_MATCH_MAX = 5;
@@ -1827,14 +2066,92 @@ async function toolConsultarComissoes(userClient: any, args: CommissionInput) {
   const source = await resolveCommissionSource(userClient, period);
 
   if (source.source_mode === "LIVE_PREVIEW") {
-    // Parte D/AW — nunca um número inventado para competência não
-    // fechada; ver nota de escopo no topo desta seção.
+    // Fase IA-2C.5.1 — Parte D/AW: prévia ao vivo, porte determinístico
+    // de calcularPreviewFechamentoCompetenciaSegura() (nota no topo
+    // desta seção). Nunca usa snapshot_comissoes (Parte E).
+    const lines = await fetchLivePreviewLines(userClient, period.data_inicio, period.data_fim);
+    if (lines === null) {
+      // Parte E/AS — fonte operacional ainda não pronta: nunca fabricar
+      // linhas/zeros — o mesmo comportamento de calcularPreviewFechamentoCompetenciaSegura()
+      // retornando null (portal-app.js:4866).
+      return {
+        mode: args.mode, period: periodMeta(period), source_mode: "LIVE_PREVIEW", is_preview: true,
+        preview_unavailable: true,
+        message: `Os dados operacionais desta competência ("${period.nome_periodo}") ainda não estão prontos para calcular a prévia. Tente novamente em instantes.`
+      };
+    }
+
+    const disclaimer = "Prévia calculada com os dados operacionais atuais desta competência, que ainda está EM CONFERÊNCIA — não é o valor final. O valor pode mudar até o fechamento oficial.";
+
+    if (args.mode === "summary") {
+      const byProfile = new Map<string, { count: number; principal: number; spf: number; total: number }>();
+      for (const l of lines) {
+        const b = byProfile.get(l.perfil) || { count: 0, principal: 0, spf: 0, total: 0 };
+        b.count++; b.principal += l.comissao_principal; b.spf += l.comissao_spf; b.total += l.comissao_total;
+        byProfile.set(l.perfil, b);
+      }
+      // Parte 08 (IA-2C.5) revalidada aqui: totais operacionais do grupo
+      // vêm de operational_commission_metrics.totals (fonte já
+      // não-duplicada, a mesma que calcGestorFIGrupo usa) — nunca da
+      // soma de m.* entre linhas de perfis diferentes, que superestima
+      // (comprovado: o próprio Portal soma "vendidas" entre as 4 linhas
+      // de exemplo desta fase e chega a 4, quando a venda real é 1).
+      const { data: vendData } = await userClient.rpc("operational_commission_metrics", { p_start: period.data_inicio, p_end: period.data_fim });
+      const totals = vendData?.totals || {};
+      return {
+        mode: "summary", period: periodMeta(period), source_mode: "LIVE_PREVIEW", is_preview: true, disclaimer,
+        group_totals: {
+          vendas: Number(totals.sold_count) || 0, financiamentos: Number(totals.financed_count) || 0,
+          producao: round2(Number(totals.production_value) || 0), retorno: round2(Number(totals.return_value) || 0),
+          spf: round2(Number(totals.spf_value) || 0)
+        },
+        comissao_principal_total: round2(lines.reduce((s, l) => s + l.comissao_principal, 0)),
+        comissao_spf_total: round2(lines.reduce((s, l) => s + l.comissao_spf, 0)),
+        comissao_total: round2(lines.reduce((s, l) => s + l.comissao_total, 0)),
+        professionals_count: lines.length,
+        by_profile: [...byProfile.entries()].map(([perfil, b]) => ({
+          perfil, count: b.count, comissao_principal: round2(b.principal), comissao_spf: round2(b.spf), comissao_total: round2(b.total)
+        }))
+      };
+    }
+
+    if (args.mode === "person") {
+      if (!args.person_name) throw new ToolError("Informe o nome da pessoa.");
+      const needle = args.person_name.trim().toUpperCase();
+      let matches = lines.filter((l) => l.nome.trim().toUpperCase().includes(needle));
+      if (args.perfil) matches = matches.filter((l) => l.perfil === args.perfil);
+      if (matches.length === 0) {
+        return { mode: "person", period: periodMeta(period), source_mode: "LIVE_PREVIEW", is_preview: true, disclaimer, not_found: true, person_query: args.person_name };
+      }
+      return {
+        mode: "person", period: periodMeta(period), source_mode: "LIVE_PREVIEW", is_preview: true, disclaimer, not_found: false,
+        matches: matches.slice(0, COMMISSION_PERSON_MATCH_MAX).map((l) => ({
+          nome: l.nome, perfil: l.perfil, loja: l.loja, departamento: l.status,
+          comissao_principal: round2(l.comissao_principal), comissao_spf: round2(l.comissao_spf), comissao_total: round2(l.comissao_total),
+          faixa: l.faixa, vendas: l.m.vendidas, financiamentos: l.m.financiadas,
+          share_percent: round2(l.share), producao: round2(l.m.producao), retorno: round2(l.m.retorno)
+        })),
+        truncated_matches: matches.length > COMMISSION_PERSON_MATCH_MAX
+      };
+    }
+
+    // mode = ranking
+    let filtered = lines;
+    if (args.perfil) filtered = filtered.filter((l) => l.perfil === args.perfil);
+    if (args.loja) {
+      const ns = normalizeStoreKey(args.loja);
+      filtered = filtered.filter((l) => normalizeStoreKey(l.loja) === ns);
+    }
+    const order: "asc" | "desc" = args.order === "asc" ? "asc" : "desc";
+    const sorted = [...filtered].sort((a, b) => (order === "asc" ? a.comissao_total - b.comissao_total : b.comissao_total - a.comissao_total));
+    const topN = Math.max(1, Math.min(args.top_n && args.top_n > 0 ? args.top_n : TOP_N_DEFAULT, TOP_N_MAX));
     return {
-      mode: args.mode,
-      period: periodMeta(period),
-      source_mode: "LIVE_PREVIEW",
-      not_implemented: true,
-      message: `A competência "${period.nome_periodo}" ainda não está com status FECHADO. Uma prévia de comissão dependeria de recalcular a fórmula ao vivo (faixas e parâmetros configuráveis) — essa capacidade não foi implementada nesta fase por segurança; assim que a competência for fechada, o snapshot oficial fica disponível.`
+      mode: "ranking", period: periodMeta(period), source_mode: "LIVE_PREVIEW", is_preview: true, disclaimer,
+      total_count: filtered.length, order,
+      ranking: sorted.slice(0, topN).map((l, i) => ({
+        position: i + 1, nome: l.nome, perfil: l.perfil, loja: l.loja, departamento: l.status,
+        comissao_total: round2(l.comissao_total), comissao_principal: round2(l.comissao_principal), comissao_spf: round2(l.comissao_spf)
+      }))
     };
   }
 
@@ -1922,8 +2239,32 @@ async function toolConsultarComissoes(userClient: any, args: CommissionInput) {
 // conjunto de valores rotulados, o mesmo formato que já renderiza
 // consultar_resultado — não há necessidade real de um tipo de block
 // novo aqui.
+// Fase IA-2C.5.1, Parte AG — "(PRÉVIA)" entra no título do BLOCK em
+// si, não só no texto do modelo: garante que o metadado de prévia
+// chega ao usuário mesmo que o texto livre do modelo esqueça de
+// mencionar.
+function commissionBlockTitlePrefix(result: any): string {
+  return result.is_preview ? "Prévia de Comissão" : "Comissões";
+}
+
 function buildCommissionSummaryBlock(args: CommissionInput, result: any): any | null {
-  if (result.source_mode === "LIVE_PREVIEW" || !result.official_totals) return null;
+  if (result.is_preview) {
+    if (result.preview_unavailable) return null;
+    return {
+      type: "metrics",
+      title: `${commissionBlockTitlePrefix(result)} — ${result.period.nome_periodo} (prévia, ${result.period.status})`,
+      period_label: `competência ${result.period.nome_periodo} — EM CONFERÊNCIA, sujeita a alteração até o fechamento`,
+      items: [
+        { label: "Comissão Total (prévia)", value: result.comissao_total, format: "currency" },
+        { label: "Comissão SPF (prévia)", value: result.comissao_spf_total, format: "currency" },
+        { label: "Produção", value: result.group_totals?.producao, format: "currency" },
+        { label: "Retorno", value: result.group_totals?.retorno, format: "currency" },
+        { label: "Vendas", value: result.group_totals?.vendas, format: "int" },
+        { label: "Financiamentos", value: result.group_totals?.financiamentos, format: "int" }
+      ]
+    };
+  }
+  if (!result.official_totals) return null;
   return {
     type: "metrics",
     title: `Comissões — ${result.period.nome_periodo}`,
@@ -1940,13 +2281,16 @@ function buildCommissionSummaryBlock(args: CommissionInput, result: any): any | 
 }
 
 function buildCommissionPersonBlock(args: CommissionInput, result: any): any[] | null {
-  if (result.source_mode === "LIVE_PREVIEW" || result.not_found || !Array.isArray(result.matches)) return null;
+  if (result.not_found || !Array.isArray(result.matches)) return null;
+  const suffix = result.is_preview ? ` (prévia, ${result.period.status})` : "";
   return result.matches.map((m: any) => ({
     type: "metrics",
-    title: `Comissão — ${m.nome}`,
-    period_label: `competência ${result.period.nome_periodo} (${result.period.status})`,
+    title: `${result.is_preview ? "Prévia de Comissão" : "Comissão"} — ${m.nome}${suffix}`,
+    period_label: result.is_preview
+      ? `competência ${result.period.nome_periodo} — EM CONFERÊNCIA, sujeita a alteração até o fechamento`
+      : `competência ${result.period.nome_periodo} (${result.period.status})`,
     items: [
-      { label: "Comissão Total", value: m.comissao_total, format: "currency" },
+      { label: result.is_preview ? "Comissão Total (prévia)" : "Comissão Total", value: m.comissao_total, format: "currency" },
       { label: "Comissão Principal", value: m.comissao_principal, format: "currency" },
       { label: "Comissão SPF", value: m.comissao_spf, format: "currency" },
       { label: "Vendas", value: m.vendas, format: "int" },
@@ -1960,10 +2304,13 @@ function buildCommissionPersonBlock(args: CommissionInput, result: any): any[] |
 
 function buildCommissionRankingBlock(args: CommissionInput, result: any): any | null {
   if (!Array.isArray(result.ranking)) return null;
+  const previewSuffix = result.is_preview ? ` (prévia, ${result.period.status})` : "";
   return {
     type: "ranking",
-    title: `Ranking de comissões — ${result.period.nome_periodo}`,
-    period_label: `competência ${result.period.nome_periodo} (${result.period.status})`,
+    title: `Ranking de comissões — ${result.period.nome_periodo}${previewSuffix}`,
+    period_label: result.is_preview
+      ? `competência ${result.period.nome_periodo} — EM CONFERÊNCIA, sujeita a alteração até o fechamento`
+      : `competência ${result.period.nome_periodo} (${result.period.status})`,
     dimension: "person",
     metric: "commission_total",
     items: result.ranking.map((r: any) => ({
@@ -2137,7 +2484,7 @@ const TOOLS = [
     type: "function",
     name: "consultar_comissoes",
     description:
-      "Consulta SOMENTE LEITURA de salários/comissões e status de competências (fechamento). Nunca fecha, reabre, altera, corrige ou exporta nada — só lê. mode='period_status' para status/histórico de fechamento de uma competência (FECHADO ou não, quem fechou, quando, se foi reaberta, quantos eventos). mode='summary' para totais da competência (Comissão Total/SPF/Produção/Retorno do grupo, e por perfil). mode='person' para a comissão de uma pessoa específica (person_name obrigatório). mode='ranking' para as maiores comissões (filtrável por perfil/loja). mode='spf_audit' para o total de operações e SPF bruto/líquido auditados no período (funciona com qualquer intervalo de datas, inclusive period='custom_range'). Para competência com status FECHADO, os valores vêm do snapshot oficial congelado no fechamento — nunca recalculados. Para competência ainda não fechada, uma prévia ao vivo não está disponível nesta fase: a tool informa isso explicitamente (not_implemented=true), nunca inventa um valor.",
+      "Consulta SOMENTE LEITURA de salários/comissões e status de competências (fechamento). Nunca fecha, reabre, altera, corrige ou exporta nada — só lê. mode='period_status' para status/histórico de fechamento de uma competência (FECHADO ou não, quem fechou, quando, se foi reaberta, quantos eventos). mode='summary' para totais da competência (Comissão Total/SPF/Produção/Retorno do grupo, e por perfil). mode='person' para a comissão de uma pessoa específica (person_name obrigatório). mode='ranking' para as maiores comissões (filtrável por perfil/loja). mode='spf_audit' para o total de operações e SPF bruto/líquido auditados no período (funciona com qualquer intervalo de datas, inclusive period='custom_range'). Para competência com status FECHADO, summary/person/ranking usam o snapshot oficial congelado no fechamento — nunca recalculado. Para competência ainda não fechada (normalmente 'EM CONFERÊNCIA'), os MESMOS modes summary/person/ranking calculam automaticamente uma PRÉVIA ao vivo com a fórmula oficial (o resultado sempre marca is_preview=true) — use estes modes para perguntas como 'prévia de comissão', 'quanto está', 'até agora', 'se fechasse hoje', 'comissão atual/projetada'; não é uma projeção de vendas futuras, é sempre uma fotografia dos dados já registrados até o momento. Para uma competência explicitamente fechada mencionada pelo usuário, não use prévia — deixe a resolução de período (period='named'/'previous'/'last_closed') levar ao snapshot automaticamente.",
     parameters: {
       type: "object",
       properties: {
@@ -2346,6 +2693,13 @@ Fase IA-2C.5 — Salários, Comissões e Competências:
 - RH/DP: você pode explicar o que cada uma das 8 abas do relatório de RH/DP representa conceitualmente (1_RESUMO_PRINCIPAL: totais da competência; 2_VENDEDORES, 3_ANALISTAS_GESTOR, 4_GERENTES: detalhamento por perfil; 5_CHASSIS_FINANCIADOS e 6_TODOS_CHASSIS_VENDEDOR: detalhe operacional por chassi mascarado; 7_AUDITORIA_SPF: operações SPF auditadas; 8_MEMORIA_DE_CALCULO: memória de cálculo da comissão) e responder quantas linhas/pessoas/operações existem usando os totais que a tool já devolve (linhas_snapshot, contagem por perfil, total_operations do spf_audit). Você NUNCA aciona a exportação em si nem lista chassis individuais — essa capacidade não existe nesta tool.
 - PRIVACIDADE deste domínio, sem exceção mesmo para MASTER: nunca revele CPF (de funcionário ou de cliente), e-mail, telefone, auth_user_id, token, client_match_key ou chassi completo — essas tools nunca entregam esses dados (CPF de funcionário estruturalmente não é lido por esta tool mesmo quando a fonte teoricamente o contém). Chassi, quando aparecer em contexto de auditoria, é sempre mascarado. Se pedirem qualquer um desses dados, recuse claramente.
 - Nunca confunda Score F&I (Fase IA-2C.4) com Comissão — são sistemas diferentes, com fontes diferentes. Nunca diga que um Score gerou uma comissão específica, a menos que a própria tool de comissão relacione os dois explicitamente (o que ela não faz hoje).
+
+Fase IA-2C.5.1 — Prévia de Comissão ao Vivo:
+- PRÉVIA NÃO É COMISSÃO FECHADA. Sempre que a tool retornar is_preview=true, use linguagem como "prévia atual", "até o momento" ou "se a competência fosse fechada agora" — nunca "comissão final", "valor fechado", "valor definitivo" ou "valor a pagar". Para uma competência com status diferente de FECHADO (normalmente "EM CONFERÊNCIA"), os valores vêm sendo recalculados ao vivo com os dados operacionais atuais, exatamente pela mesma fórmula oficial do Portal — mas ainda podem mudar até o fechamento.
+- Se o usuário perguntar algo como "isso já é o valor final?" sobre uma prévia, responda explicitamente que NÃO — é uma prévia, pode mudar até o fechamento oficial da competência.
+- A prévia é sempre uma fotografia do que já está registrado até agora — nunca projete ritmo de vendas, dias restantes do período ou metas futuras. "Se fechasse hoje" significa calcular só com os dados que já existem, nada além disso.
+- Se a tool retornar preview_unavailable=true, diga que os dados operacionais desta competência ainda não estão prontos para calcular a prévia — não é um erro nem "sem dados", é um estado temporário de carregamento; sugira tentar novamente.
+- Ao comparar a prévia atual com uma competência fechada, deixe claro que são fontes diferentes (prévia ao vivo × snapshot congelado) e nunca meça a diferença como se fosse uma tendência garantida.
 
 Apresentação (Fase IA-2C.1): quando você chamar uma tool, a interface já exibe os números dela automaticamente em um bloco visual (cards de métricas, ranking, comparação ou operações) logo abaixo da sua mensagem — não repita esses números em uma tabela Markdown, e não force listas numeradas só para enumerar o que o bloco visual já mostra. Seu texto deve ser curto: contextualize, interprete e conclua — não transcreva. Para um destaque realmente importante (uma queda relevante, um recorde, um risco), use no máximo um bloco de citação Markdown por resposta (linha iniciada com "> "); não abuse desse recurso em respostas rotineiras.`;
 
