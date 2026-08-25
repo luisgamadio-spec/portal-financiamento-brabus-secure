@@ -285,8 +285,8 @@
     return panel;
   }
 
-  var BAI_RANKING_METRIC_LABELS = { sales: 'Vendas', financed: 'Financiamentos', share_percent: 'Share', production: 'Produção', return: 'Retorno', return_avg_percent: 'Retorno Médio', spf: 'SPF', profitability: 'Rentabilidade', commission_total: 'Comissão Total', commission_principal: 'Comissão Principal', commission_spf: 'Comissão SPF', sim_down_payment: 'Entrada', sim_financed: 'Financiado', sim_payment: 'Parcela' };
-  var BAI_RANKING_METRIC_FORMATS = { sales: 'int', financed: 'int', share_percent: 'percent', production: 'currency', return: 'currency', return_avg_percent: 'percent', spf: 'currency', profitability: 'currency', commission_total: 'currency', commission_principal: 'currency', commission_spf: 'currency', sim_down_payment: 'currency', sim_financed: 'currency', sim_payment: 'currency' };
+  var BAI_RANKING_METRIC_LABELS = { sales: 'Vendas', financed: 'Financiamentos', share_percent: 'Share', production: 'Produção', return: 'Retorno', return_avg_percent: 'Retorno Médio', spf: 'SPF', profitability: 'Rentabilidade', commission_total: 'Comissão Total', commission_principal: 'Comissão Principal', commission_spf: 'Comissão SPF', sim_down_payment: 'Entrada', sim_financed: 'Financiado', sim_payment: 'Parcela', hist_count: 'Operações', hist_avg_down_payment_percent: 'Entrada Média (%)', hist_avg_installment_value: 'Parcela Média', hist_avg_term_months: 'Prazo Médio (meses)' };
+  var BAI_RANKING_METRIC_FORMATS = { sales: 'int', financed: 'int', share_percent: 'percent', production: 'currency', return: 'currency', return_avg_percent: 'percent', spf: 'currency', profitability: 'currency', commission_total: 'currency', commission_principal: 'currency', commission_spf: 'currency', sim_down_payment: 'currency', sim_financed: 'currency', sim_payment: 'currency', hist_count: 'int', hist_avg_down_payment_percent: 'percent', hist_avg_installment_value: 'currency', hist_avg_term_months: 'int' };
   // Fase IA-2C.2 — o nome da métrica que originou o ranking (block.metric,
   // ex.: "share", "return_avg") nem sempre é igual à chave do item que a
   // contém (ex.: "share_percent", "return_avg_percent"). Sem este mapa, a
@@ -295,8 +295,10 @@
   // com as métricas novas desta fase. Fase IA-2C.5 acrescenta
   // commission_total (ranking de comissões, dimension="person"). Fase
   // IA-2D.1 acrescenta sim_payment (comparação de entradas de simulação,
-  // dimension="down_payment").
-  var BAI_RANKING_METRIC_KEY = { sales: 'sales', financed: 'financed', share: 'share_percent', production: 'production', return: 'return', return_avg: 'return_avg_percent', spf: 'spf', profitability: 'profitability', commission_total: 'commission_total', sim_payment: 'sim_payment' };
+  // dimension="down_payment"). Fase IA-2D.2 acrescenta hist_count
+  // (distribuição de entrada/prazo histórico, dimension="down_payment_bucket"
+  // ou "term").
+  var BAI_RANKING_METRIC_KEY = { sales: 'sales', financed: 'financed', share: 'share_percent', production: 'production', return: 'return', return_avg: 'return_avg_percent', spf: 'spf', profitability: 'profitability', commission_total: 'commission_total', sim_payment: 'sim_payment', hist_count: 'hist_count' };
   var BAI_MEDALS = { 1: '\u{1F947}', 2: '\u{1F948}', 3: '\u{1F949}' };
 
   function baiBuildRankingBlock(block) {
@@ -328,7 +330,7 @@
       // Métrica que originou o ranking sempre aparece primeiro, em
       // destaque — as demais completam o contexto (Parte I: "adaptar
       // campos conforme a pergunta", sem presumir sempre as mesmas).
-      var orderedKeys = ['sales', 'financed', 'share_percent', 'production', 'return', 'return_avg_percent', 'spf', 'profitability', 'commission_total', 'commission_principal', 'commission_spf', 'sim_payment', 'sim_down_payment', 'sim_financed'];
+      var orderedKeys = ['sales', 'financed', 'share_percent', 'production', 'return', 'return_avg_percent', 'spf', 'profitability', 'commission_total', 'commission_principal', 'commission_spf', 'sim_payment', 'sim_down_payment', 'sim_financed', 'hist_count', 'hist_avg_down_payment_percent', 'hist_avg_installment_value', 'hist_avg_term_months'];
       var priorityKey = block.metric ? BAI_RANKING_METRIC_KEY[block.metric] : null;
       if (priorityKey && orderedKeys.indexOf(priorityKey) !== -1) {
         orderedKeys = [priorityKey].concat(orderedKeys.filter(function (k) { return k !== priorityKey; }));
@@ -497,7 +499,7 @@
 
       var metricsWrap = document.createElement('div');
       metricsWrap.className = 'brabusAiRankingMetrics';
-      [['financed_value', 'Financiado', 'currency'], ['return_value', 'Retorno', 'currency']].forEach(function (m) {
+      [['financed_value', 'Financiado', 'currency'], ['return_value', 'Retorno', 'currency'], ['down_payment_value', 'Entrada', 'currency'], ['down_payment_percent', 'Entrada %', 'percent'], ['installment_value', 'Parcela', 'currency'], ['installments', 'Prazo (meses)', 'int']].forEach(function (m) {
         if (op[m[0]] === null || op[m[0]] === undefined) return;
         var span = document.createElement('span');
         span.className = 'brabusAiRankingMetric';
