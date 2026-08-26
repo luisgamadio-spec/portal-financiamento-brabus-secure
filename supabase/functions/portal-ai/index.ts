@@ -3256,7 +3256,7 @@ const TOOLS = [
     type: "function",
     name: "consultar_ranking",
     description:
-      "Ranking de lojas, vendedores, modelos ou planos por uma métrica, num período. Também serve para comparar 2 a 8 entidades nomeadas específicas (ex.: 'compare ABC, Europa e Nações', 'compare todas as lojas'): preencha `entities` com os nomes exatos em vez de usar top_n. Nem toda métrica existe em toda dimensão — 'model' não tem spf/profitability (SPF não é rastreado por modelo); 'plan' só tem financed/production/return/return_avg (planos não têm venda/share).",
+      "Ranking de lojas, vendedores, modelos ou planos por uma métrica de ordenação, num período. IMPORTANTE: cada linha retornada já traz simultaneamente TODAS as métricas válidas daquela dimensão (sales, financed, share_percent, production, return, return_avg_percent e, só para loja/vendedor, também spf e profitability) — `metric` escolhe apenas a ORDENAÇÃO do ranking, nunca limita os campos devolvidos. Para uma pergunta com várias métricas da mesma dimensão/período/filtro (ex.: 'vendas, financiamentos e retorno de X'), faça UMA ÚNICA chamada e reaproveite os campos já retornados nela — nunca repita a chamada só trocando o metric. Também serve para comparar 2 a 8 entidades nomeadas específicas de uma vez, com todas as métricas de cada uma já na mesma resposta (ex.: 'compare ABC, Europa e Nações', 'compare todas as lojas'): preencha `entities` com os nomes exatos em vez de usar top_n. Nem toda métrica existe em toda dimensão — 'model' não tem spf/profitability (sempre null nesses campos — SPF não é rastreado por modelo); 'plan' só tem financed/production/return/return_avg (planos não têm venda/share).",
     parameters: {
       type: "object",
       properties: {
@@ -3264,7 +3264,11 @@ const TOOLS = [
         start_date: { type: ["string", "null"] },
         end_date: { type: ["string", "null"] },
         dimension: { type: "string", enum: ["store", "seller", "model", "plan"] },
-        metric: { type: "string", enum: ["sales", "financed", "share", "production", "return", "return_avg", "spf", "profitability"] },
+        metric: {
+          type: "string",
+          enum: ["sales", "financed", "share", "production", "return", "return_avg", "spf", "profitability"],
+          description: "Só define a ordenação do ranking — a resposta já inclui todas as métricas válidas da dimensão em cada linha, independentemente da métrica escolhida aqui."
+        },
         department: { type: ["string", "null"], enum: ["NOVOS", "SEMINOVOS", null] },
         store: { type: ["string", "null"], description: "Restringe o ranking (vendedor/modelo/plano) a uma loja; null = todas" },
         top_n: { type: ["integer", "null"], description: `1 a ${TOP_N_MAX}, default ${TOP_N_DEFAULT}. Ignorado se entities for usado.` },
