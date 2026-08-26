@@ -2568,10 +2568,259 @@ function simMaxVehicleValue(
   return { vehicle_value: round2(lo), payment: round2(finalPayment) };
 }
 
+// =========================================================
+// Fase IA-2D.3 — Financiamento Balão ("Balão Tradicional")
+//
+// Motor único calcTrad() — modules/simulador-novos.html:2965-2968 e
+// modules/simulador-seminovos.html:2940-2944, idêntico entre os dois
+// exceto pela faixa de ano exigida em Seminovos. Auditoria confirmou:
+// só a aba "Balão Tradicional" está em escopo (Semestral/Anual e
+// Parcela Única ficam de fora, por decisão explícita da fase — a de
+// Seminovos, aliás, está morta: presente no código mas sem botão de aba
+// alcançável). A classificação histórica "BALÃO" (Op Fin - Balão PMT
+// (R$) > 0, usada em Score/Coparticipado/Análise Geral) é uma regra de
+// classificação de outros módulos — nunca confundida com este motor de
+// simulação, que não lê nem escreve nada relacionado a ela.
+//
+// Escopo desta fase: só UM balão (mês + valor), não a generalidade de
+// 0-4 balões (Novos) / 0-2 (Seminovos) que o motor real suporta — a
+// função de cálculo abaixo é escrita de forma genérica (aceita um
+// array de balões, fiel à fórmula real), mas a tool exposta ao modelo
+// só aceita um valor+mês por simulação, decisão deliberada de escopo,
+// não uma limitação do motor.
+// =========================================================
+const BALAO_PRAZOS = [12, 24, 30, 36, 40, 42, 48];
+
+function balaoTaxaInterna(t: number): number {
+  return t + 0.00012;
+}
+function balaoBaseInterna(fin: number): number {
+  const ADICIONAL = 0.062305, CAD = 980, REG = 339.67, IOF = 0.0321516;
+  const subtotal = Math.max(0, fin) * (1 + ADICIONAL) + CAD + REG;
+  return subtotal / (1 - IOF);
+}
+
+interface BalaoRateRow { entrada: number; prazo: number; max: number; taxa: number; }
+interface BalaoRateRowSemi extends BalaoRateRow { faixa: string; }
+
+async function fetchBalaoNovosRateTable(userClient: any): Promise<BalaoRateRow[]> {
+  const { data, error } = await userClient.rpc("simulador_get_balao_zerokm");
+  if (error || !data?.ok || !Array.isArray(data?.linhas)) {
+    throw new ToolError("Não consegui consultar a tabela de taxas do Financiamento Balão (Novos) agora.");
+  }
+  // modules/simulador-novos.html:2814 — só bloco==='TRADICIONAL'; a
+  // mesma RPC também carrega linhas de SEMESTRAL_ANUAL/PARCELA_UNICA,
+  // fora de escopo aqui.
+  return data.linhas
+    .filter((r: any) => r.bloco === "TRADICIONAL")
+    .map((r: any) => ({ entrada: Number(r.entrada_minima), prazo: Number(r.prazo), max: Number(r.max_balao), taxa: Number(r.taxa) }));
+}
+
+async function fetchBalaoSeminovosRateTable(userClient: any): Promise<BalaoRateRowSemi[]> {
+  const { data, error } = await userClient.rpc("simulador_get_balao_seminovos");
+  if (error || !data?.ok || !Array.isArray(data?.linhas)) {
+    throw new ToolError("Não consegui consultar a tabela de taxas do Financiamento Balão (Seminovos) agora.");
+  }
+  // modules/simulador-seminovos.html:2817 — sem filtro de bloco: aqui
+  // "bloco" já É a faixa de ano (2017_2024/2025_2099), não um tipo de
+  // calculadora como em Novos — só essa RPC existe para Seminovos.
+  return data.linhas.map((r: any) => ({
+    faixa: String(r.bloco), entrada: Number(r.entrada_minima), prazo: Number(r.prazo), max: Number(r.max_balao), taxa: Number(r.taxa)
+  }));
+}
+
+function balaoFaixaAno(ano: number): string | null {
+  if (ano >= 2025 && ano <= 2099) return "2025_2099";
+  if (ano >= 2017 && ano <= 2024) return "2017_2024";
+  return null;
+}
+
+function balaoPlanoNovos(tabela: BalaoRateRow[], prazo: number, pe: number): BalaoRateRow | null {
+  const cands = tabela.filter((r) => r.prazo === prazo && pe >= r.entrada);
+  if (!cands.length) return null;
+  return [...cands].sort((a, b) => b.entrada - a.entrada)[0];
+}
+function balaoPlanoSeminovos(tabela: BalaoRateRowSemi[], prazo: number, pe: number, ano: number): BalaoRateRowSemi | null {
+  const faixa = balaoFaixaAno(ano);
+  if (!faixa) return null;
+  const cands = tabela.filter((r) => r.faixa === faixa && r.prazo === prazo && pe >= r.entrada);
+  if (!cands.length) return null;
+  return [...cands].sort((a, b) => b.entrada - a.entrada)[0];
+}
+
+interface BalaoEngine { novosTable: BalaoRateRow[] | null; seminovosTable: BalaoRateRowSemi[] | null; }
+
+async function loadBalaoEngine(userClient: any, department: SimDepartment): Promise<BalaoEngine> {
+  if (department === "NOVOS") return { novosTable: await fetchBalaoNovosRateTable(userClient), seminovosTable: null };
+  return { novosTable: null, seminovosTable: await fetchBalaoSeminovosRateTable(userClient) };
+}
+
+interface BalaoBalloon { month: number; value: number; }
+
+interface BalaoCalcOk {
+  parcela: number; plano_taxa: number; plano_max_pct: number;
+  limite_balao: number; total_balao: number; saldo: number; base: number;
+}
+
+type BalaoErrorCode =
+  | "entrada_minima_10pct" | "entrada_maior_igual_bem" | "ano_obrigatorio" | "ano_sem_faixa"
+  | "prazo_sem_regra" | "balao_fora_do_prazo" | "balao_mes_duplicado" | "balao_valor_invalido"
+  | "balao_acima_do_limite" | "saldo_negativo";
+
+const BALAO_ERROR_MESSAGES: Record<BalaoErrorCode, string> = {
+  entrada_minima_10pct: "A entrada mínima permitida para o Balão é de 10%.",
+  entrada_maior_igual_bem: "A entrada deve ser menor que o valor do veículo.",
+  ano_obrigatorio: "Para Seminovos, informe o ano do veículo — a tabela do Balão depende dele.",
+  ano_sem_faixa: "Não encontrei condições de Balão para veículos desse ano — a tabela cobre 2017 a 2099.",
+  prazo_sem_regra: "Não há regra de Balão cadastrada para esse prazo e entrada (e ano, em Seminovos).",
+  balao_fora_do_prazo: "O mês do balão precisa estar entre 1 e o prazo escolhido.",
+  balao_mes_duplicado: "Não é permitido mais de um balão no mesmo mês.",
+  balao_valor_invalido: "O valor do balão precisa ser maior que zero.",
+  balao_acima_do_limite: "O valor do balão ultrapassa o limite máximo permitido para essa entrada.",
+  saldo_negativo: "O balão informado é alto demais para gerar uma parcela mensal válida nessas condições."
+};
+
+// Port verbatim de calcTrad() (Parte G/N) — nunca arredonda valor
+// intermediário (i, fator, base, vpBaloes, saldo), só o resultado final
+// via round2 no ponto de uso, mesma disciplina do motor Linear (Fase
+// IA-2D.1) e do próprio simulador real (só formata para exibir).
+function balaoCalcular(
+  engine: BalaoEngine, department: SimDepartment, vehicleValue: number, downPayment: number,
+  prazo: number, baloes: BalaoBalloon[], vehicleYear: number | null
+): { ok: true; result: BalaoCalcOk } | { ok: false; error: BalaoErrorCode } {
+  const fin = Math.max(0, vehicleValue - downPayment);
+  const pe = vehicleValue > 0 ? downPayment / vehicleValue : 0;
+  if (pe < 0.1) return { ok: false, error: "entrada_minima_10pct" };
+  if (fin <= 0) return { ok: false, error: "entrada_maior_igual_bem" };
+
+  let plano: BalaoRateRow | BalaoRateRowSemi | null;
+  if (department === "NOVOS") {
+    plano = balaoPlanoNovos(engine.novosTable!, prazo, pe);
+  } else {
+    if (!vehicleYear) return { ok: false, error: "ano_obrigatorio" };
+    if (!balaoFaixaAno(vehicleYear)) return { ok: false, error: "ano_sem_faixa" };
+    plano = balaoPlanoSeminovos(engine.seminovosTable!, prazo, pe, vehicleYear);
+  }
+  if (!plano) return { ok: false, error: "prazo_sem_regra" };
+
+  let total = 0;
+  const mesesVistos = new Set<number>();
+  for (const b of baloes) {
+    if (!b.month || b.month < 1 || b.month > prazo) return { ok: false, error: "balao_fora_do_prazo" };
+    if (mesesVistos.has(b.month)) return { ok: false, error: "balao_mes_duplicado" };
+    if (!(b.value > 0)) return { ok: false, error: "balao_valor_invalido" };
+    mesesVistos.add(b.month);
+    total += b.value;
+  }
+
+  const limite = fin * plano.max;
+  if (total > limite + 1e-6) return { ok: false, error: "balao_acima_do_limite" };
+
+  const i = balaoTaxaInterna(plano.taxa);
+  const n = prazo;
+  const fator = (1 - Math.pow(1 + i, -n)) / i;
+  const base = balaoBaseInterna(fin);
+  const vpBaloes = baloes.reduce((s, b) => s + b.value / Math.pow(1 + i, b.month), 0);
+  const saldo = base - vpBaloes;
+  if (saldo <= 0) return { ok: false, error: "saldo_negativo" };
+  const parcela = saldo / fator;
+
+  return { ok: true, result: { parcela, plano_taxa: plano.taxa, plano_max_pct: plano.max, limite_balao: limite, total_balao: total, saldo, base } };
+}
+
+function balaoParcelaAt(
+  engine: BalaoEngine, department: SimDepartment, vehicleValue: number, downPayment: number,
+  prazo: number, balloonMonth: number, balloonValue: number, vehicleYear: number | null
+): number | null {
+  const r = balaoCalcular(engine, department, vehicleValue, downPayment, prazo, [{ month: balloonMonth, value: balloonValue }], vehicleYear);
+  return r.ok ? r.result.parcela : null;
+}
+
+// Achado comprovado empiricamente (script de auditoria, cenário
+// Seminovos): o piso REAL de entrada não é sempre 10% — é
+// max(10%, menor faixa de entrada da tabela para esse prazo/faixa de
+// ano). Em Novos a menor faixa também é 10% (coincide), mas em
+// Seminovos a menor faixa é 20% — testar exatamente 10% ali cai fora
+// de qualquer linha da tabela (prazo_sem_regra), não no erro de piso, e
+// uma busca que assumisse 10% sempre "desistiria" cedo demais, achando
+// impossível um cenário que na verdade é viável a partir de 20%. Lido
+// direto da tabela real, nunca hardcoded.
+function balaoMinTierEntradaPct(engine: BalaoEngine, department: SimDepartment, prazo: number, vehicleYear: number | null): number {
+  let tiers: number[];
+  if (department === "NOVOS") {
+    tiers = engine.novosTable!.filter((r) => r.prazo === prazo).map((r) => r.entrada);
+  } else {
+    const faixa = vehicleYear ? balaoFaixaAno(vehicleYear) : null;
+    tiers = engine.seminovosTable!.filter((r) => r.prazo === prazo && r.faixa === faixa).map((r) => r.entrada);
+  }
+  if (!tiers.length) return 0.1;
+  return Math.max(0.1, Math.min(...tiers));
+}
+
+// Parte AE/CT — inversão por busca binária, MAS em duas etapas: ao
+// contrário do motor Linear, aqui a faixa viável de entrada tem
+// TETO, não só piso. Comprovado empiricamente (script de auditoria):
+// com um balão FIXO, parcela(entrada) cai suavemente conforme a
+// entrada sobe — até o ponto em que limite_balao=fin*plano.max (que
+// ENCOLHE conforme a entrada sobe, pois fin=bem-entrada diminui) fica
+// menor que o balão fixado, e o motor passa a rejeitar
+// (balao_acima_do_limite) para toda entrada acima desse ponto. Por
+// isso: (1) acha o teto de entrada onde o cálculo ainda é válido via
+// busca binária sobre ok/fail; (2) só então busca a entrada mínima que
+// atinge a parcela-alvo, dentro de [piso_real, teto] — nunca faz uma
+// única busca ingênua em todo [piso_real, bem), que cruzaria a
+// fronteira de validade sem sentido monotônico.
+function balaoRequiredDownPayment(
+  engine: BalaoEngine, department: SimDepartment, vehicleValue: number, targetPayment: number,
+  prazo: number, balloonMonth: number, balloonValue: number, vehicleYear: number | null
+): { down_payment: number; payment: number } | null {
+  const minEntrada = vehicleValue * balaoMinTierEntradaPct(engine, department, prazo, vehicleYear);
+  const hardMax = vehicleValue * (1 - 1e-9);
+  const isOk = (d: number) => balaoParcelaAt(engine, department, vehicleValue, d, prazo, balloonMonth, balloonValue, vehicleYear) !== null;
+
+  if (!isOk(minEntrada)) return null; // nem no piso real desta tabela o balão informado cabe — impossível nas condições atuais
+
+  // Etapa 1 — teto de validade (fronteira ok→fail, única e monotônica).
+  let ceilLo = minEntrada, ceilHi = hardMax;
+  if (isOk(hardMax)) {
+    ceilLo = hardMax; // válido em toda a faixa — sem fronteira a achar
+  } else {
+    for (let k = 0; k < 100; k++) {
+      const mid = (ceilLo + ceilHi) / 2;
+      if (isOk(mid)) ceilLo = mid; else ceilHi = mid;
+      if (ceilHi - ceilLo < 0.01) break;
+    }
+  }
+  const entradaTeto = ceilLo;
+
+  // Etapa 2 — dentro de [minEntrada, entradaTeto], parcela(entrada) é
+  // monotônica não-crescente (comprovado empiricamente) — busca binária
+  // padrão, mesmo molde do motor Linear.
+  const parcelaAt = (d: number) => balaoParcelaAt(engine, department, vehicleValue, d, prazo, balloonMonth, balloonValue, vehicleYear);
+  const pAtTeto = parcelaAt(entradaTeto);
+  if (pAtTeto === null || round2(pAtTeto) > targetPayment) return null; // mesmo no teto de validade, parcela não cai o suficiente
+
+  const pAtMin = parcelaAt(minEntrada);
+  if (pAtMin !== null && round2(pAtMin) <= targetPayment) return { down_payment: round2(minEntrada), payment: round2(pAtMin) };
+
+  let lo = minEntrada, hi = entradaTeto;
+  for (let k = 0; k < 100; k++) {
+    const mid = (lo + hi) / 2;
+    const p = parcelaAt(mid);
+    if (p !== null && round2(p) <= targetPayment) hi = mid; else lo = mid;
+    if (hi - lo < 0.01) break;
+  }
+  const finalPayment = parcelaAt(hi);
+  if (finalPayment === null) return null;
+  return { down_payment: round2(hi), payment: round2(finalPayment) };
+}
+
 type SimulationMode = "payment" | "required_down_payment" | "max_vehicle_value" | "compatible_terms" | "compare_down_payments";
+type SimFinancingType = "LINEAR" | "BALAO";
 
 interface SimulationInput {
   mode: SimulationMode;
+  financing_type: SimFinancingType | null; // null => LINEAR (Parte W — nunca quebra contrato antigo)
   department: SimDepartment;
   vehicle_value: number | null;
   down_payment: number | null;
@@ -2580,6 +2829,8 @@ interface SimulationInput {
   term_months: number | null;
   vehicle_year: number | null;
   down_payment_percents: number[] | null;
+  balloon_value: number | null; // Balão: valor do balão único desta fase
+  balloon_month: number | null; // Balão: mês do balão; null => último mês do prazo
 }
 
 function resolveDownPaymentValue(vehicleValue: number, downPayment: number | null, downPaymentPercent: number | null): number | null {
@@ -2589,6 +2840,11 @@ function resolveDownPaymentValue(vehicleValue: number, downPayment: number | nul
 }
 
 async function toolSimularFinanciamento(userClient: any, args: SimulationInput) {
+  // Parte V/W — ramifica cedo para o motor Balão, sem tocar em nada do
+  // caminho Linear abaixo (contrato antigo permanece byte-a-byte igual;
+  // financing_type=null se comporta exatamente como antes desta fase).
+  if (args.financing_type === "BALAO") return await toolSimularBalao(userClient, args);
+
   const prazos = simPrazosFor(args.department);
   const calculationSource = args.department === "NOVOS" ? "simulador_novos_financiamento_linear" : "simulador_seminovos_financiamento_linear";
 
@@ -2695,6 +2951,115 @@ async function toolSimularFinanciamento(userClient: any, args: SimulationInput) 
     mode: "compare_down_payments", department: args.department, vehicle_value: round2(args.vehicle_value),
     term_months: args.term_months, vehicle_year: args.vehicle_year, scenarios,
     calculation_source: calculationSource, constraints_applied: constraintsApplied
+  };
+}
+
+// Fase IA-2D.3 — Financiamento Balão. Só os 3 modos abaixo (payment,
+// required_down_payment, compare_down_payments) — max_vehicle_value e
+// compatible_terms ficam fora de escopo nesta fase (Parte T: nunca
+// incluir capacidade que a auditoria não comprovou/testou). term_months
+// é sempre obrigatório aqui (diferente do Linear, que aceita omitir e
+// tenta todos os prazos) — um balão único precisa de um prazo certo
+// para o mês do balão fazer sentido; nunca infere prazo silenciosamente.
+async function toolSimularBalao(userClient: any, args: SimulationInput) {
+  const calculationSource = args.department === "NOVOS" ? "simulador_novos_balao_tradicional" : "simulador_seminovos_balao_tradicional";
+
+  if (!["payment", "required_down_payment", "compare_down_payments"].includes(args.mode)) {
+    throw new ToolError(`O modo "${args.mode}" ainda não está disponível para Financiamento Balão nesta fase — apenas payment, required_down_payment e compare_down_payments.`);
+  }
+  if (args.department === "SEMINOVOS" && !args.vehicle_year) {
+    throw new ToolError("Para Seminovos, informe o ano do veículo — o Balão de Seminovos usa uma tabela de taxa por faixa de ano.");
+  }
+  if (args.department === "SEMINOVOS" && args.vehicle_year && !balaoFaixaAno(args.vehicle_year)) {
+    throw new ToolError(`Não encontrei condições de Balão para veículos do ano ${args.vehicle_year} — a tabela cobre 2017 a 2099.`);
+  }
+  if (args.term_months === null) {
+    throw new ToolError(`Informe o prazo (term_months) para simular o Balão. Prazos disponíveis: ${BALAO_PRAZOS.join(", ")} meses.`);
+  }
+  if (!BALAO_PRAZOS.includes(args.term_months)) {
+    throw new ToolError(`Prazo inválido para o Balão. Prazos disponíveis: ${BALAO_PRAZOS.join(", ")} meses.`);
+  }
+  if (!(args.balloon_value !== null && args.balloon_value > 0)) {
+    throw new ToolError("Informe o valor do balão (maior que zero) — esta simulação cobre um único balão por vez.");
+  }
+  const balloonMonth = args.balloon_month !== null ? args.balloon_month : args.term_months;
+  if (balloonMonth < 1 || balloonMonth > args.term_months) {
+    throw new ToolError(`O mês do balão precisa estar entre 1 e ${args.term_months} (o prazo escolhido).`);
+  }
+
+  const engine = await loadBalaoEngine(userClient, args.department);
+  const constraintsApplied = [
+    "Financiamento Balão Tradicional: entrada mínima de 10%; simula um único balão por vez (mês + valor); balão limitado a um percentual do valor financiado, definido pela tabela oficial vigente.",
+    args.department === "SEMINOVOS" ? `Taxa depende da faixa de ano do veículo (faixa ${balaoFaixaAno(args.vehicle_year!)}).` : null
+  ].filter((s): s is string => s !== null);
+
+  if (args.mode === "payment") {
+    if (!(args.vehicle_value !== null && args.vehicle_value > 0)) throw new ToolError("Informe um valor de veículo válido (maior que zero).");
+    const downPayment = resolveDownPaymentValue(args.vehicle_value, args.down_payment, args.down_payment_percent);
+    if (downPayment === null) throw new ToolError("Informe a entrada (valor ou percentual).");
+
+    const calc = balaoCalcular(engine, args.department, args.vehicle_value, downPayment, args.term_months, [{ month: balloonMonth, value: args.balloon_value }], args.vehicle_year);
+    if (!calc.ok) {
+      return {
+        mode: "payment", department: args.department, feasible: false, error: calc.error, message: BALAO_ERROR_MESSAGES[calc.error],
+        vehicle_value: round2(args.vehicle_value), down_payment: round2(downPayment), term_months: args.term_months,
+        balloon_value: round2(args.balloon_value), balloon_month: balloonMonth, calculation_source: calculationSource
+      };
+    }
+    return {
+      mode: "payment", department: args.department, feasible: true,
+      vehicle_value: round2(args.vehicle_value), down_payment: round2(downPayment),
+      down_payment_percent: round2((downPayment / args.vehicle_value) * 100),
+      financed_amount: round2(Math.max(0, args.vehicle_value - downPayment)),
+      term_months: args.term_months, vehicle_year: args.vehicle_year,
+      monthly_payment: round2(calc.result.parcela),
+      balloon_value: round2(args.balloon_value), balloon_month: balloonMonth,
+      balloon_month_total_due: round2(calc.result.parcela + args.balloon_value),
+      max_balloon_allowed: round2(calc.result.limite_balao),
+      calculation_source: calculationSource, constraints_applied: constraintsApplied
+    };
+  }
+
+  if (args.mode === "required_down_payment") {
+    if (!(args.vehicle_value !== null && args.vehicle_value > 0)) throw new ToolError("Informe um valor de veículo válido.");
+    if (!(args.target_payment !== null && args.target_payment > 0)) throw new ToolError("Informe a parcela mensal desejada (maior que zero).");
+
+    const r = balaoRequiredDownPayment(engine, args.department, args.vehicle_value, args.target_payment, args.term_months, balloonMonth, args.balloon_value, args.vehicle_year);
+    if (!r) {
+      return {
+        mode: "required_down_payment", department: args.department, feasible: false,
+        vehicle_value: round2(args.vehicle_value), target_payment: round2(args.target_payment),
+        term_months: args.term_months, balloon_value: round2(args.balloon_value), balloon_month: balloonMonth,
+        message: "Não há entrada, dentro das condições oficiais do Balão, que atinja essa parcela com esse balão e prazo.",
+        calculation_source: calculationSource
+      };
+    }
+    return {
+      mode: "required_down_payment", department: args.department, feasible: true,
+      vehicle_value: round2(args.vehicle_value), target_payment: round2(args.target_payment),
+      down_payment: r.down_payment, down_payment_percent: round2((r.down_payment / args.vehicle_value) * 100),
+      financed_amount: round2(Math.max(0, args.vehicle_value - r.down_payment)),
+      monthly_payment: r.payment, term_months: args.term_months, vehicle_year: args.vehicle_year,
+      balloon_value: round2(args.balloon_value), balloon_month: balloonMonth,
+      calculation_source: calculationSource, constraints_applied: constraintsApplied
+    };
+  }
+
+  // mode = compare_down_payments
+  if (!(args.vehicle_value !== null && args.vehicle_value > 0)) throw new ToolError("Informe um valor de veículo válido.");
+  if (!args.down_payment_percents || args.down_payment_percents.length < 2) throw new ToolError("Informe ao menos 2 percentuais de entrada para comparar.");
+  const scenarios = [...args.down_payment_percents].sort((a, b) => a - b).map((pct) => {
+    const dp = args.vehicle_value! * (pct / 100);
+    const calc = balaoCalcular(engine, args.department, args.vehicle_value!, dp, args.term_months!, [{ month: balloonMonth, value: args.balloon_value! }], args.vehicle_year);
+    return {
+      down_payment_percent: pct, down_payment: round2(dp), financed_amount: round2(Math.max(0, args.vehicle_value! - dp)),
+      valid: calc.ok, payment: calc.ok ? round2(calc.result.parcela) : null, error: calc.ok ? null : calc.error
+    };
+  });
+  return {
+    mode: "compare_down_payments", department: args.department, vehicle_value: round2(args.vehicle_value),
+    term_months: args.term_months, vehicle_year: args.vehicle_year, balloon_value: round2(args.balloon_value), balloon_month: balloonMonth,
+    scenarios, calculation_source: calculationSource, constraints_applied: constraintsApplied
   };
 }
 
@@ -3165,6 +3530,61 @@ function buildSimulationRankingBlock(args: SimulationInput, result: any): any | 
   };
 }
 
+// Fase IA-2D.3 — Partes AX/AY: PARCELA MENSAL e BALÃO nunca aparecem
+// sem rótulo que os diferencie — nenhum card mostra um valor "solto"
+// que possa ser confundido entre os dois. Sem block quando inviável
+// (Parte AQ) — o texto do modelo já explica, mesmo padrão do Linear.
+function buildBalaoMetricsBlock(args: SimulationInput, result: any): any | null {
+  const deptLabel = result.department === "NOVOS" ? "Novos" : "Seminovos";
+  const balaoFmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  if (result.mode === "payment") {
+    if (!result.feasible) return null;
+    const items = [
+      { label: "Valor do Veículo", value: result.vehicle_value, format: "currency" },
+      { label: "Entrada", value: result.down_payment, format: "currency" },
+      { label: "Entrada (%)", value: result.down_payment_percent, format: "percent" },
+      { label: "Financiado", value: result.financed_amount, format: "currency" },
+      { label: "Parcela Mensal", value: result.monthly_payment, format: "currency" },
+      { label: `Balão (mês ${result.balloon_month})`, value: result.balloon_value, format: "currency" },
+      { label: `Total devido no mês ${result.balloon_month} (parcela + balão)`, value: result.balloon_month_total_due, format: "currency" },
+      { label: "Balão máximo permitido nessa entrada", value: result.max_balloon_allowed, format: "currency" }
+    ];
+    return { type: "metrics", title: `Simulação — Financiamento Balão ${deptLabel} (${result.term_months}x)`, period_label: "Simulação — não é proposta nem aprovação de crédito", items };
+  }
+  if (result.mode === "required_down_payment") {
+    if (!result.feasible) return null;
+    const items = [
+      { label: "Valor do Veículo", value: result.vehicle_value, format: "currency" },
+      { label: "Parcela Mensal Desejada", value: result.target_payment, format: "currency" },
+      { label: `Balão considerado (mês ${result.balloon_month})`, value: result.balloon_value, format: "currency" },
+      { label: `Entrada necessária (${result.term_months}x)`, value: result.down_payment, format: "currency" },
+      { label: "Entrada (%)", value: result.down_payment_percent, format: "percent" },
+      { label: "Parcela Mensal obtida", value: result.monthly_payment, format: "currency" }
+    ];
+    return { type: "metrics", title: `Simulação — Entrada necessária (Balão ${deptLabel})`, period_label: "Simulação — não é proposta nem aprovação de crédito", items };
+  }
+  return null;
+}
+
+function buildBalaoRankingBlock(args: SimulationInput, result: any): any | null {
+  if (result.mode !== "compare_down_payments") return null;
+  const deptLabel = result.department === "NOVOS" ? "Novos" : "Seminovos";
+  const balaoFmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return {
+    type: "ranking",
+    title: `Comparação de entradas — Balão ${deptLabel} (${result.term_months}x, parcela mensal — balão fixo de ${balaoFmt(result.balloon_value)} no mês ${result.balloon_month})`,
+    period_label: "Simulação — não é proposta nem aprovação de crédito",
+    dimension: "down_payment", metric: "sim_payment",
+    items: result.scenarios.map((s: any, i: number) => ({
+      position: i + 1,
+      name: `${s.down_payment_percent}% de entrada`,
+      sim_down_payment: s.down_payment,
+      sim_financed: s.financed_amount,
+      sim_payment: s.payment
+    }))
+  };
+}
+
 function buildBlockFromToolResult(name: string, args: any, output: any): any | any[] | null {
   if (!output || typeof output !== "object" || "error" in output) return null;
   try {
@@ -3184,6 +3604,10 @@ function buildBlockFromToolResult(name: string, args: any, output: any): any | a
       // block dedicado (Parte BV: texto/callout do próprio modelo basta).
     }
     if (name === "simular_financiamento") {
+      if (args?.financing_type === "BALAO") {
+        if (output.mode === "compare_down_payments") return buildBalaoRankingBlock(args, output);
+        return buildBalaoMetricsBlock(args, output);
+      }
       if (output.mode === "compare_down_payments") return buildSimulationRankingBlock(args, output);
       return buildSimulationMetricsBlock(args, output);
     }
@@ -3364,21 +3788,24 @@ const TOOLS = [
     type: "function",
     name: "simular_financiamento",
     description:
-      "Simulação SOMENTE LEITURA de financiamento (Financiamento Linear), usando exatamente a mesma tabela de taxas e fórmula dos simuladores oficiais do Portal — nunca uma conta aproximada. Cobre só o financiamento linear padrão (sem campanha/modelo específico); planos especiais (Balão, Taxas Subsidiadas, Coparticipado, Semestral Triton/Outlander) não estão disponíveis nesta ferramenta. department é obrigatório (NOVOS ou SEMINOVOS — nunca escolha silenciosamente; se não estiver claro, pergunte). Para SEMINOVOS, vehicle_year é obrigatório (a taxa depende do ano do veículo). mode='payment': valor+entrada(valor ou %)+prazo opcional → parcela (se prazo omitido, mostra todos os prazos). mode='required_down_payment': valor+parcela desejada+prazo opcional → entrada necessária (ex.: 'quanto de entrada preciso para parcela de R$1.800?'). mode='max_vehicle_value': entrada (valor absoluto, nunca percentual)+parcela máxima+prazo opcional → valor máximo do veículo. mode='compatible_terms': valor+entrada+parcela desejada → quais prazos cabem. mode='compare_down_payments': valor+lista de percentuais de entrada (down_payment_percents, ex. [40,50,60])+prazo obrigatório → compara parcela em cada percentual, ordenado por entrada crescente. Isto é sempre uma SIMULAÇÃO — nunca aprovação de crédito, proposta bancária ou taxa garantida.",
+      "Simulação SOMENTE LEITURA de financiamento, usando exatamente a mesma tabela de taxas e fórmula dos simuladores oficiais do Portal — nunca uma conta aproximada. financing_type='LINEAR' (default) cobre o financiamento linear padrão; financing_type='BALAO' cobre o Balão Tradicional (parcela mensal fixa + um pagamento especial — o balão — num mês escolhido, dentro do mesmo prazo). Nenhum outro plano especial (Taxas Subsidiadas, Coparticipado, Semestral Triton/Outlander, MITWEEK) está disponível nesta ferramenta. department é obrigatório (NOVOS ou SEMINOVOS — nunca escolha silenciosamente; se não estiver claro, pergunte). Para SEMINOVOS, vehicle_year é obrigatório em ambos os tipos (a taxa depende do ano do veículo). Para financing_type='BALAO': term_months é sempre obrigatório (nunca omita — o mês do balão depende do prazo escolhido); balloon_value é sempre obrigatório (o valor do único balão desta simulação); balloon_month é opcional (default = último mês do prazo). Modos disponíveis para BALAO: 'payment', 'required_down_payment', 'compare_down_payments' — 'max_vehicle_value' e 'compatible_terms' ainda não existem para Balão. mode='payment': valor+entrada(valor ou %)+prazo(+balão, se BALAO) → parcela (LINEAR: se prazo omitido, mostra todos os prazos; BALAO: prazo sempre obrigatório). mode='required_down_payment': valor+parcela mensal desejada+prazo(+balão, se BALAO) → entrada necessária (ex.: 'quanto de entrada preciso para parcela de R$1.800?' — em BALAO, informar um balloon_value é como expressar 'não quero balão maior que R$X': o motor usa esse valor exato como o balão do cenário). mode='max_vehicle_value' (só LINEAR): entrada (valor absoluto, nunca percentual)+parcela máxima+prazo opcional → valor máximo do veículo. mode='compatible_terms' (só LINEAR): valor+entrada+parcela desejada → quais prazos cabem. mode='compare_down_payments': valor+lista de percentuais de entrada (down_payment_percents, ex. [40,50,60])+prazo obrigatório(+balão, se BALAO) → compara parcela em cada percentual, ordenado por entrada crescente. Isto é sempre uma SIMULAÇÃO — nunca aprovação de crédito, proposta bancária ou taxa garantida.",
     parameters: {
       type: "object",
       properties: {
         mode: { type: "string", enum: ["payment", "required_down_payment", "max_vehicle_value", "compatible_terms", "compare_down_payments"] },
+        financing_type: { type: ["string", "null"], enum: ["LINEAR", "BALAO", null], description: "null ou 'LINEAR' = Financiamento Linear padrão (comportamento de sempre). 'BALAO' = Financiamento Balão Tradicional (parcela mensal + um balão num mês do prazo)." },
         department: { type: "string", enum: ["NOVOS", "SEMINOVOS"] },
         vehicle_value: { type: ["number", "null"], description: "Valor do veículo em R$. Não usado em mode='max_vehicle_value' (é a incógnita)." },
         down_payment: { type: ["number", "null"], description: "Entrada em R$ (valor absoluto). Obrigatório em mode='max_vehicle_value'." },
         down_payment_percent: { type: ["number", "null"], description: "Entrada em percentual (0-100), alternativa a down_payment. Não usado em mode='max_vehicle_value'/'compare_down_payments'." },
-        target_payment: { type: ["number", "null"], description: "Parcela desejada/máxima em R$. Obrigatório em mode='required_down_payment'/'max_vehicle_value'/'compatible_terms'." },
-        term_months: { type: ["integer", "null"], description: "Prazo em meses. Opcional em payment/required_down_payment/max_vehicle_value (omitir = todos os prazos válidos). Obrigatório em mode='compare_down_payments'." },
-        vehicle_year: { type: ["integer", "null"], description: "Ano do veículo — obrigatório quando department='SEMINOVOS', ignorado em NOVOS." },
-        down_payment_percents: { type: ["array", "null"], items: { type: "number" }, minItems: 2, maxItems: 6, description: "Lista de percentuais de entrada (0-100) a comparar; obrigatório em mode='compare_down_payments'." }
+        target_payment: { type: ["number", "null"], description: "Parcela mensal desejada/máxima em R$ (nunca inclui o balão). Obrigatório em mode='required_down_payment'/'max_vehicle_value'/'compatible_terms'." },
+        term_months: { type: ["integer", "null"], description: "Prazo em meses. Opcional em payment/required_down_payment/max_vehicle_value quando financing_type=LINEAR (omitir = todos os prazos válidos) — sempre obrigatório quando financing_type=BALAO." },
+        vehicle_year: { type: ["integer", "null"], description: "Ano do veículo — obrigatório quando department='SEMINOVOS' (em LINEAR e em BALAO), ignorado em NOVOS." },
+        down_payment_percents: { type: ["array", "null"], items: { type: "number" }, minItems: 2, maxItems: 6, description: "Lista de percentuais de entrada (0-100) a comparar; obrigatório em mode='compare_down_payments'." },
+        balloon_value: { type: ["number", "null"], description: "Só para financing_type='BALAO': valor do balão em R$ (obrigatório nesse caso). Esta ferramenta simula um único balão por vez." },
+        balloon_month: { type: ["integer", "null"], description: "Só para financing_type='BALAO': mês do balão dentro do prazo (1..term_months). null = último mês do prazo (o caso mais comum)." }
       },
-      required: ["mode", "department", "vehicle_value", "down_payment", "down_payment_percent", "target_payment", "term_months", "vehicle_year", "down_payment_percents"],
+      required: ["mode", "financing_type", "department", "vehicle_value", "down_payment", "down_payment_percent", "target_payment", "term_months", "vehicle_year", "down_payment_percents", "balloon_value", "balloon_month"],
       additionalProperties: false
     },
     strict: true
@@ -3556,8 +3983,10 @@ async function dispatchTool(userClient: any, name: string, rawArgs: any): Promis
           .slice(0, 6);
         if (downPaymentPercents.length < 2) downPaymentPercents = null;
       }
+      const financingType = rawArgs.financing_type === "BALAO" ? "BALAO" : "LINEAR"; // null/qualquer outra coisa => LINEAR (Parte W)
       const args: SimulationInput = {
         mode: rawArgs.mode,
+        financing_type: financingType,
         department: rawArgs.department,
         vehicle_value: typeof rawArgs.vehicle_value === "number" && isFinite(rawArgs.vehicle_value) ? rawArgs.vehicle_value : null,
         down_payment: typeof rawArgs.down_payment === "number" && isFinite(rawArgs.down_payment) ? rawArgs.down_payment : null,
@@ -3565,7 +3994,9 @@ async function dispatchTool(userClient: any, name: string, rawArgs: any): Promis
         target_payment: typeof rawArgs.target_payment === "number" && isFinite(rawArgs.target_payment) ? rawArgs.target_payment : null,
         term_months: Number.isInteger(rawArgs.term_months) ? rawArgs.term_months : null,
         vehicle_year: Number.isInteger(rawArgs.vehicle_year) ? rawArgs.vehicle_year : null,
-        down_payment_percents: downPaymentPercents
+        down_payment_percents: downPaymentPercents,
+        balloon_value: typeof rawArgs.balloon_value === "number" && isFinite(rawArgs.balloon_value) && rawArgs.balloon_value > 0 ? rawArgs.balloon_value : null,
+        balloon_month: Number.isInteger(rawArgs.balloon_month) ? rawArgs.balloon_month : null
       };
       return await toolSimularFinanciamento(userClient, args);
     }
@@ -3668,12 +4099,24 @@ Fase IA-2C.5.1 — Prévia de Comissão ao Vivo:
 Fase IA-2D.1 — Simulação de Financiamento:
 - Toda simulação de financiamento (valor, entrada, parcela, prazo) vem sempre de simular_financiamento — você nunca faz essa conta mentalmente, mesmo que pareça simples. Se o usuário pedir uma simulação e a tool não retornar um resultado, diga que não conseguiu simular; nunca estime um valor aproximado por conta própria.
 - department (NOVOS ou SEMINOVOS) é sempre obrigatório — nunca escolha um dos dois silenciosamente quando não estiver claro pelo contexto da conversa; pergunte ao usuário qual departamento antes de simular.
-- Esta ferramenta simula apenas o Financiamento Linear padrão — não cobre Balão, Taxas Subsidiadas, planos por modelo/campanha (Coparticipado, Semestral Triton/Outlander) nem Antecipação. Se o usuário pedir uma dessas condições especiais, diga que essa modalidade específica não está disponível nesta simulação ainda — nunca simule usando a fórmula do Financiamento Linear como se fosse a mesma coisa.
+- Esta ferramenta simula o Financiamento Linear padrão (financing_type=LINEAR ou omitido) e, desde a Fase IA-2D.3, também o Financiamento Balão Tradicional (financing_type=BALAO) — nenhum outro plano especial (Taxas Subsidiadas, Coparticipado, Semestral Triton/Outlander, Antecipação, MITWEEK) está disponível. Se o usuário pedir uma dessas outras condições especiais, diga que essa modalidade específica não está disponível nesta simulação ainda — nunca simule usando a fórmula do Financiamento Linear ou do Balão como se fosse a mesma coisa que outra campanha.
 - SIMULAÇÃO NUNCA É APROVAÇÃO. Nunca diga "está aprovado", "essa é a taxa garantida" ou "essa é a proposta". Use sempre linguagem como "simulação", "condições sujeitas a confirmação e aprovação de crédito" — a mesma nota que o simulador oficial já exibe.
 - Se a tool indicar que uma condição é impossível ("possible:false", ou nenhum resultado com "payment" preenchido), diga isso claramente — nunca "ajuste" a resposta inventando um prazo, taxa ou campanha que a tabela real não tem.
 - Para Seminovos, o ano do veículo é obrigatório (a taxa depende da faixa de ano) — se o usuário não informou, pergunte antes de chamar a tool.
 - Em follow-up ("e em 48 meses?", "e com mais R$10 mil de entrada?"), preserve os dados já estabelecidos na conversa (valor do veículo, departamento, ano do veículo se Seminovos) e troque apenas o que o usuário pediu para mudar.
 - Esta é a IA-2D.1 (motor determinístico) — sozinha ela não usa histórico de vendas. Para perguntas "com base no histórico, que entrada você aconselha", combine com analisar_historico_financiamento (Fase IA-2D.2) em vez de recusar.
+
+Fase IA-2D.3 — Financiamento Balão:
+- Use financing_type="BALAO" só quando o usuário pedir explicitamente Balão (ou "parcela + balão", "pagamento especial", "parcela final maior"). Nunca simule Balão como se fosse Linear, nem Linear como se fosse Balão — são fórmulas e tabelas de taxa diferentes.
+- term_months é SEMPRE obrigatório em Balão (diferente do Linear, que aceita omitir) — nunca escolha um prazo silenciosamente; pergunte se não estiver claro. balloon_value também é sempre obrigatório — pergunte o valor do balão que o cliente tem em mente antes de simular.
+- Esta ferramenta simula um ÚNICO balão por simulação (um mês + um valor). Se o usuário descrever mais de um pagamento especial (ex.: "um balão na metade e outro no final"), diga que essa combinação de múltiplos balões não está disponível nesta simulação ainda — nunca aproxime somando ou dividindo em um único balão.
+- NUNCA confunda "parcela mensal" com "balão" na sua resposta — são dois valores diferentes que o cliente paga em momentos diferentes (a parcela mensal se repete todo mês; o balão é um pagamento extra só no mês configurado, somado à parcela normal). Sempre que citar os dois, nomeie explicitamente qual é qual (ex.: "parcela mensal de R$X, mais um balão de R$Y no mês Z") — nunca apresente um valor solto que possa ser confundido com o outro.
+- "Balão máximo": quando o usuário disser algo como "não quero um balão maior que R$X", trate esse valor como o balloon_value da simulação (o motor então calcula a entrada/parcela usando exatamente esse valor de balão) — isso reflete corretamente "meu limite de balão é X" sem precisar de um modo separado.
+- Restrições combinadas (ex.: "entrada máxima de R$X, parcela até R$Y, balão até R$Z"): chame required_down_payment com target_payment=Y e balloon_value=Z, e compare a entrada necessária retornada com o limite X que o usuário informou — se a entrada necessária for maior que X, explique que a combinação é inviável nessas condições e diga qual restrição está impedindo (nunca relaxe uma das restrições silenciosamente para "fazer caber").
+- Se a tool retornar feasible=false (ou nenhum resultado com monthly_payment preenchido), diga isso claramente, citando a mensagem de erro que a tool já fornece — nunca "ajuste" a resposta inventando uma condição que a tabela real não tem.
+- Comparação Linear × Balão: chame simular_financiamento duas vezes (uma com financing_type omitido/LINEAR, outra com financing_type=BALAO), mesmo veículo/entrada/prazo, e apresente os dois resultados lado a lado, cada um claramente identificado. Nunca declare um "melhor" sem o cliente ter dito o que prioriza (parcela mensal menor vs. balão menor) — explique o trade-off e, se necessário, pergunte a prioridade.
+- Não confunda esta simulação com a classificação histórica "BALÃO" que aparece em analisar_historico_financiamento (plan_filter="BALÃO") — são coisas diferentes: aqui é uma simulação matemática nova; lá é como operações passadas já concluídas foram classificadas. Só combine as duas (Fase IA-2D.2 + Balão) se o usuário pedir explicitamente uma leitura de histórico junto com a simulação, e sempre separando FATO histórico de SIMULAÇÃO, do mesmo jeito que já se faz para o Linear.
+- Seminovos em Balão também exige vehicle_year (mesma regra do Linear) — a tabela de taxas do Balão de Seminovos depende da faixa de ano do veículo.
 
 Fase IA-2D.2 — Recomendações Comerciais Baseadas no Histórico:
 - SEPARE SEMPRE em três blocos claros e nomeados na sua resposta: **FATO HISTÓRICO** (o que analisar_historico_financiamento retornou — operações reais já concluídas), **SIMULAÇÃO MATEMÁTICA** (o que simular_financiamento calculou para o cenário pedido — sempre determinístico, nunca baseado em histórico) e **RECOMENDAÇÃO/INTERPRETAÇÃO** (sua leitura combinando os dois, sempre em linguagem de possibilidade, nunca de certeza ou aprovação). Nunca misture os três num único parágrafo sem deixar claro qual é qual.
