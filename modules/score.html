@@ -651,7 +651,7 @@ function openScoreDetails(index){
   if(!r)return;
   const fctx=currentFiltered();
   document.getElementById('modalTitle').textContent='Detalhes do Vendedor';
-  document.getElementById('modalBody').innerHTML=`<div class="detailHero"><div class="scoreCircle" style="--p:${Math.max(0,Math.min(100,r.score/10))};--c:${scoreColor(r.score)}"><div><span class="scoreNumber">${r.score}</span><span class="scoreMax">/ 1000</span></div></div><div class="detailHeaderInfo"><div class="sellerNameBig">${r.vendedor}</div><div class="sellerSub">${r.loja} · ${r.dept}</div><div><span class="rangeBadge ${scoreClass(r.score)}">${scoreIcon(r.score)} ${scoreLabel(r.score)}</span></div></div></div>${scoreDetailHtml(r,fctx,index)}`;
+  document.getElementById('modalBody').innerHTML=`<div class="detailHero"><div class="scoreCircle" style="--p:${Math.max(0,Math.min(100,r.score/10))};--c:${scoreColor(r.score)}"><div><span class="scoreNumber">${r.score}</span><span class="scoreMax">/ 1000</span></div></div><div class="detailHeaderInfo"><div class="sellerNameBig">${escHtml(r.vendedor)}</div><div class="sellerSub">${escHtml(r.loja)} · ${r.dept}</div><div><span class="rangeBadge ${scoreClass(r.score)}">${scoreIcon(r.score)} ${scoreLabel(r.score)}</span></div></div></div>${scoreDetailHtml(r,fctx,index)}`;
   document.getElementById('modal').classList.add('open');
 }
 function toggleScoreDetails(id,btn){return openScoreDetails(Number(String(id).replace('scoreDetail_',''))||0)}
