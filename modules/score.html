@@ -40,6 +40,17 @@
 .sellerFinBlock{margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.10)}
 .sellerFinTable table{min-width:1500px}
 .sellerFinTable th,.sellerFinTable td{font-size:12px}
+.saleCardsGrid{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.saleCard{background:#0b0b0b;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px 16px;max-width:100%}
+.saleCardHead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.saleCardInfo{display:flex;flex-direction:column;gap:2px;min-width:0}
+.saleCardInfo strong{font-size:14px;font-weight:900;overflow-wrap:anywhere}
+.saleCardInfo span{font-size:12px}
+.saleDetailToggle{margin-top:12px;padding:9px 14px;font-size:12px;border-radius:10px}
+.saleDetailToggle:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.saleDetailBody{margin-top:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:2px}
+.saleDetailBody .detailSection{margin-top:14px}
+.saleDetailBody .detailSectionTitle h3{font-size:14px}
 @media(max-width:640px){.scoreQuickStats.compact,.scoreDetailSummary{grid-template-columns:1fr!important}}
 
 .vendorAlertPanel{background:linear-gradient(180deg,#22100f,#100808);border:1px solid rgba(227,6,19,.45);border-radius:20px;padding:18px 20px;margin:0 0 22px;box-shadow:0 18px 50px rgba(0,0,0,.32)}
@@ -511,26 +522,82 @@ function scoreColor(score){if(score>=900)return'#48e0a4';if(score>=800)return'#7
 function scoreIcon(score){if(score>=900)return'🏆';if(score>=800)return'🟢';if(score>=650)return'🟡';if(score>=400)return'🟠';return'🔴'}
 function financiamentoCellBalao(r){return r.plano==='BALÃO'&&r.balaoValor>0?money(r.balaoValor):'<span class="muted">—</span>'}
 function financiamentoCellParcela(r){return r.pmt>0?money(r.pmt):'<span class="muted">—</span>'}
-function financRowsForSeller(r,fctx=currentFiltered()){return (fctx.fins||[]).filter(x=>x.dept==='Novos'&&x.vendedor===r.vendedor&&x.loja===r.loja)}
-function financingDetailsHtml(r,fctx=currentFiltered()){
-  if(r.dept!=='Novos')return '';
-  const rows=financRowsForSeller(r,fctx);
-  return `<div class="sellerFinBlock"><div class="detailSection"><div class="detailSectionTitle"><div><h3>Financiamentos Realizados</h3><span class="muted">Exibe somente os veículos que tiveram financiamento no período — não é a lista completa de vendas (ver "Veículos Vendidos" acima).</span></div><span class="pill">${rows.length} registro(s)</span></div><div class="tableWrap sellerFinTable"><table><thead><tr><th>Cliente</th><th>Loja</th><th>Modelo</th><th>Família</th><th>Valor Venda</th><th>Entrada</th><th>% Entrada</th><th>Valor Financiado</th><th>Plano</th><th>Prazo</th><th>Parcela</th><th>Balão</th><th>Retorno</th><th>SPF Extra</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${x.cliente}</td><td>${x.loja}</td><td>${x.modelo}</td><td>${x.familia}</td><td>${money(x.valorVenda)}</td><td>${money(Math.max(0,x.valorVenda-x.valorFinanciado))}</td><td>${pct(x.valorVenda?Math.max(0,x.valorVenda-x.valorFinanciado)/x.valorVenda:0)}</td><td>${money(x.valorFinanciado)}</td><td>${planBadge(x.plano)}</td><td>${num(x.parcelas)}</td><td>${financiamentoCellParcela(x)}</td><td>${financiamentoCellBalao(x)}</td><td>${money(x.retorno)}</td><td>${money(x.receitaSPF)}</td><td>${iso(x.data)}</td><td>${x.chassi}</td></tr>`).join('')||'<tr><td colspan="16" class="muted">Sem financiamentos de Novos para este vendedor no filtro atual.</td></tr>'}</tbody></table></div></div></div>`
-}
+function escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 const FAMILIA_LIST_SCORE=['Triton','Eclipse Cross','Outlander'];
 function salesRowsForSeller(r,fctx=currentFiltered()){return (fctx.sales||[]).filter(x=>x.dept==='Novos'&&x.vendedor===r.vendedor&&x.loja===r.loja)}
-function vehiclesSoldHtml(r,fctx=currentFiltered()){
+function financeMatchIndex(fctx=currentFiltered()){
+  const map={},ambiguous=new Set();
+  (fctx.fins||[]).forEach(f=>{
+    const ref=f.operationReference;
+    if(!ref)return;
+    if(map[ref]){ambiguous.add(ref);return}
+    map[ref]=f;
+  });
+  ambiguous.forEach(ref=>delete map[ref]);
+  return {map,ambiguous};
+}
+function toggleSaleDetails(btn){
+  const id=btn.getAttribute('aria-controls');
+  const panel=document.getElementById(id);
+  if(!panel)return;
+  const open=btn.getAttribute('aria-expanded')==='true';
+  btn.setAttribute('aria-expanded',open?'false':'true');
+  panel.hidden=open;
+  btn.textContent=open?'+ DETALHES':'– OCULTAR DETALHES';
+}
+function saleDetailBodyHtml(detailsId,fin){
+  const entrada=Math.max(0,(Number(fin.valorVenda)||0)-(Number(fin.valorFinanciado)||0));
+  return `<div id="${detailsId}" class="saleDetailBody" hidden>
+    <div class="detailSection"><div class="detailSectionTitle"><h3>Negociação</h3></div><div class="scoreDetailSummary">
+      <div><span>Valor Venda</span><strong>${money(fin.valorVenda)}</strong></div>
+      <div><span>Entrada</span><strong>${money(entrada)}</strong></div>
+      <div><span>% Entrada</span><strong>${pct(fin.valorVenda?entrada/fin.valorVenda:0)}</strong></div>
+    </div></div>
+    <div class="detailSection"><div class="detailSectionTitle"><h3>Condição Financeira</h3></div><div class="scoreDetailSummary">
+      <div><span>Valor Financiado</span><strong>${money(fin.valorFinanciado)}</strong></div>
+      <div><span>Plano</span><strong>${planBadge(escHtml(fin.plano))}</strong></div>
+      <div><span>Prazo</span><strong>${num(fin.parcelas)}</strong></div>
+      <div><span>Parcela</span><strong>${financiamentoCellParcela(fin)}</strong></div>
+      <div><span>Balão</span><strong>${financiamentoCellBalao(fin)}</strong></div>
+    </div></div>
+    <div class="detailSection"><div class="detailSectionTitle"><h3>Resultado F&amp;I</h3></div><div class="scoreDetailSummary">
+      <div><span>Retorno</span><strong>${money(fin.retorno)}</strong></div>
+      <div><span>SPF Extra</span><strong>${money(fin.receitaSPF)}</strong></div>
+    </div></div>
+  </div>`;
+}
+function saleCardHtml(x,idx,r,finIndex){
+  const ref=x.operationReference;
+  const isAmbiguous=!!(ref&&finIndex.ambiguous.has(ref));
+  const fin=(ref&&!isAmbiguous)?finIndex.map[ref]:null;
+  const cardId=`salecard-${idx}-${escHtml(r.loja)}-${escHtml(r.vendedor)}`.replace(/[^a-zA-Z0-9-]/g,'_');
+  const detailsId=`${cardId}-details`;
+  let statusBadge,expandBtn='',detailsBlock='';
+  if(isAmbiguous){
+    statusBadge=`<span class="pill" style="background:#7a3d00">DADOS INCONSISTENTES</span>`;
+  }else if(fin){
+    statusBadge=`<span class="pill" style="background:#136f46">FINANCIADO</span>`;
+    expandBtn=`<button type="button" class="secondary saleDetailToggle" aria-expanded="false" aria-controls="${detailsId}" onclick="toggleSaleDetails(this)">+ DETALHES</button>`;
+    detailsBlock=saleDetailBodyHtml(detailsId,fin);
+  }else{
+    statusBadge=`<span class="pill" style="background:#3a3a3a">SEM FINANCIAMENTO</span>`;
+  }
+  return `<div class="saleCard"><div class="saleCardHead"><div class="saleCardInfo"><strong>${escHtml(x.modelo)}</strong><span class="muted">${escHtml(x.familia)} · ${escHtml(x.loja)}</span></div>${statusBadge}</div>${expandBtn}${detailsBlock}</div>`;
+}
+function salesCardsHtml(r,fctx=currentFiltered()){
   if(r.dept!=='Novos')return '';
   const rows=salesRowsForSeller(r,fctx);
+  const finIndex=financeMatchIndex(fctx);
   const counts={};FAMILIA_LIST_SCORE.forEach(f=>counts[f]=0);
   rows.forEach(x=>{if(counts[x.familia]!==undefined)counts[x.familia]++});
   const familiasVendidas=FAMILIA_LIST_SCORE.filter(f=>counts[f]>0).length;
-  return `<div class="sellerFinBlock" id="vehiclesSoldSection"><div class="detailSection"><div class="detailSectionTitle"><div><h3>Veículos Vendidos / Mix de Famílias</h3><span class="muted">O Mix de Famílias considera todos os veículos vendidos no período, com ou sem financiamento.</span></div><span class="pill">${num(rows.length)} venda(s)</span></div><div class="scoreDetailSummary"><div><span>Total de vendas</span><strong>${num(rows.length)}</strong></div><div><span>Famílias vendidas</span><strong>${familiasVendidas} de 3</strong></div></div><div class="scoreDetailSummary">${FAMILIA_LIST_SCORE.map(f=>`<div><span>${f}</span><strong>${num(counts[f])}</strong></div>`).join('')}</div><div class="tableWrap"><table><thead><tr><th>Loja</th><th>Modelo</th><th>Família</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${x.loja}</td><td>${x.modelo}</td><td>${x.familia}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">Sem vendas de Novos para este vendedor no filtro atual.</td></tr>'}</tbody></table></div></div></div>`
+  const cards=rows.map((x,i)=>saleCardHtml(x,i,r,finIndex)).join('')||'<p class="muted">Sem vendas de Novos para este vendedor no filtro atual.</p>';
+  return `<div class="sellerFinBlock" id="vehiclesSoldSection"><div class="detailSection"><div class="detailSectionTitle"><div><h3>Veículos Vendidos</h3><span class="muted">Cada card representa um veículo vendido no período, com ou sem financiamento. O Mix de Famílias considera todos os veículos, financiados ou não.</span></div><span class="pill">${num(rows.length)} venda(s)</span></div><div class="scoreDetailSummary"><div><span>Total de vendas</span><strong>${num(rows.length)}</strong></div><div><span>Famílias vendidas</span><strong>${familiasVendidas} de 3</strong></div></div><div class="scoreDetailSummary">${FAMILIA_LIST_SCORE.map(f=>`<div><span>${f}</span><strong>${num(counts[f])}</strong></div>`).join('')}</div><div class="saleCardsGrid">${cards}</div></div></div>`
 }
 function scoreDetailHtml(r,fctx=currentFiltered()){
   const title=r.dept==='Novos'?'Score Novos':'Score Seminovos';
   const stats=`<div class="scoreDetailSummary"><div><span>Vendas</span><strong>${num(r.vendas)}</strong></div><div><span>Financiados</span><strong>${num(r.fin)}</strong></div><div><span>Share</span><strong>${pct(r.share)}</strong></div><div><span>SPF Extra</span><strong>${money(r.spf)}</strong></div><div><span>Retorno Médio</span><strong>${pct(r.retornoMed)}</strong></div></div>`;
-  return `<div class="scoreDetailsTitle"><div><h3>${title}</h3><span>Composição detalhada dos critérios do score</span></div><span class="pill">Total: ${r.score} / 1000</span></div>${stats}<div class="scoreDetailGrid">${(r.scoreBreakdown||[]).map(c=>{const isFamilias=c.label==='Mix de famílias vendidas';const clickAttr=isFamilias?` style="cursor:pointer" title="Ver veículos vendidos" onclick="document.getElementById('vehiclesSoldSection')?.scrollIntoView({behavior:'smooth'})"`:'';return `<div class="scoreCriterion"${clickAttr}><div class="scoreCriterionTop"><div class="criterionName">${c.label}</div><div class="criterionPoints">${num(c.points)} / ${num(c.max)} pts</div></div><div class="criterionMeta"><span>${c.detail||''}</span><span>${pct(c.pct)}</span></div><div class="criterionBar"><span style="width:${Math.max(0,Math.min(100,(c.pct||0)*100))}%"></span></div>${c.amostra?`<div class="criterionAmostra" style="margin-top:4px;font-size:11px;opacity:.7">Amostra: ${c.amostra} — pontuação proporcional à amostra até atingir confiança plena</div>`:''}</div>`}).join('')}</div>${vehiclesSoldHtml(r,fctx)}${financingDetailsHtml(r,fctx)}`
+  return `<div class="scoreDetailsTitle"><div><h3>${title}</h3><span>Composição detalhada dos critérios do score</span></div><span class="pill">Total: ${r.score} / 1000</span></div>${stats}<div class="scoreDetailGrid">${(r.scoreBreakdown||[]).map(c=>{const isFamilias=c.label==='Mix de famílias vendidas';const clickAttr=isFamilias?` style="cursor:pointer" title="Ver veículos vendidos" onclick="document.getElementById('vehiclesSoldSection')?.scrollIntoView({behavior:'smooth'})"`:'';return `<div class="scoreCriterion"${clickAttr}><div class="scoreCriterionTop"><div class="criterionName">${c.label}</div><div class="criterionPoints">${num(c.points)} / ${num(c.max)} pts</div></div><div class="criterionMeta"><span>${c.detail||''}</span><span>${pct(c.pct)}</span></div><div class="criterionBar"><span style="width:${Math.max(0,Math.min(100,(c.pct||0)*100))}%"></span></div>${c.amostra?`<div class="criterionAmostra" style="margin-top:4px;font-size:11px;opacity:.7">Amostra: ${c.amostra} — pontuação proporcional à amostra até atingir confiança plena</div>`:''}</div>`}).join('')}</div>${salesCardsHtml(r,fctx)}`
 }
 let SCORE_ROWS_CACHE=[];
 function openScoreDetails(index){
