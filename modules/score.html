@@ -40,18 +40,56 @@
 .sellerFinBlock{margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.10)}
 .sellerFinTable table{min-width:1500px}
 .sellerFinTable th,.sellerFinTable td{font-size:12px}
-.saleCardsGrid{display:flex;flex-direction:column;gap:12px;margin-top:14px}
-.saleCard{background:#0b0b0b;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px 16px;max-width:100%}
-.saleCardHead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.saleCardInfo{display:flex;flex-direction:column;gap:2px;min-width:0}
-.saleCardInfo strong{font-size:14px;font-weight:900;overflow-wrap:anywhere}
-.saleCardInfo span{font-size:12px}
-.saleDetailToggle{margin-top:12px;padding:9px 14px;font-size:12px;border-radius:10px}
-.saleDetailToggle:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.saleDetailBody{margin-top:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:2px}
-.saleDetailBody .detailSection{margin-top:14px}
-.saleDetailBody .detailSectionTitle h3{font-size:14px}
-@media(max-width:640px){.scoreQuickStats.compact,.scoreDetailSummary{grid-template-columns:1fr!important}}
+.familyMixSummary{margin:14px 0 18px;padding:14px 16px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);border-radius:16px;max-width:860px}
+.familyMixHead{display:flex;flex-direction:column;gap:6px}
+.familyMixLabel{color:#9f9f9f;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.65px}
+.familyMixMain{display:flex;align-items:baseline;gap:10px}
+.familyMixMain strong{font-size:22px;font-weight:1000;letter-spacing:-.4px;color:#fff}
+.familyMixPct{color:var(--green);font-size:14px;font-weight:900}
+.familyMixBar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:2px}
+.familyMixBar span{display:block;height:100%;background:linear-gradient(90deg,var(--red),var(--green));border-radius:999px}
+.familyChipRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.familyChip{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font-size:12px}
+.familyChip span{color:#b7b7b7;font-weight:800}
+.familyChip strong{color:#fff;font-weight:950}
+.familyChipZero{opacity:.45}
+.saleCardsGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-top:4px;max-width:860px}
+.saleCard{background:#0b0b0b;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.saleCardTop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.saleCardModel{font-size:13px;font-weight:900;line-height:1.25;overflow-wrap:anywhere}
+.saleStatusPill{padding:4px 9px;font-size:10px;border-radius:999px;font-weight:950;letter-spacing:.3px;flex-shrink:0}
+.saleStatusOk{background:rgba(72,224,164,.14);color:var(--green);border-color:rgba(72,224,164,.35)}
+.saleStatusNeutral{background:rgba(255,255,255,.06);color:#a8a8a8;border-color:rgba(255,255,255,.12)}
+.saleStatusWarn{background:rgba(245,197,66,.14);color:var(--yellow);border-color:rgba(245,197,66,.35)}
+.saleCardSub{color:#9c9c9c;font-size:11.5px;font-weight:700}
+.saleCardValue{font-size:15px;font-weight:950;color:#fff;margin-top:2px}
+.saleCardFinLine{color:#c8c8c8;font-size:11.5px;font-weight:750}
+.saleCardCta{align-self:flex-start;margin-top:4px;background:none;box-shadow:none;padding:0;color:var(--red);font-size:12px;font-weight:900;border-radius:0}
+.saleCardCta:hover{transform:none;box-shadow:none;text-decoration:underline}
+.saleCardCta:focus-visible,.backToSellerBtn:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.vehicleDetailWrap{max-width:640px;margin:0 auto;padding-bottom:12px}
+.backToSellerBtn{background:none;box-shadow:none;padding:0;margin-bottom:18px;color:#c9c9c9;font-size:13px;font-weight:850;border-radius:0}
+.backToSellerBtn:hover{transform:none;box-shadow:none;color:#fff}
+.vehicleDetailHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px}
+.vehicleDetailHeader h2{margin:0 0 4px;font-size:21px;font-weight:950;letter-spacing:-.3px;overflow-wrap:anywhere}
+.vehicleSaleValueHero{margin-bottom:24px}
+.vehicleSaleValueHero span{display:block;color:#9f9f9f;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.vehicleSaleValueHero strong{display:block;font-size:34px;font-weight:1000;letter-spacing:-.8px;color:#fff}
+.vehicleSection{margin-top:26px;padding-top:18px;border-top:1px solid rgba(255,255,255,.09)}
+.vehicleSection h3{margin:0 0 14px;font-size:14px;font-weight:950;color:#e8e8e8}
+.vehicleNegRow,.vehicleResultRow{display:flex;gap:24px;flex-wrap:wrap}
+.vehicleNegItem span{display:block;color:#9f9f9f;font-size:10.5px;font-weight:950;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.vehicleNegItem strong{display:block;font-size:19px;font-weight:1000;color:#fff}
+.vehicleNegItem small{display:block;color:var(--green);font-size:12px;font-weight:800;margin-top:2px}
+.planBadgeRow{margin-bottom:14px}
+.vehicleFinanceMain{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.pmtBig strong{font-size:32px;font-weight:1000;color:#fff;letter-spacing:-.6px}
+.pmtBig span{display:block;color:#9f9f9f;font-size:11px;font-weight:800;margin-top:2px}
+.termBadge{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:6px 12px;font-size:14px;font-weight:950;color:#fff}
+.balaoFinalBox{margin-top:16px;padding:14px 16px;background:linear-gradient(135deg,rgba(227,6,19,.16),rgba(227,6,19,.05));border:1px solid rgba(227,6,19,.35);border-radius:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.balaoFinalBox span{color:#f5b3b3;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.5px}
+.balaoFinalBox strong{font-size:22px;font-weight:1000;color:#fff}
+@media(max-width:640px){.scoreQuickStats.compact,.scoreDetailSummary{grid-template-columns:1fr!important}.vehicleSaleValueHero strong{font-size:27px}.pmtBig strong{font-size:26px}.vehicleNegRow,.vehicleResultRow{gap:18px}}
 
 .vendorAlertPanel{background:linear-gradient(180deg,#22100f,#100808);border:1px solid rgba(227,6,19,.45);border-radius:20px;padding:18px 20px;margin:0 0 22px;box-shadow:0 18px 50px rgba(0,0,0,.32)}
 .vendorAlertPanel h2{margin:0 0 10px!important;color:#fff}.vendorAlertPanel p{margin:0 0 14px;color:#ddd}.vendorAlertList{overflow:auto;border-radius:14px;border:1px solid rgba(255,255,255,.08)}.vendorAlertList table{min-width:760px}
@@ -536,68 +574,91 @@ function financeMatchIndex(fctx=currentFiltered()){
   ambiguous.forEach(ref=>delete map[ref]);
   return {map,ambiguous};
 }
-function toggleSaleDetails(btn){
-  const id=btn.getAttribute('aria-controls');
-  const panel=document.getElementById(id);
-  if(!panel)return;
-  const open=btn.getAttribute('aria-expanded')==='true';
-  btn.setAttribute('aria-expanded',open?'false':'true');
-  panel.hidden=open;
-  btn.textContent=open?'+ DETALHES':'– OCULTAR DETALHES';
-}
-function saleDetailBodyHtml(detailsId,fin){
-  const entrada=Math.max(0,(Number(fin.valorVenda)||0)-(Number(fin.valorFinanciado)||0));
-  return `<div id="${detailsId}" class="saleDetailBody" hidden>
-    <div class="detailSection"><div class="detailSectionTitle"><h3>Negociação</h3></div><div class="scoreDetailSummary">
-      <div><span>Valor Venda</span><strong>${money(fin.valorVenda)}</strong></div>
-      <div><span>Entrada</span><strong>${money(entrada)}</strong></div>
-      <div><span>% Entrada</span><strong>${pct(fin.valorVenda?entrada/fin.valorVenda:0)}</strong></div>
-    </div></div>
-    <div class="detailSection"><div class="detailSectionTitle"><h3>Condição Financeira</h3></div><div class="scoreDetailSummary">
-      <div><span>Valor Financiado</span><strong>${money(fin.valorFinanciado)}</strong></div>
-      <div><span>Plano</span><strong>${planBadge(escHtml(fin.plano))}</strong></div>
-      <div><span>Prazo</span><strong>${num(fin.parcelas)}</strong></div>
-      <div><span>Parcela</span><strong>${financiamentoCellParcela(fin)}</strong></div>
-      <div><span>Balão</span><strong>${financiamentoCellBalao(fin)}</strong></div>
-    </div></div>
-    <div class="detailSection"><div class="detailSectionTitle"><h3>Resultado F&amp;I</h3></div><div class="scoreDetailSummary">
-      <div><span>Retorno</span><strong>${money(fin.retorno)}</strong></div>
-      <div><span>SPF Extra</span><strong>${money(fin.receitaSPF)}</strong></div>
-    </div></div>
-  </div>`;
-}
-function saleCardHtml(x,idx,r,finIndex){
-  const ref=x.operationReference;
-  const isAmbiguous=!!(ref&&finIndex.ambiguous.has(ref));
-  const fin=(ref&&!isAmbiguous)?finIndex.map[ref]:null;
-  const cardId=`salecard-${idx}-${escHtml(r.loja)}-${escHtml(r.vendedor)}`.replace(/[^a-zA-Z0-9-]/g,'_');
-  const detailsId=`${cardId}-details`;
-  let statusBadge,expandBtn='',detailsBlock='';
-  if(isAmbiguous){
-    statusBadge=`<span class="pill" style="background:#7a3d00">DADOS INCONSISTENTES</span>`;
-  }else if(fin){
-    statusBadge=`<span class="pill" style="background:#136f46">FINANCIADO</span>`;
-    expandBtn=`<button type="button" class="secondary saleDetailToggle" aria-expanded="false" aria-controls="${detailsId}" onclick="toggleSaleDetails(this)">+ DETALHES</button>`;
-    detailsBlock=saleDetailBodyHtml(detailsId,fin);
-  }else{
-    statusBadge=`<span class="pill" style="background:#3a3a3a">SEM FINANCIAMENTO</span>`;
-  }
-  return `<div class="saleCard"><div class="saleCardHead"><div class="saleCardInfo"><strong>${escHtml(x.modelo)}</strong><span class="muted">${escHtml(x.familia)} · ${escHtml(x.loja)}</span></div>${statusBadge}</div>${expandBtn}${detailsBlock}</div>`;
-}
-function salesCardsHtml(r,fctx=currentFiltered()){
-  if(r.dept!=='Novos')return '';
-  const rows=salesRowsForSeller(r,fctx);
-  const finIndex=financeMatchIndex(fctx);
+function familyMixSummaryHtml(rows){
   const counts={};FAMILIA_LIST_SCORE.forEach(f=>counts[f]=0);
   rows.forEach(x=>{if(counts[x.familia]!==undefined)counts[x.familia]++});
   const familiasVendidas=FAMILIA_LIST_SCORE.filter(f=>counts[f]>0).length;
-  const cards=rows.map((x,i)=>saleCardHtml(x,i,r,finIndex)).join('')||'<p class="muted">Sem vendas de Novos para este vendedor no filtro atual.</p>';
-  return `<div class="sellerFinBlock" id="vehiclesSoldSection"><div class="detailSection"><div class="detailSectionTitle"><div><h3>Veículos Vendidos</h3><span class="muted">Cada card representa um veículo vendido no período, com ou sem financiamento. O Mix de Famílias considera todos os veículos, financiados ou não.</span></div><span class="pill">${num(rows.length)} venda(s)</span></div><div class="scoreDetailSummary"><div><span>Total de vendas</span><strong>${num(rows.length)}</strong></div><div><span>Famílias vendidas</span><strong>${familiasVendidas} de 3</strong></div></div><div class="scoreDetailSummary">${FAMILIA_LIST_SCORE.map(f=>`<div><span>${f}</span><strong>${num(counts[f])}</strong></div>`).join('')}</div><div class="saleCardsGrid">${cards}</div></div></div>`
+  const total=FAMILIA_LIST_SCORE.length;
+  const chips=FAMILIA_LIST_SCORE.map(f=>`<div class="familyChip${counts[f]>0?'':' familyChipZero'}"><span>${f}</span><strong>${num(counts[f])}</strong></div>`).join('');
+  return `<div class="familyMixSummary">
+    <div class="familyMixHead">
+      <span class="familyMixLabel">Mix de famílias</span>
+      <div class="familyMixMain"><strong>${familiasVendidas} DE ${total}</strong><span class="familyMixPct">${pct(total?familiasVendidas/total:0)}</span></div>
+      <div class="familyMixBar"><span style="width:${Math.max(0,Math.min(100,total?(familiasVendidas/total)*100:0))}%"></span></div>
+    </div>
+    <div class="familyChipRow">${chips}</div>
+  </div>`;
 }
-function scoreDetailHtml(r,fctx=currentFiltered()){
+function saleCardHtml(x,r,finIndex,sellerIndex){
+  const ref=x.operationReference;
+  const isAmbiguous=!!(ref&&finIndex.ambiguous.has(ref));
+  const fin=(ref&&!isAmbiguous)?finIndex.map[ref]:null;
+  let statusBadge,finSummary='',cta='';
+  if(isAmbiguous){
+    statusBadge=`<span class="pill saleStatusPill saleStatusWarn">DADOS INCONSISTENTES</span>`;
+  }else if(fin){
+    statusBadge=`<span class="pill saleStatusPill saleStatusOk">FINANCIADO</span>`;
+    finSummary=`<div class="saleCardFinLine">${escHtml(fin.plano)} · ${num(fin.parcelas)}x</div>`;
+    cta=`<button type="button" class="saleCardCta" onclick="openVehicleDetail(${sellerIndex},'${escHtml(ref).replace(/'/g,"\\'")}')">VER DETALHES →</button>`;
+  }else{
+    statusBadge=`<span class="pill saleStatusPill saleStatusNeutral">SEM FINANCIAMENTO</span>`;
+  }
+  return `<div class="saleCard"><div class="saleCardTop"><strong class="saleCardModel">${escHtml(x.modelo)}</strong>${statusBadge}</div><div class="saleCardSub">${escHtml(x.familia)} · ${escHtml(x.loja)}</div><div class="saleCardValue">${money(x.valorVenda)}</div>${finSummary}${cta}</div>`;
+}
+function salesCardsHtml(r,fctx=currentFiltered(),sellerIndex=null){
+  if(r.dept!=='Novos')return '';
+  const rows=salesRowsForSeller(r,fctx);
+  const finIndex=financeMatchIndex(fctx);
+  const cards=rows.map(x=>saleCardHtml(x,r,finIndex,sellerIndex)).join('')||'<p class="muted">Sem vendas de Novos para este vendedor no filtro atual.</p>';
+  return `<div class="sellerFinBlock" id="vehiclesSoldSection"><div class="detailSection"><div class="detailSectionTitle"><div><h3>Veículos Vendidos</h3></div><span class="pill">${num(rows.length)} venda(s)</span></div>${familyMixSummaryHtml(rows)}<div class="saleCardsGrid">${cards}</div></div></div>`
+}
+function vehicleDetailHtml(r,sale,fin,sellerIndex){
+  const entrada=Math.max(0,(Number(fin.valorVenda)||0)-(Number(fin.valorFinanciado)||0));
+  const isBalao=fin.plano==='BALÃO'&&fin.balaoValor>0;
+  const financeHero=isBalao
+    ? `<div class="vehicleFinanceMain"><div class="pmtBig"><strong>${money(fin.pmt)}</strong><span>por parcela</span></div><div class="termBadge">${num(fin.parcelas)}x</div></div><div class="balaoFinalBox"><span>Balão final</span><strong>${money(fin.balaoValor)}</strong></div>`
+    : `<div class="vehicleFinanceMain"><div class="pmtBig"><strong>${money(fin.pmt)}</strong><span>por parcela</span></div><div class="termBadge">${num(fin.parcelas)}x</div></div>`;
+  return `<div class="vehicleDetailWrap">
+    <button type="button" class="backToSellerBtn" onclick="backToSellerFromVehicle(${sellerIndex})">← VOLTAR PARA O VENDEDOR</button>
+    <div class="vehicleDetailHeader">
+      <div><h2>${escHtml(sale.modelo)}</h2><span class="muted">${escHtml(sale.familia)} · ${escHtml(sale.loja)}</span></div>
+      <span class="pill saleStatusPill saleStatusOk">FINANCIADO</span>
+    </div>
+    <div class="vehicleSaleValueHero"><span>Valor de Venda</span><strong>${money(fin.valorVenda)}</strong></div>
+    <div class="vehicleSection"><h3>Negociação</h3><div class="vehicleNegRow">
+      <div class="vehicleNegItem"><span>Entrada</span><strong>${money(entrada)}</strong><small>${pct(fin.valorVenda?entrada/fin.valorVenda:0)}</small></div>
+      <div class="vehicleNegItem"><span>Valor Financiado</span><strong>${money(fin.valorFinanciado)}</strong></div>
+    </div></div>
+    <div class="vehicleSection vehicleFinanceSection"><h3>Condição Financeira</h3><div class="planBadgeRow">${planBadge(escHtml(fin.plano))}</div>${financeHero}</div>
+    <div class="vehicleSection"><h3>Resultado F&amp;I</h3><div class="vehicleResultRow">
+      <div class="vehicleNegItem"><span>Retorno</span><strong>${money(fin.retorno)}</strong></div>
+      <div class="vehicleNegItem"><span>SPF Extra</span><strong>${money(fin.receitaSPF)}</strong></div>
+    </div></div>
+  </div>`;
+}
+function openVehicleDetail(sellerIndex,ref){
+  const r=SCORE_ROWS_CACHE[sellerIndex];
+  if(!r)return;
+  const fctx=currentFiltered();
+  const finIndex=financeMatchIndex(fctx);
+  const fin=finIndex.map[ref];
+  if(!fin)return;
+  const rows=salesRowsForSeller(r,fctx);
+  const sale=rows.find(x=>x.operationReference===ref);
+  if(!sale)return;
+  document.getElementById('modalTitle').textContent='Detalhe da Operação';
+  document.getElementById('modalBody').innerHTML=vehicleDetailHtml(r,sale,fin,sellerIndex);
+  const box=document.querySelector('.modalBox');
+  if(box)box.scrollTop=0;
+}
+function backToSellerFromVehicle(sellerIndex){
+  openScoreDetails(sellerIndex);
+  requestAnimationFrame(()=>{document.getElementById('vehiclesSoldSection')?.scrollIntoView({block:'start'})});
+}
+function scoreDetailHtml(r,fctx=currentFiltered(),sellerIndex=null){
   const title=r.dept==='Novos'?'Score Novos':'Score Seminovos';
   const stats=`<div class="scoreDetailSummary"><div><span>Vendas</span><strong>${num(r.vendas)}</strong></div><div><span>Financiados</span><strong>${num(r.fin)}</strong></div><div><span>Share</span><strong>${pct(r.share)}</strong></div><div><span>SPF Extra</span><strong>${money(r.spf)}</strong></div><div><span>Retorno Médio</span><strong>${pct(r.retornoMed)}</strong></div></div>`;
-  return `<div class="scoreDetailsTitle"><div><h3>${title}</h3><span>Composição detalhada dos critérios do score</span></div><span class="pill">Total: ${r.score} / 1000</span></div>${stats}<div class="scoreDetailGrid">${(r.scoreBreakdown||[]).map(c=>{const isFamilias=c.label==='Mix de famílias vendidas';const clickAttr=isFamilias?` style="cursor:pointer" title="Ver veículos vendidos" onclick="document.getElementById('vehiclesSoldSection')?.scrollIntoView({behavior:'smooth'})"`:'';return `<div class="scoreCriterion"${clickAttr}><div class="scoreCriterionTop"><div class="criterionName">${c.label}</div><div class="criterionPoints">${num(c.points)} / ${num(c.max)} pts</div></div><div class="criterionMeta"><span>${c.detail||''}</span><span>${pct(c.pct)}</span></div><div class="criterionBar"><span style="width:${Math.max(0,Math.min(100,(c.pct||0)*100))}%"></span></div>${c.amostra?`<div class="criterionAmostra" style="margin-top:4px;font-size:11px;opacity:.7">Amostra: ${c.amostra} — pontuação proporcional à amostra até atingir confiança plena</div>`:''}</div>`}).join('')}</div>${salesCardsHtml(r,fctx)}`
+  return `<div class="scoreDetailsTitle"><div><h3>${title}</h3><span>Composição detalhada dos critérios do score</span></div><span class="pill">Total: ${r.score} / 1000</span></div>${stats}<div class="scoreDetailGrid">${(r.scoreBreakdown||[]).map(c=>{const isFamilias=c.label==='Mix de famílias vendidas';const clickAttr=isFamilias?` style="cursor:pointer" title="Ver veículos vendidos" onclick="document.getElementById('vehiclesSoldSection')?.scrollIntoView({behavior:'smooth'})"`:'';return `<div class="scoreCriterion"${clickAttr}><div class="scoreCriterionTop"><div class="criterionName">${c.label}</div><div class="criterionPoints">${num(c.points)} / ${num(c.max)} pts</div></div><div class="criterionMeta"><span>${c.detail||''}</span><span>${pct(c.pct)}</span></div><div class="criterionBar"><span style="width:${Math.max(0,Math.min(100,(c.pct||0)*100))}%"></span></div>${c.amostra?`<div class="criterionAmostra" style="margin-top:4px;font-size:11px;opacity:.7">Amostra: ${c.amostra} — pontuação proporcional à amostra até atingir confiança plena</div>`:''}</div>`}).join('')}</div>${salesCardsHtml(r,fctx,sellerIndex)}`
 }
 let SCORE_ROWS_CACHE=[];
 function openScoreDetails(index){
@@ -605,7 +666,7 @@ function openScoreDetails(index){
   if(!r)return;
   const fctx=currentFiltered();
   document.getElementById('modalTitle').textContent='Detalhes do Vendedor';
-  document.getElementById('modalBody').innerHTML=`<div class="detailHero"><div class="scoreCircle" style="--p:${Math.max(0,Math.min(100,r.score/10))};--c:${scoreColor(r.score)}"><div><span class="scoreNumber">${r.score}</span><span class="scoreMax">/ 1000</span></div></div><div class="detailHeaderInfo"><div class="sellerNameBig">${r.vendedor}</div><div class="sellerSub">${r.loja} · ${r.dept}</div><div><span class="rangeBadge ${scoreClass(r.score)}">${scoreIcon(r.score)} ${scoreLabel(r.score)}</span></div></div></div>${scoreDetailHtml(r,fctx)}`;
+  document.getElementById('modalBody').innerHTML=`<div class="detailHero"><div class="scoreCircle" style="--p:${Math.max(0,Math.min(100,r.score/10))};--c:${scoreColor(r.score)}"><div><span class="scoreNumber">${r.score}</span><span class="scoreMax">/ 1000</span></div></div><div class="detailHeaderInfo"><div class="sellerNameBig">${r.vendedor}</div><div class="sellerSub">${r.loja} · ${r.dept}</div><div><span class="rangeBadge ${scoreClass(r.score)}">${scoreIcon(r.score)} ${scoreLabel(r.score)}</span></div></div></div>${scoreDetailHtml(r,fctx,index)}`;
   document.getElementById('modal').classList.add('open');
 }
 function toggleScoreDetails(id,btn){return openScoreDetails(Number(String(id).replace('scoreDetail_',''))||0)}
