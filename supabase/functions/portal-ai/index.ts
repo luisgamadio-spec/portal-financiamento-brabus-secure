@@ -2816,7 +2816,7 @@ function balaoRequiredDownPayment(
 }
 
 type SimulationMode = "payment" | "required_down_payment" | "max_vehicle_value" | "compatible_terms" | "compare_down_payments";
-type SimFinancingType = "LINEAR" | "BALAO";
+type SimFinancingType = "LINEAR" | "BALAO" | "COPARTICIPADO";
 
 interface SimulationInput {
   mode: SimulationMode;
@@ -2831,6 +2831,7 @@ interface SimulationInput {
   down_payment_percents: number[] | null;
   balloon_value: number | null; // Balão: valor do balão único desta fase
   balloon_month: number | null; // Balão: mês do balão; null => último mês do prazo
+  model: string | null; // Coparticipado: modelo obrigatório (Parte AR — IA nunca escolhe por conta própria)
 }
 
 function resolveDownPaymentValue(vehicleValue: number, downPayment: number | null, downPaymentPercent: number | null): number | null {
@@ -2840,10 +2841,12 @@ function resolveDownPaymentValue(vehicleValue: number, downPayment: number | nul
 }
 
 async function toolSimularFinanciamento(userClient: any, args: SimulationInput) {
-  // Parte V/W — ramifica cedo para o motor Balão, sem tocar em nada do
-  // caminho Linear abaixo (contrato antigo permanece byte-a-byte igual;
-  // financing_type=null se comporta exatamente como antes desta fase).
+  // Parte V/W — ramifica cedo para o motor Balão/Coparticipado, sem tocar
+  // em nada do caminho Linear abaixo (contrato antigo permanece
+  // byte-a-byte igual; financing_type=null se comporta exatamente como
+  // antes desta fase).
   if (args.financing_type === "BALAO") return await toolSimularBalao(userClient, args);
+  if (args.financing_type === "COPARTICIPADO") return await toolSimularCoparticipado(userClient, args);
 
   const prazos = simPrazosFor(args.department);
   const calculationSource = args.department === "NOVOS" ? "simulador_novos_financiamento_linear" : "simulador_seminovos_financiamento_linear";
@@ -3059,6 +3062,247 @@ async function toolSimularBalao(userClient: any, args: SimulationInput) {
   return {
     mode: "compare_down_payments", department: args.department, vehicle_value: round2(args.vehicle_value),
     term_months: args.term_months, vehicle_year: args.vehicle_year, balloon_value: round2(args.balloon_value), balloon_month: balloonMonth,
+    scenarios, calculation_source: calculationSource, constraints_applied: constraintsApplied
+  };
+}
+
+// Fase IA-2D.5 — Plano Coparticipado (Novos apenas — Parte AC/AD: a
+// calculadora oficial está morta/inacessível em Seminovos, confirmado por
+// ausência do botão #openFinanciamentoCampanha no DOM de
+// simulador-seminovos.html). Fonte: RPC simulador_get_coparticipado(),
+// que devolve matriz_modelos + tx_coef como duas estruturas separadas
+// (mesmo contrato consumido por carregarBaseCoparticipado() em
+// simulador-novos.html) — a própria RPC já faz a verificação cruzada de
+// compatibilidade (simulador_coparticipado_combos_sem_coeficiente) e
+// devolve ok:false se model/coef não forem consistentes, então nunca
+// precisamos duplicar essa validação aqui: um ok:true já garante que
+// toda combinação modelo×prazo usada tem coeficiente.
+const COPARTICIPADO_PRAZOS = [12, 18, 24, 36, 48, 60];
+
+interface CoparticipadoModel {
+  name: string; entry: number; rebate: number; hpe: number; brabus: number;
+  rates: Record<number, number>;
+}
+interface CoparticipadoEngine {
+  models: CoparticipadoModel[];
+  txCoef: Record<number, Record<string, number>>;
+}
+
+async function loadCoparticipadoEngine(userClient: any): Promise<CoparticipadoEngine> {
+  const { data, error } = await userClient.rpc("simulador_get_coparticipado");
+  if (error) throw new ToolError("Não consegui consultar as condições do Plano Coparticipado agora.");
+  if (!data?.ok || !Array.isArray(data?.linhas?.matriz_modelos) || !Array.isArray(data?.linhas?.tx_coef)) {
+    throw new ToolError("O Plano Coparticipado não está disponível no momento — a base oficial de modelos/coeficientes está incompleta ou indisponível.");
+  }
+  const byModel = new Map<string, CoparticipadoModel>();
+  for (const row of data.linhas.matriz_modelos) {
+    const name = String(row.modelo);
+    let m = byModel.get(name);
+    if (!m) {
+      m = { name, entry: Number(row.entrada_minima), rebate: Number(row.rebate_total), hpe: Number(row.rebate_hpe), brabus: Number(row.rebate_brabus), rates: {} };
+      byModel.set(name, m);
+    }
+    m.rates[Number(row.prazo)] = Number(row.taxa);
+  }
+  const txCoef: Record<number, Record<string, number>> = {};
+  for (const row of data.linhas.tx_coef) {
+    const p = Number(row.prazo);
+    if (!txCoef[p]) txCoef[p] = {};
+    txCoef[p][String(row.taxa)] = Number(row.coeficiente);
+  }
+  return { models: [...byModel.values()], txCoef };
+}
+
+// Casamento de modelo DELIBERADAMENTE estrito (Parte L/AR/Teste 04/21) —
+// diferente de matchesModelQuery (substring, usada em
+// analisar_historico_financiamento): aqui taxa/entrada mínima/rebate
+// dependem do modelo exato, então só normalizamos acento/caixa/espaços —
+// nunca aproximamos por família ("Triton" sozinho não deve casar com
+// nenhum trim específico; a lista de modelos válidos vai no erro para o
+// próprio modelo pedir esclarecimento).
+function coparticipadoNormalizeModel(s: string): string {
+  return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+function coparticipadoFindModel(engine: CoparticipadoEngine, name: string): CoparticipadoModel | null {
+  const norm = coparticipadoNormalizeModel(name);
+  return engine.models.find((m) => coparticipadoNormalizeModel(m.name) === norm) || null;
+}
+function coparticipadoCoefFor(engine: CoparticipadoEngine, prazo: number, taxa: number): number | null {
+  const tbl = engine.txCoef[prazo];
+  if (!tbl) return null;
+  for (const k of Object.keys(tbl)) if (Math.abs(Number(k) - taxa) < 0.0000001) return tbl[k];
+  return null;
+}
+
+interface CoparticipadoTermResult { term_months: number; rate: number | null; payment: number | null; }
+interface CoparticipadoCalcResult {
+  valid: boolean; invalid: boolean; financed: number; min_value: number;
+  terms: CoparticipadoTermResult[];
+  rebate_total: number | null; rebate_hpe: number | null; rebate_brabus: number | null; final_sale_value: number | null;
+}
+
+// Port verbatim de calc() do iframe oficial (Parte E/X/Y/Z/S/T/U/V) —
+// financed/rebate_total/rebate_hpe/rebate_brabus/final_sale_value NUNCA
+// dependem do prazo (só de modelo+venda+entrada), então uma única chamada
+// pode devolver a tabela inteira de prazos de uma vez, exatamente como o
+// simulador real sempre desenha as 6 colunas juntas (Parte AT/AV/AW —
+// evita o problema de loop já visto em consultar_ranking). rebate_hpe e
+// rebate_brabus são multiplicações INDEPENDENTES de rebate_total (não
+// "total menos brabus") — o código oficial não garante algebricamente que
+// a soma bata exatamente com o total; portamos exatamente essa
+// independência, sem "corrigir" para uma soma perfeita (Parte V).
+function coparticipadoCalcular(engine: CoparticipadoEngine, model: CoparticipadoModel, sale: number, entry: number, termsToCompute: number[]): CoparticipadoCalcResult {
+  const minValue = sale * model.entry;
+  const invalid = sale > 0 && entry > 0 && entry < minValue;
+  const valid = sale > 0 && entry >= minValue;
+  const financed = valid ? Math.max(sale - entry, 0) : 0;
+
+  const terms: CoparticipadoTermResult[] = termsToCompute.map((p) => {
+    const rate = model.rates[p] ?? null;
+    const coef = rate !== null ? coparticipadoCoefFor(engine, p, rate) : null;
+    const acrescimo = p <= 24 ? 0.0411 : 0.0622;
+    const payment = (valid && coef !== null) ? (financed * (1 + acrescimo)) * coef : null;
+    return { term_months: p, rate, payment: payment !== null ? round2(payment) : null };
+  });
+
+  const total = valid ? financed * model.rebate : 0;
+  const brabus = total * model.brabus;
+  const hpe = total * model.hpe;
+
+  return {
+    valid, invalid, financed: round2(financed), min_value: round2(minValue), terms,
+    rebate_total: valid ? round2(total) : null,
+    rebate_hpe: valid ? round2(hpe) : null,
+    rebate_brabus: valid ? round2(brabus) : null,
+    final_sale_value: valid ? round2(Math.max(sale - brabus, 0)) : null
+  };
+}
+
+// Parte BA/BB/BE — payment(entry) é estritamente monotônica não-crescente
+// em entry (financed cai linearmente com entry; payment é proporcional a
+// financed), provado empiricamente antes de implementar (scan de 60% a
+// 98% de entrada). Diferente do Balão, aqui NÃO existe teto de entrada
+// que invalide a simulação — o domínio de busca é só [entrada_mínima,
+// venda], e como payment tende a 0 quando entry->venda, qualquer alvo
+// positivo é alcançável dentro do domínio (achado real da auditoria: a
+// única infeasibilidade natural aqui é alvo<=0 ou falta de coeficiente
+// para o prazo — não existe um "impossível" por excesso, como no Balão).
+function coparticipadoRequiredDownPayment(
+  engine: CoparticipadoEngine, model: CoparticipadoModel, sale: number, targetPayment: number, prazo: number
+): { feasible: true; down_payment: number; payment: number } | { feasible: false; reason: "sem_coeficiente_para_prazo" | "parcela_alvo_invalida" } {
+  const rate = model.rates[prazo] ?? null;
+  const coef = rate !== null ? coparticipadoCoefFor(engine, prazo, rate) : null;
+  if (coef === null) return { feasible: false, reason: "sem_coeficiente_para_prazo" };
+  if (!(targetPayment > 0)) return { feasible: false, reason: "parcela_alvo_invalida" };
+  const acrescimo = prazo <= 24 ? 0.0411 : 0.0622;
+  const minEntry = sale * model.entry;
+  const paymentAt = (entry: number) => (Math.max(sale - entry, 0) * (1 + acrescimo)) * coef;
+
+  const payAtMin = paymentAt(minEntry);
+  if (round2(payAtMin) <= targetPayment) return { feasible: true, down_payment: round2(minEntry), payment: round2(payAtMin) };
+
+  let lo = minEntry, hi = sale;
+  for (let k = 0; k < 100; k++) {
+    const mid = (lo + hi) / 2;
+    if (round2(paymentAt(mid)) <= targetPayment) hi = mid; else lo = mid;
+    if (hi - lo < 0.01) break;
+  }
+  return { feasible: true, down_payment: round2(hi), payment: round2(paymentAt(hi)) };
+}
+
+// Só os 3 modos abaixo (mesmo recorte de escopo do Balão, Parte AN/AT):
+// max_vehicle_value/compatible_terms nunca foram auditados para
+// Coparticipado, então não entram nesta fase.
+async function toolSimularCoparticipado(userClient: any, args: SimulationInput) {
+  const calculationSource = "simulador_novos_plano_coparticipado";
+  if (args.department !== "NOVOS") {
+    throw new ToolError("O Plano Coparticipado hoje só está disponível para Novos — essa calculadora oficial não está ativa para Seminovos no Portal.");
+  }
+  if (!["payment", "required_down_payment", "compare_down_payments"].includes(args.mode)) {
+    throw new ToolError(`O modo "${args.mode}" ainda não está disponível para o Plano Coparticipado nesta fase — apenas payment, required_down_payment e compare_down_payments.`);
+  }
+  if (!args.model) {
+    throw new ToolError("Informe o modelo do veículo — o Plano Coparticipado depende de taxa, entrada mínima e rebate específicos de cada modelo. Não escolha um modelo por conta própria.");
+  }
+  const engine = await loadCoparticipadoEngine(userClient);
+  const model = coparticipadoFindModel(engine, args.model);
+  if (!model) {
+    const validNames = engine.models.map((m) => m.name).sort().join(", ");
+    throw new ToolError(`Não encontrei "${args.model}" na matriz oficial do Plano Coparticipado. Modelos disponíveis: ${validNames}.`);
+  }
+  const constraintsApplied = [
+    `Plano Coparticipado (${model.name}): entrada mínima de ${round2(model.entry * 100)}%; acréscimo de 4,11% sobre o valor financiado em prazos até 24 meses, ou 6,22% acima de 24 meses, antes de aplicar o coeficiente oficial da tabela.`
+  ];
+
+  if (args.mode === "payment") {
+    if (!(args.vehicle_value !== null && args.vehicle_value > 0)) throw new ToolError("Informe o valor de venda do veículo (maior que zero).");
+    const downPayment = resolveDownPaymentValue(args.vehicle_value, args.down_payment, args.down_payment_percent);
+    if (downPayment === null) throw new ToolError("Informe a entrada (valor ou percentual).");
+    if (args.term_months !== null && !COPARTICIPADO_PRAZOS.includes(args.term_months)) {
+      throw new ToolError(`Prazo inválido para o Plano Coparticipado. Prazos disponíveis: ${COPARTICIPADO_PRAZOS.join(", ")} meses.`);
+    }
+    const termsToCompute = args.term_months !== null ? [args.term_months] : COPARTICIPADO_PRAZOS;
+    const calc = coparticipadoCalcular(engine, model, args.vehicle_value, downPayment, termsToCompute);
+    return {
+      mode: "payment", department: "NOVOS", model: model.name, valid: calc.valid,
+      vehicle_value: round2(args.vehicle_value), down_payment: round2(downPayment),
+      down_payment_percent: round2((downPayment / args.vehicle_value) * 100),
+      min_down_payment_percent: round2(model.entry * 100), min_down_payment_value: calc.min_value,
+      financed_amount: calc.valid ? calc.financed : null,
+      results: calc.terms,
+      rebate_total: calc.rebate_total, rebate_hpe: calc.rebate_hpe, rebate_brabus: calc.rebate_brabus,
+      final_sale_value: calc.final_sale_value,
+      message: !calc.valid ? `A entrada mínima para ${model.name} no Plano Coparticipado é de ${round2(model.entry * 100)}% (R$ ${calc.min_value.toFixed(2)}).` : null,
+      calculation_source: calculationSource, constraints_applied: constraintsApplied
+    };
+  }
+
+  if (args.mode === "required_down_payment") {
+    if (!(args.vehicle_value !== null && args.vehicle_value > 0)) throw new ToolError("Informe o valor de venda do veículo.");
+    if (!(args.target_payment !== null && args.target_payment > 0)) throw new ToolError("Informe a parcela mensal desejada (maior que zero).");
+    if (args.term_months === null) throw new ToolError(`Informe o prazo (term_months) para calcular a entrada necessária no Plano Coparticipado. Prazos disponíveis: ${COPARTICIPADO_PRAZOS.join(", ")} meses.`);
+    if (!COPARTICIPADO_PRAZOS.includes(args.term_months)) throw new ToolError(`Prazo inválido para o Plano Coparticipado. Prazos disponíveis: ${COPARTICIPADO_PRAZOS.join(", ")} meses.`);
+    const r = coparticipadoRequiredDownPayment(engine, model, args.vehicle_value, args.target_payment, args.term_months);
+    if (!r.feasible) {
+      return {
+        mode: "required_down_payment", department: "NOVOS", model: model.name, feasible: false,
+        vehicle_value: round2(args.vehicle_value), target_payment: round2(args.target_payment), term_months: args.term_months,
+        message: r.reason === "sem_coeficiente_para_prazo"
+          ? `Não há coeficiente cadastrado para ${model.name} em ${args.term_months}x no Plano Coparticipado.`
+          : "Parcela alvo inválida — informe um valor maior que zero.",
+        calculation_source: calculationSource
+      };
+    }
+    const calc = coparticipadoCalcular(engine, model, args.vehicle_value, r.down_payment, [args.term_months]);
+    return {
+      mode: "required_down_payment", department: "NOVOS", model: model.name, feasible: true,
+      vehicle_value: round2(args.vehicle_value), target_payment: round2(args.target_payment), term_months: args.term_months,
+      down_payment: r.down_payment, down_payment_percent: round2((r.down_payment / args.vehicle_value) * 100),
+      min_down_payment_percent: round2(model.entry * 100),
+      financed_amount: calc.financed, payment: r.payment,
+      rebate_total: calc.rebate_total, rebate_hpe: calc.rebate_hpe, rebate_brabus: calc.rebate_brabus,
+      final_sale_value: calc.final_sale_value,
+      calculation_source: calculationSource, constraints_applied: constraintsApplied
+    };
+  }
+
+  // mode = compare_down_payments
+  if (!(args.vehicle_value !== null && args.vehicle_value > 0)) throw new ToolError("Informe o valor de venda do veículo.");
+  if (!args.down_payment_percents || args.down_payment_percents.length < 2) throw new ToolError("Informe ao menos 2 percentuais de entrada para comparar.");
+  if (args.term_months === null) throw new ToolError("Informe o prazo (term_months) para comparar as entradas.");
+  if (!COPARTICIPADO_PRAZOS.includes(args.term_months)) throw new ToolError(`Prazo inválido para o Plano Coparticipado. Prazos disponíveis: ${COPARTICIPADO_PRAZOS.join(", ")} meses.`);
+  const scenarios = [...args.down_payment_percents].sort((a, b) => a - b).map((pct) => {
+    const dp = args.vehicle_value! * (pct / 100);
+    const calc = coparticipadoCalcular(engine, model, args.vehicle_value!, dp, [args.term_months!]);
+    return {
+      down_payment_percent: pct, down_payment: round2(dp), financed_amount: calc.valid ? calc.financed : null,
+      valid: calc.valid, payment: calc.terms[0].payment,
+      message: !calc.valid ? `Abaixo da entrada mínima de ${round2(model.entry * 100)}% para ${model.name}.` : null
+    };
+  });
+  return {
+    mode: "compare_down_payments", department: "NOVOS", model: model.name, vehicle_value: round2(args.vehicle_value),
+    term_months: args.term_months, min_down_payment_percent: round2(model.entry * 100),
     scenarios, calculation_source: calculationSource, constraints_applied: constraintsApplied
   };
 }
@@ -3585,6 +3829,71 @@ function buildBalaoRankingBlock(args: SimulationInput, result: any): any | null 
   };
 }
 
+// Fase IA-2D.5 — Plano Coparticipado. financed/rebate/valor final não
+// dependem do prazo, então aparecem uma única vez no metrics block mesmo
+// quando payment devolve vários prazos de uma vez (nesse caso o ranking
+// block é quem lista os prazos — Parte BO/BP: reaproveita os dois tipos
+// de block já existentes, nenhum tipo novo).
+function buildCoparticipadoMetricsBlock(args: SimulationInput, result: any): any | null {
+  if (result.mode === "payment") {
+    if (!result.valid || !result.results || result.results.length !== 1) return null;
+    const items: any[] = [
+      { label: "Valor de Venda", value: result.vehicle_value, format: "currency" },
+      { label: "Entrada", value: result.down_payment, format: "currency" },
+      { label: "Entrada (%)", value: result.down_payment_percent, format: "percent" },
+      { label: "Entrada Mínima", value: result.min_down_payment_percent, format: "percent" },
+      { label: "Financiado", value: result.financed_amount, format: "currency" }
+    ];
+    if (result.results[0].payment !== null) items.push({ label: `Parcela (${result.results[0].term_months}x)`, value: result.results[0].payment, format: "currency" });
+    items.push(
+      { label: "Rebate Total", value: result.rebate_total, format: "currency" },
+      { label: "Rebate HPE", value: result.rebate_hpe, format: "currency" },
+      { label: "Rebate Brabus", value: result.rebate_brabus, format: "currency" },
+      { label: "Valor Final de Venda", value: result.final_sale_value, format: "currency" }
+    );
+    return { type: "metrics", title: `Simulação — Plano Coparticipado (${result.model}, ${result.results[0].term_months}x)`, period_label: "Simulação — não é proposta nem aprovação de crédito", items };
+  }
+  if (result.mode === "required_down_payment") {
+    if (!result.feasible) return null;
+    const items = [
+      { label: "Valor de Venda", value: result.vehicle_value, format: "currency" },
+      { label: "Parcela Desejada", value: result.target_payment, format: "currency" },
+      { label: `Entrada necessária (${result.term_months}x)`, value: result.down_payment, format: "currency" },
+      { label: "Entrada (%)", value: result.down_payment_percent, format: "percent" },
+      { label: "Entrada Mínima", value: result.min_down_payment_percent, format: "percent" },
+      { label: "Financiado", value: result.financed_amount, format: "currency" },
+      { label: "Parcela obtida", value: result.payment, format: "currency" },
+      { label: "Rebate Total", value: result.rebate_total, format: "currency" },
+      { label: "Rebate HPE", value: result.rebate_hpe, format: "currency" },
+      { label: "Rebate Brabus", value: result.rebate_brabus, format: "currency" },
+      { label: "Valor Final de Venda", value: result.final_sale_value, format: "currency" }
+    ];
+    return { type: "metrics", title: `Simulação — Entrada necessária (Coparticipado, ${result.model})`, period_label: "Simulação — não é proposta nem aprovação de crédito", items };
+  }
+  return null;
+}
+
+function buildCoparticipadoRankingBlock(args: SimulationInput, result: any): any | null {
+  if (result.mode === "payment" && result.valid && result.results && result.results.length > 1) {
+    const items = result.results.filter((r: any) => r.payment !== null).map((r: any, i: number) => ({ position: i + 1, name: `${r.term_months} meses`, sim_payment: r.payment }));
+    if (!items.length) return null;
+    return { type: "ranking", title: `Plano Coparticipado — ${result.model} (todos os prazos)`, period_label: "Simulação — não é proposta nem aprovação de crédito", dimension: "term", metric: "sim_payment", items };
+  }
+  if (result.mode === "compare_down_payments") {
+    return {
+      type: "ranking",
+      title: `Comparação de entradas — Coparticipado ${result.model} (${result.term_months}x)`,
+      period_label: "Simulação — não é proposta nem aprovação de crédito",
+      dimension: "down_payment", metric: "sim_payment",
+      items: result.scenarios.map((s: any, i: number) => ({
+        position: i + 1, name: `${s.down_payment_percent}% de entrada`,
+        sim_down_payment: s.down_payment, sim_financed: s.financed_amount, sim_payment: s.payment
+      }))
+    };
+  }
+  return null;
+}
+
 function buildBlockFromToolResult(name: string, args: any, output: any): any | any[] | null {
   if (!output || typeof output !== "object" || "error" in output) return null;
   try {
@@ -3607,6 +3916,11 @@ function buildBlockFromToolResult(name: string, args: any, output: any): any | a
       if (args?.financing_type === "BALAO") {
         if (output.mode === "compare_down_payments") return buildBalaoRankingBlock(args, output);
         return buildBalaoMetricsBlock(args, output);
+      }
+      if (args?.financing_type === "COPARTICIPADO") {
+        const ranking = buildCoparticipadoRankingBlock(args, output);
+        if (ranking) return ranking;
+        return buildCoparticipadoMetricsBlock(args, output);
       }
       if (output.mode === "compare_down_payments") return buildSimulationRankingBlock(args, output);
       return buildSimulationMetricsBlock(args, output);
@@ -3788,24 +4102,25 @@ const TOOLS = [
     type: "function",
     name: "simular_financiamento",
     description:
-      "Simulação SOMENTE LEITURA de financiamento, usando exatamente a mesma tabela de taxas e fórmula dos simuladores oficiais do Portal — nunca uma conta aproximada. financing_type='LINEAR' (default) cobre o financiamento linear padrão; financing_type='BALAO' cobre o Balão Tradicional (parcela mensal fixa + um pagamento especial — o balão — num mês escolhido, dentro do mesmo prazo). Nenhum outro plano especial (Taxas Subsidiadas, Coparticipado, Semestral Triton/Outlander, MITWEEK) está disponível nesta ferramenta. department é obrigatório (NOVOS ou SEMINOVOS — nunca escolha silenciosamente; se não estiver claro, pergunte). Para SEMINOVOS, vehicle_year é obrigatório em ambos os tipos (a taxa depende do ano do veículo). Para financing_type='BALAO': term_months é sempre obrigatório (nunca omita — o mês do balão depende do prazo escolhido); balloon_value é sempre obrigatório (o valor do único balão desta simulação); balloon_month é opcional (default = último mês do prazo). Modos disponíveis para BALAO: 'payment', 'required_down_payment', 'compare_down_payments' — 'max_vehicle_value' e 'compatible_terms' ainda não existem para Balão. mode='payment': valor+entrada(valor ou %)+prazo(+balão, se BALAO) → parcela (LINEAR: se prazo omitido, mostra todos os prazos; BALAO: prazo sempre obrigatório). mode='required_down_payment': valor+parcela mensal desejada+prazo(+balão, se BALAO) → entrada necessária (ex.: 'quanto de entrada preciso para parcela de R$1.800?' — em BALAO, informar um balloon_value é como expressar 'não quero balão maior que R$X': o motor usa esse valor exato como o balão do cenário). mode='max_vehicle_value' (só LINEAR): entrada (valor absoluto, nunca percentual)+parcela máxima+prazo opcional → valor máximo do veículo. mode='compatible_terms' (só LINEAR): valor+entrada+parcela desejada → quais prazos cabem. mode='compare_down_payments': valor+lista de percentuais de entrada (down_payment_percents, ex. [40,50,60])+prazo obrigatório(+balão, se BALAO) → compara parcela em cada percentual, ordenado por entrada crescente. Isto é sempre uma SIMULAÇÃO — nunca aprovação de crédito, proposta bancária ou taxa garantida.",
+      "Simulação SOMENTE LEITURA de financiamento, usando exatamente a mesma tabela de taxas e fórmula dos simuladores oficiais do Portal — nunca uma conta aproximada. financing_type='LINEAR' (default) cobre o financiamento linear padrão; financing_type='BALAO' cobre o Balão Tradicional (parcela mensal fixa + um pagamento especial — o balão — num mês escolhido, dentro do mesmo prazo); financing_type='COPARTICIPADO' cobre o Plano Coparticipado (só NOVOS, exige model — rebate/taxa/entrada mínima variam por modelo). Nenhum outro plano especial (Taxas Subsidiadas, Semestral Triton/Outlander, MITWEEK, Antecipação, Cash Conversion) está disponível nesta ferramenta. department é obrigatório (NOVOS ou SEMINOVOS — nunca escolha silenciosamente; se não estiver claro, pergunte). Para SEMINOVOS, vehicle_year é obrigatório em LINEAR e BALAO (COPARTICIPADO não existe em Seminovos — se pedirem, explique que essa calculadora oficial não está disponível lá). Para financing_type='BALAO': term_months é sempre obrigatório (nunca omita — o mês do balão depende do prazo escolhido); balloon_value é sempre obrigatório; balloon_month é opcional (default = último mês do prazo). Para financing_type='COPARTICIPADO': model é sempre obrigatório — nunca escolha um modelo por conta própria; se o usuário não informar, pergunte qual modelo (a lista de modelos válidos vem no erro caso um nome não seja reconhecido — não aproxime para outro modelo da mesma família). Modos disponíveis para BALAO e COPARTICIPADO: 'payment', 'required_down_payment', 'compare_down_payments' — 'max_vehicle_value' e 'compatible_terms' só existem em LINEAR. mode='payment': valor+entrada(valor ou %)+prazo(+balão, se BALAO)(+model, se COPARTICIPADO) → parcela. Em LINEAR e em COPARTICIPADO, se term_months for omitido a tool devolve TODOS os prazos válidos numa única chamada (não repita a chamada por prazo) — só BALAO exige term_months sempre. mode='required_down_payment': valor+parcela mensal desejada+prazo(+balão, se BALAO)(+model, se COPARTICIPADO) → entrada necessária; term_months é obrigatório aqui em BALAO e em COPARTICIPADO (mesmo quando omitido em payment). mode='max_vehicle_value' (só LINEAR): entrada (valor absoluto, nunca percentual)+parcela máxima+prazo opcional → valor máximo do veículo. mode='compatible_terms' (só LINEAR): valor+entrada+parcela desejada → quais prazos cabem. mode='compare_down_payments': valor+lista de percentuais de entrada (down_payment_percents, ex. [40,50,60])+prazo obrigatório(+balão, se BALAO)(+model, se COPARTICIPADO) → compara parcela em cada percentual, ordenado por entrada crescente; percentuais abaixo da entrada mínima do modelo voltam marcados como inválidos, nunca calculados como se fossem permitidos. COPARTICIPADO devolve também rebate_total/rebate_hpe/rebate_brabus/final_sale_value — informações comerciais úteis, pode explicá-las quando relevante. Isto é sempre uma SIMULAÇÃO — nunca aprovação de crédito, proposta bancária ou taxa garantida.",
     parameters: {
       type: "object",
       properties: {
         mode: { type: "string", enum: ["payment", "required_down_payment", "max_vehicle_value", "compatible_terms", "compare_down_payments"] },
-        financing_type: { type: ["string", "null"], enum: ["LINEAR", "BALAO", null], description: "null ou 'LINEAR' = Financiamento Linear padrão (comportamento de sempre). 'BALAO' = Financiamento Balão Tradicional (parcela mensal + um balão num mês do prazo)." },
+        financing_type: { type: ["string", "null"], enum: ["LINEAR", "BALAO", "COPARTICIPADO", null], description: "null ou 'LINEAR' = Financiamento Linear padrão (comportamento de sempre). 'BALAO' = Financiamento Balão Tradicional (parcela mensal + um balão num mês do prazo). 'COPARTICIPADO' = Plano Coparticipado (só NOVOS, exige model)." },
         department: { type: "string", enum: ["NOVOS", "SEMINOVOS"] },
-        vehicle_value: { type: ["number", "null"], description: "Valor do veículo em R$. Não usado em mode='max_vehicle_value' (é a incógnita)." },
+        vehicle_value: { type: ["number", "null"], description: "Valor do veículo/venda em R$. Não usado em mode='max_vehicle_value' (é a incógnita)." },
         down_payment: { type: ["number", "null"], description: "Entrada em R$ (valor absoluto). Obrigatório em mode='max_vehicle_value'." },
         down_payment_percent: { type: ["number", "null"], description: "Entrada em percentual (0-100), alternativa a down_payment. Não usado em mode='max_vehicle_value'/'compare_down_payments'." },
         target_payment: { type: ["number", "null"], description: "Parcela mensal desejada/máxima em R$ (nunca inclui o balão). Obrigatório em mode='required_down_payment'/'max_vehicle_value'/'compatible_terms'." },
-        term_months: { type: ["integer", "null"], description: "Prazo em meses. Opcional em payment/required_down_payment/max_vehicle_value quando financing_type=LINEAR (omitir = todos os prazos válidos) — sempre obrigatório quando financing_type=BALAO." },
-        vehicle_year: { type: ["integer", "null"], description: "Ano do veículo — obrigatório quando department='SEMINOVOS' (em LINEAR e em BALAO), ignorado em NOVOS." },
+        term_months: { type: ["integer", "null"], description: "Prazo em meses. Opcional em payment quando financing_type=LINEAR ou COPARTICIPADO (omitir = todos os prazos válidos numa única chamada) — sempre obrigatório quando financing_type=BALAO, e sempre obrigatório em required_down_payment/compare_down_payments (mesmo em LINEAR/COPARTICIPADO)." },
+        vehicle_year: { type: ["integer", "null"], description: "Ano do veículo — obrigatório quando department='SEMINOVOS' em LINEAR e BALAO, ignorado em NOVOS e em COPARTICIPADO." },
         down_payment_percents: { type: ["array", "null"], items: { type: "number" }, minItems: 2, maxItems: 6, description: "Lista de percentuais de entrada (0-100) a comparar; obrigatório em mode='compare_down_payments'." },
         balloon_value: { type: ["number", "null"], description: "Só para financing_type='BALAO': valor do balão em R$ (obrigatório nesse caso). Esta ferramenta simula um único balão por vez." },
-        balloon_month: { type: ["integer", "null"], description: "Só para financing_type='BALAO': mês do balão dentro do prazo (1..term_months). null = último mês do prazo (o caso mais comum)." }
+        balloon_month: { type: ["integer", "null"], description: "Só para financing_type='BALAO': mês do balão dentro do prazo (1..term_months). null = último mês do prazo (o caso mais comum)." },
+        model: { type: ["string", "null"], description: "Só para financing_type='COPARTICIPADO': modelo exato do veículo (ex.: 'TRITON HPE-S', 'ECLIPSE CROSS RUSH', 'OUTLANDER SIGNATURE'). Sempre obrigatório nesse caso — nunca escolha um modelo por conta própria; se o usuário não informar ou o nome for ambíguo/genérico ('Triton', 'Eclipse'), pergunte qual versão exata." }
       },
-      required: ["mode", "financing_type", "department", "vehicle_value", "down_payment", "down_payment_percent", "target_payment", "term_months", "vehicle_year", "down_payment_percents", "balloon_value", "balloon_month"],
+      required: ["mode", "financing_type", "department", "vehicle_value", "down_payment", "down_payment_percent", "target_payment", "term_months", "vehicle_year", "down_payment_percents", "balloon_value", "balloon_month", "model"],
       additionalProperties: false
     },
     strict: true
@@ -3983,7 +4298,7 @@ async function dispatchTool(userClient: any, name: string, rawArgs: any): Promis
           .slice(0, 6);
         if (downPaymentPercents.length < 2) downPaymentPercents = null;
       }
-      const financingType = rawArgs.financing_type === "BALAO" ? "BALAO" : "LINEAR"; // null/qualquer outra coisa => LINEAR (Parte W)
+      const financingType = rawArgs.financing_type === "BALAO" ? "BALAO" : rawArgs.financing_type === "COPARTICIPADO" ? "COPARTICIPADO" : "LINEAR"; // null/qualquer outra coisa => LINEAR (Parte W)
       const args: SimulationInput = {
         mode: rawArgs.mode,
         financing_type: financingType,
@@ -3996,7 +4311,8 @@ async function dispatchTool(userClient: any, name: string, rawArgs: any): Promis
         vehicle_year: Number.isInteger(rawArgs.vehicle_year) ? rawArgs.vehicle_year : null,
         down_payment_percents: downPaymentPercents,
         balloon_value: typeof rawArgs.balloon_value === "number" && isFinite(rawArgs.balloon_value) && rawArgs.balloon_value > 0 ? rawArgs.balloon_value : null,
-        balloon_month: Number.isInteger(rawArgs.balloon_month) ? rawArgs.balloon_month : null
+        balloon_month: Number.isInteger(rawArgs.balloon_month) ? rawArgs.balloon_month : null,
+        model: typeof rawArgs.model === "string" && rawArgs.model.trim() ? rawArgs.model.trim() : null
       };
       return await toolSimularFinanciamento(userClient, args);
     }
@@ -4099,7 +4415,7 @@ Fase IA-2C.5.1 — Prévia de Comissão ao Vivo:
 Fase IA-2D.1 — Simulação de Financiamento:
 - Toda simulação de financiamento (valor, entrada, parcela, prazo) vem sempre de simular_financiamento — você nunca faz essa conta mentalmente, mesmo que pareça simples. Se o usuário pedir uma simulação e a tool não retornar um resultado, diga que não conseguiu simular; nunca estime um valor aproximado por conta própria.
 - department (NOVOS ou SEMINOVOS) é sempre obrigatório — nunca escolha um dos dois silenciosamente quando não estiver claro pelo contexto da conversa; pergunte ao usuário qual departamento antes de simular.
-- Esta ferramenta simula o Financiamento Linear padrão (financing_type=LINEAR ou omitido) e, desde a Fase IA-2D.3, também o Financiamento Balão Tradicional (financing_type=BALAO) — nenhum outro plano especial (Taxas Subsidiadas, Coparticipado, Semestral Triton/Outlander, Antecipação, MITWEEK) está disponível. Se o usuário pedir uma dessas outras condições especiais, diga que essa modalidade específica não está disponível nesta simulação ainda — nunca simule usando a fórmula do Financiamento Linear ou do Balão como se fosse a mesma coisa que outra campanha.
+- Esta ferramenta simula o Financiamento Linear padrão (financing_type=LINEAR ou omitido), desde a Fase IA-2D.3 também o Financiamento Balão Tradicional (financing_type=BALAO) e, desde a Fase IA-2D.5, o Plano Coparticipado (financing_type=COPARTICIPADO, só NOVOS) — nenhum outro plano especial (Taxas Subsidiadas, Semestral Triton/Outlander, Antecipação, Cash Conversion, MITWEEK) está disponível. Se o usuário pedir uma dessas outras condições especiais, diga que essa modalidade específica não está disponível nesta simulação ainda — nunca simule usando a fórmula do Financiamento Linear, do Balão ou do Coparticipado como se fosse a mesma coisa que outra campanha.
 - SIMULAÇÃO NUNCA É APROVAÇÃO. Nunca diga "está aprovado", "essa é a taxa garantida" ou "essa é a proposta". Use sempre linguagem como "simulação", "condições sujeitas a confirmação e aprovação de crédito" — a mesma nota que o simulador oficial já exibe.
 - Se a tool indicar que uma condição é impossível ("possible:false", ou nenhum resultado com "payment" preenchido), diga isso claramente — nunca "ajuste" a resposta inventando um prazo, taxa ou campanha que a tabela real não tem.
 - Para Seminovos, o ano do veículo é obrigatório (a taxa depende da faixa de ano) — se o usuário não informou, pergunte antes de chamar a tool.
@@ -4117,6 +4433,18 @@ Fase IA-2D.3 — Financiamento Balão:
 - Comparação Linear × Balão: chame simular_financiamento duas vezes (uma com financing_type omitido/LINEAR, outra com financing_type=BALAO), mesmo veículo/entrada/prazo, e apresente os dois resultados lado a lado, cada um claramente identificado. Nunca declare um "melhor" sem o cliente ter dito o que prioriza (parcela mensal menor vs. balão menor) — explique o trade-off e, se necessário, pergunte a prioridade.
 - Não confunda esta simulação com a classificação histórica "BALÃO" que aparece em analisar_historico_financiamento (plan_filter="BALÃO") — são coisas diferentes: aqui é uma simulação matemática nova; lá é como operações passadas já concluídas foram classificadas. Só combine as duas (Fase IA-2D.2 + Balão) se o usuário pedir explicitamente uma leitura de histórico junto com a simulação, e sempre separando FATO histórico de SIMULAÇÃO, do mesmo jeito que já se faz para o Linear.
 - Seminovos em Balão também exige vehicle_year (mesma regra do Linear) — a tabela de taxas do Balão de Seminovos depende da faixa de ano do veículo.
+
+Fase IA-2D.5 — Plano Coparticipado:
+- Use financing_type="COPARTICIPADO" só quando o usuário pedir explicitamente Coparticipado (ou "plano coparticipado", "campanha coparticipada"). Esta calculadora só existe para NOVOS — se o usuário pedir Coparticipado para Seminovos, explique que essa calculadora oficial não está disponível lá (não é um "ainda não implementamos": o próprio simulador oficial não a oferece em Seminovos); nunca use dados/fórmula de Novos disfarçados de Seminovos.
+- model é SEMPRE obrigatório — nunca escolha um modelo por conta própria nem infira a partir de contexto vago. Se o usuário não informar o modelo, ou informar algo genérico/ambíguo que cobre mais de uma versão (ex.: "Triton", "Eclipse", sem dizer o trim), pergunte qual modelo/versão exata antes de simular. Se a tool devolver erro de modelo não encontrado, nunca aproxime para o modelo mais parecido — repita a lista de modelos válidos que a própria tool retornou e peça para o usuário escolher.
+- Cada modelo tem sua própria entrada mínima, taxa e rebate — nunca presuma que o percentual mínimo de um modelo vale para outro, mesmo dentro da mesma família (ex.: Triton HPE e Triton HPE-S podem ter condições diferentes). Sempre use os valores que a tool retornou para aquele modelo específico.
+- mode='payment' sem term_months devolve TODOS os prazos válidos numa única chamada (o simulador oficial sempre mostra a tabela inteira de prazos de uma vez) — nunca repita a chamada uma vez por prazo (mesmo problema que já foi corrigido em consultar_ranking, Fase IA-CHECKPOINT-1.1; não regrida esse padrão aqui). Se o usuário já disse um prazo específico, informe term_months para vir só aquela condição.
+- required_down_payment e compare_down_payments exigem term_months mesmo em Coparticipado (a entrada necessária/comparação é sempre calculada para um prazo fixo).
+- Rebate (Total, HPE, Brabus) e Valor Final de Venda são informações comerciais reais que a tool sempre calcula junto com a parcela — pode e deve explicá-las quando o usuário perguntar ("qual o rebate desse Coparticipado?", "qual fica o valor final de venda?") ou quando ajudar a resposta, mas nunca confunda: Rebate NÃO é Comissão (não chame consultar_comissoes para responder sobre rebate) e Valor Final de Venda NÃO é Receita F&I.
+- Se a tool retornar valid=false (payment) ou feasible=false (required_down_payment), ou uma entrada de compare_down_payments vier marcada valid=false, diga isso claramente citando a entrada mínima que a tool informou (em % e/ou R$) — nunca calcule ou apresente um cenário abaixo da entrada mínima como se fosse válido.
+- Comparações (Linear × Coparticipado, Balão × Coparticipado, ou os três juntos): chame simular_financiamento uma vez por tipo (financing_type diferente a cada chamada), mesmo veículo/entrada/prazo, e apresente os resultados lado a lado, cada um claramente identificado — nunca declare um "vencedor" sem o cliente ter dito o que prioriza; explique o trade-off (ex.: Coparticipado pode ter parcela menor e ainda trazer rebate, mas exige o modelo certo e entrada mínima mais alta). Para perguntas amplas ("compare Linear, Balão e Coparticipado"), controle o número de chamadas — cada tipo já responde numa única chamada de simular_financiamento, então normalmente 3 chamadas bastam; não gere chamadas extras redundantes.
+- Não confunda esta simulação com a classificação histórica "COPARTICIPADO" que aparece em analisar_historico_financiamento (plan_filter="COPARTICIPADO") — são coisas diferentes: aqui é uma simulação matemática nova, com a fórmula e a matriz de modelos oficiais atuais; lá é como operações passadas já concluídas foram classificadas, e uma operação histórica classificada como "Coparticipado" não prova que foi calculada por esta mesma calculadora. Se combinar as duas, deixe explícito qual é qual, e ao citar o histórico diga "operações classificadas como Coparticipado no histórico" — nunca "operações calculadas pelo Coparticipado".
+- Pergunta explicitamente histórica ("mostre as operações Coparticipadas", "como são nossas operações Coparticipadas") deve ir para a tool histórica apropriada (analisar_historico_financiamento ou consultar_operacoes_especiais) — nunca simule quando o usuário pediu histórico.
 
 Fase IA-2D.2 — Recomendações Comerciais Baseadas no Histórico:
 - SEPARE SEMPRE em três blocos claros e nomeados na sua resposta: **FATO HISTÓRICO** (o que analisar_historico_financiamento retornou — operações reais já concluídas), **SIMULAÇÃO MATEMÁTICA** (o que simular_financiamento calculou para o cenário pedido — sempre determinístico, nunca baseado em histórico) e **RECOMENDAÇÃO/INTERPRETAÇÃO** (sua leitura combinando os dois, sempre em linguagem de possibilidade, nunca de certeza ou aprovação). Nunca misture os três num único parágrafo sem deixar claro qual é qual.
