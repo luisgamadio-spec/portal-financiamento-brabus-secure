@@ -1043,6 +1043,15 @@ async function toolConsultarOperacoesEspeciais(userClient: any, args: OperacoesI
 // Math.round tem a MESMA semântica de score.html (os dois são runtimes
 // JS), então essa divergência específica não pode ocorrer nesta
 // implementação.
+//
+// FIX-IA-GATE-01: a checagem acima validou a réplica contra a fórmula
+// PRÉ-Score-2.0. O Score 2.0 (origin/main b149530/e2eeff3) mudou a fórmula
+// no score.html sem que esta réplica fosse atualizada — IA-GO-GATE-1
+// comprovou isso ao vivo (Eric Tavares dos Santos: IA retornava 738/Bom,
+// correto era 352/Baixo). Os pesos, MIX_PLANOS_UNIVERSO e fatores de
+// confiança abaixo foram ressincronizados com modules/score.html linha
+// 254/540 (origin/main e2eeff3) nesta fase; ver relatório FIX-IA-GATE-01
+// para a reconciliação completa contra a população real.
 // =========================================================
 
 type ScoreDepartment = "Novos" | "Seminovos";
@@ -1085,15 +1094,20 @@ const SCORE_EXCLUDED_SELLERS = new Set([
   "MARIO ALBERTO DE SOUZA VAZ", "FABIANO OKUBO", "SERGIO AUGUSTO SEGURA"
 ]);
 
-// SCORE_WEIGHTS/PLAN_WEIGHT — modules/score.html:207-208, verbatim.
+// FIX-IA-GATE-01 — SCORE_WEIGHTS/MIX_PLANOS_UNIVERSO ressincronizados com
+// Score 2.0 (modules/score.html:254, origin/main e2eeff3, verbatim). Mix de
+// Planos agora mede DIVERSIDADE (planos distintos do universo abaixo / 4),
+// não mais média de peso por operação — por isso PLAN_WEIGHT foi removido.
 // Seminovos NUNCA tem familias/planos — não é 0, o componente não existe.
 const SCORE_WEIGHTS: Record<ScoreDepartment, Record<string, number>> = {
-  Novos: { volume: 150, share: 250, familias: 150, planos: 200, spf: 100, retorno: 150 },
-  Seminovos: { volume: 200, share: 300, spf: 200, retorno: 300 }
+  Novos: { volume: 250, share: 230, familias: 130, planos: 130, spf: 100, retorno: 160 },
+  Seminovos: { volume: 300, share: 270, spf: 150, retorno: 280 }
 };
-const SCORE_PLAN_WEIGHT: Record<string, number> = {
-  "LINEAR": 1, "BALÃO": 1, "REVERSÃO": 0.9, "SUBSIDIADO": 0.6, "COPARTICIPADO": 0.5
-};
+// modules/score.html:255, verbatim. REVERSÃO fica fora do universo de
+// diversidade (classificação de código da instituição financeira, não
+// produto comercial escolhido pelo vendedor) — comprovado no comentário do
+// próprio score.html — mas continua existindo normalmente em plan_mix.
+const MIX_PLANOS_UNIVERSO = new Set(["LINEAR", "BALÃO", "COPARTICIPADO", "SUBSIDIADO"]);
 
 // isScoreSellerEligible — modules/score.html:360-364. Sob a via segura
 // (score-coparticipated-secure-adapter.js:24-31), TODO vendedor com nome
@@ -1146,14 +1160,14 @@ function calcScoresTs(sales: ScoreSaleFact[], fins: ScoreFinFact[]): ScoreResult
   interface Bucket {
     vendedor: string; loja: string; dept: ScoreDepartment;
     vendas: number; fin: number; producao: number; retorno: number; spf: number; spfQtd: number;
-    familias: Set<string>; planScoreSum: number; plans: Record<string, number>;
+    familias: Set<string>; plans: Record<string, number>;
   }
   const by = new Map<string, Bucket>();
   function get(vendedor: string, loja: string, dept: ScoreDepartment): Bucket {
     const k = `${vendedor}|${loja}|${dept}`;
     let b = by.get(k);
     if (!b) {
-      b = { vendedor, loja, dept, vendas: 0, fin: 0, producao: 0, retorno: 0, spf: 0, spfQtd: 0, familias: new Set(), planScoreSum: 0, plans: {} };
+      b = { vendedor, loja, dept, vendas: 0, fin: 0, producao: 0, retorno: 0, spf: 0, spfQtd: 0, familias: new Set(), plans: {} };
       by.set(k, b);
     }
     return b;
@@ -1164,6 +1178,10 @@ function calcScoresTs(sales: ScoreSaleFact[], fins: ScoreFinFact[]): ScoreResult
     o.vendas++;
     if (s.dept === "Novos") o.familias.add(s.familia);
   }
+  // FIX-IA-GATE-01 — modules/score.html:540 (fins.forEach) nunca adiciona a
+  // `familias` a partir de finance; réplica anterior adicionava (bug),
+  // divergindo de Mix de famílias sempre que um financiamento carregava um
+  // modelo/família ausente do array de vendas do mesmo vendedor.
   for (const f of eligibleFins) {
     const o = get(f.vendedor, f.loja, f.dept);
     o.fin++;
@@ -1171,9 +1189,7 @@ function calcScoresTs(sales: ScoreSaleFact[], fins: ScoreFinFact[]): ScoreResult
     o.retorno += f.retorno + f.receitaSPF;
     o.spf += f.receitaSPF;
     o.spfQtd += f.spfQtd || 0;
-    o.planScoreSum += SCORE_PLAN_WEIGHT[f.plano] ?? 0.5;
     o.plans[f.plano] = (o.plans[f.plano] || 0) + 1;
-    if (f.dept === "Novos") o.familias.add(f.familia);
   }
 
   const buckets = [...by.values()];
@@ -1188,6 +1204,12 @@ function calcScoresTs(sales: ScoreSaleFact[], fins: ScoreFinFact[]): ScoreResult
     const ret = o.producao ? o.retorno / o.producao : 0;
     const volume = Math.min(1, o.vendas / (maxVenda[o.dept] || 1));
     const spfRate = o.fin ? o.spfQtd / o.fin : 0;
+    // FIX-IA-GATE-01 — fatores de confiança de amostra, modules/score.html:540
+    // (confVendas/confFin), verbatim. Descontam Penetração/SPF/Retorno quando
+    // a amostra é pequena (1-2 operações não devem saturar o percentual);
+    // Mix e Volume não são afetados por eles.
+    const confVendas = Math.min(1, o.vendas / 4);
+    const confFin = Math.min(1, o.fin / 2);
 
     const breakdown: { label: string; points: number; max: number }[] = [];
     let score = 0;
@@ -1198,16 +1220,20 @@ function calcScoresTs(sales: ScoreSaleFact[], fins: ScoreFinFact[]): ScoreResult
 
     if (o.dept === "Novos") {
       addBreak("Volume de vendas", w.volume * volume, w.volume);
-      addBreak("Penetração de financiamento", w.share * Math.min(1, share / 0.6), w.share);
+      addBreak("Penetração de financiamento", w.share * Math.min(1, share / 0.6) * confVendas, w.share);
       addBreak("Mix de famílias vendidas", w.familias * Math.min(1, o.familias.size / 3), w.familias);
-      addBreak("Mix de planos vendidos", w.planos * (o.fin ? o.planScoreSum / o.fin : 0), w.planos);
-      addBreak("SPF EXTRA", w.spf * Math.min(1, spfRate), w.spf);
-      addBreak("Retorno médio", w.retorno * Math.min(1, ret / 0.08), w.retorno);
+      // FIX-IA-GATE-01 — Mix de Planos agora é diversidade (planos válidos
+      // distintos / tamanho do universo), não mais média de peso por
+      // operação; modules/score.html:540 (planosValidos), verbatim.
+      const planosValidos = Object.keys(o.plans).filter((p) => MIX_PLANOS_UNIVERSO.has(p));
+      addBreak("Mix de planos vendidos", w.planos * Math.min(1, planosValidos.length / MIX_PLANOS_UNIVERSO.size), w.planos);
+      addBreak("SPF EXTRA", w.spf * Math.min(1, spfRate) * confFin, w.spf);
+      addBreak("Retorno médio", w.retorno * Math.min(1, ret / 0.08) * confFin, w.retorno);
     } else {
       addBreak("Volume de vendas", w.volume * volume, w.volume);
-      addBreak("Penetração de financiamento", w.share * Math.min(1, share / 0.6), w.share);
-      addBreak("SPF EXTRA", w.spf * Math.min(1, spfRate), w.spf);
-      addBreak("Retorno médio", w.retorno * Math.min(1, ret / 0.08), w.retorno);
+      addBreak("Penetração de financiamento", w.share * Math.min(1, share / 0.6) * confVendas, w.share);
+      addBreak("SPF EXTRA", w.spf * Math.min(1, spfRate) * confFin, w.spf);
+      addBreak("Retorno médio", w.retorno * Math.min(1, ret / 0.08) * confFin, w.retorno);
     }
 
     const finalScore = Math.round(Math.max(0, Math.min(1000, score)));
@@ -5318,7 +5344,7 @@ Fase IA-2C.4 — Score F&I dos vendedores:
 - O Score (0 a 1000) é oficial e determinístico — vem sempre de consultar_score_vendedores. Nunca recalcule, estime ou "ajuste" um score por conta própria, mesmo que o usuário peça um cenário hipotético ("e se..."); recuse e explique que o Score reflete sempre os dados reais do período.
 - "Retorno médio" do Score é percentual (average_return_percent) — mesma distinção de "Retorno" (moeda) já usada no restante da IA; nunca confunda.
 - Mix de famílias e Mix de planos são componentes que só existem no departamento Novos. Para um vendedor de Seminovos, nunca diga "Mix de planos = 0" ou "não pontuou em Mix de famílias" — esses componentes simplesmente não existem na fórmula de Seminovos; não compare a pontuação de um Novos com a de um Seminovos componente a componente, só o score final e a classificação.
-- Ao explicar o efeito de um plano dentro do Mix de planos (só existe em Novos), use sempre o peso oficial: LINEAR e BALÃO pesam 1,0; REVERSÃO pesa 0,9; SUBSIDIADO pesa 0,6; COPARTICIPADO pesa 0,5 — dentro do componente Mix de planos. Nunca diga simplesmente "Coparticipado reduz o Score"; diga que o peso de Coparticipado (0,5) é menor que o de Linear/Balão (1,0) dentro desse componente específico. Nunca afirme que Coparticipado/Subsidiado "reduz" o score de um vendedor de Seminovos — o componente Mix de planos não existe para Seminovos, então essa lógica não se aplica lá.
+- Mix de planos (só existe em Novos) mede DIVERSIDADE, não volume nem "peso" por plano: pontos = (planos distintos vendidos dentre LINEAR/BALÃO/COPARTICIPADO/SUBSIDIADO) / 4 — vender 10× o mesmo plano vale o mesmo que vender 1×; vender os 4 vale o máximo do componente. REVERSÃO não conta para essa diversidade (é uma classificação de código da instituição financeira, não um plano comercial escolhido pelo vendedor) — mas continua aparecendo normalmente no mix de planos do vendedor. Nunca diga "Coparticipado pesa menos" ou cite um peso por plano — explique em termos de quantos planos distintos válidos o vendedor já usou sobre o total de 4. Nunca afirme que Coparticipado/Subsidiado "reduz" o score de um vendedor de Seminovos — o componente Mix de planos não existe para Seminovos, então essa lógica não se aplica lá.
 - O componente Volume é normalizado contra o máximo de vendas da população realmente consultada (todo o grupo, ou só a loja filtrada, conforme population_scope no resultado da tool) — scores calculados em populações diferentes (grupo inteiro vs. uma loja específica; ou períodos diferentes) não estão na mesma escala absoluta. Ao comparar vendedores de contextos diferentes, avise isso; ao comparar vendedores do mesmo period/population_scope, a comparação é direta e válida.
 - Novos e Seminovos têm fórmulas totalmente diferentes (pesos e nº de componentes distintos) — um score 800 em cada departamento não se decompõe da mesma forma. Pode comparar score final e classificação entre departamentos, mas ao decompor por componente, explique que os pesos são diferentes.
 - Para identificar o "maior ponto forte" ou "maior gap" de um vendedor, compare sempre a proporção (points/max) de cada componente entre si — nunca a pontuação bruta (um componente de peso maior naturalmente tem mais pontos mesmo proporcionalmente pior). "Gap" é max-points de um componente — é só decomposição explicativa, nunca uma promessa de ganho futuro de score.
