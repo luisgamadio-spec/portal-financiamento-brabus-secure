@@ -933,6 +933,12 @@
   // ---------- API pública (chamada via onclick inline / portal-app.js) ----------
 
   window.abrirBrabusAI = function () {
+    // IA-PROD-CONTAINMENT-01 — mesmo gate de ambiente do botão, aplicado
+    // aqui também: mesmo uma chamada direta a esta função (console, evento
+    // customizado, etc.) fica inerte quando aiAssistantEnabled === false.
+    var aiEnabled = !(typeof window.PORTAL_RUNTIME_CONFIG !== 'undefined' && window.PORTAL_RUNTIME_CONFIG &&
+      window.PORTAL_RUNTIME_CONFIG.aiAssistantEnabled === false);
+    if (!aiEnabled) return;
     baiMountIfNeeded();
     var overlay = document.getElementById('brabusAiOverlay');
     if (!overlay) return;
@@ -1008,6 +1014,16 @@
   // backend nega qualquer não-MASTER de qualquer forma — Parte AR).
   window.renderBrabusAIButton = function () {
     try {
+      // IA-PROD-CONTAINMENT-01 — gate de ambiente, checado ANTES do gate de
+      // perfil. aiAssistantEnabled === false (produção) desativa o botão
+      // para todo mundo, inclusive MASTER; omitido/true (UAT) preserva o
+      // comportamento MASTER-only original.
+      var aiEnabled = !(typeof window.PORTAL_RUNTIME_CONFIG !== 'undefined' && window.PORTAL_RUNTIME_CONFIG &&
+        window.PORTAL_RUNTIME_CONFIG.aiAssistantEnabled === false);
+      if (!aiEnabled) {
+        window.removeBrabusAIButton();
+        return;
+      }
       var isMaster = (typeof REAL_USER !== 'undefined') && REAL_USER &&
         String(REAL_USER.tipo || '').trim().toUpperCase() === 'MASTER';
       if (!isMaster) {
