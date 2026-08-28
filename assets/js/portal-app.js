@@ -1394,6 +1394,33 @@ function operationalManagerRowHtml(label,rows,status,store){
     <td data-label="Detalhes" style="text-align:center">${operationalDetailButton(detailIndex)}</td>
   </tr>`;
 }
+// SALARIOS-ANALISTA-1: linha de totais da equipe (Vend./Fin./Share/Retorno/
+// 70% SPF/Rentabilidade agregados da secao), SEM identidade nem comissao
+// pessoal de ninguem -- distinta da linha de Gerente (operationalManagerRowHtml),
+// que continua gated por podeVerGerente e permanece fechada para Analista
+// (Incidente P1 Autorizacao-Comissoes 1.0, preservado integralmente).
+// spfLiquido/rentTotal em commissionCalc() nao dependem de "cls" (só usam
+// metrics.retorno/spf + o percentual global spf_liquido_percentual) --
+// por isso sao seguros de somar aqui. Faixa/Comissao SAO especificas de
+// papel (vendedor/analista/gerente) e por isso nunca sao calculadas nem
+// exibidas nesta linha.
+function operationalTeamTotalRowHtml(rows){
+  if(!rows.length) return '';
+  const metrics=sumRows(rows.map(row=>({m:operationalMetricFromRow(row)})));
+  const commission=commissionCalc('',metrics,'');
+  return `<tr class="teamTotal">
+    <td data-label="Nome"><b>TOTAL DA EQUIPE</b></td>
+    <td data-label="Vend.">${metrics.vendidas}</td>
+    <td data-label="Fin.">${metrics.financiadas}</td>
+    <td data-label="Share">${shareBadge(metrics.financiadas,metrics.vendidas)}</td>
+    <td data-label="Retorno">${fmtMoney(metrics.retorno)}</td>
+    <td data-label="70% SPF" class="spf70Value">${fmtMoney(commission.spfLiquido)}</td>
+    <td data-label="Rentab.">${fmtMoney(commission.rentTotal)}</td>
+    <td data-label="Faixa">—</td>
+    <td data-label="Comissão">—</td>
+    <td data-label="Detalhes" style="text-align:center"><span class="tag">TOTAL</span></td>
+  </tr>`;
+}
 function operationalAnalystRowHtml(row){
   const metrics=operationalMetricFromRow(row);
   const commission=commissionCalc('ANALISTA',metrics,'analyst');
@@ -1510,6 +1537,10 @@ function renderOperationalSecureContent(){
           `GERENTE ${section.label}`,
           store
         );
+      }else if(section.key!=='NOVOS/SEMINOVOS'&&podeVerAnalista){
+        // SALARIOS-ANALISTA-1: Analista nao pode ver a linha pessoal do
+        // Gerente (P1), mas volta a ver o totalizador agregado da equipe.
+        html+=operationalTeamTotalRowHtml(sectionRows);
       }
     });
     html+='</tbody></table></div>';
