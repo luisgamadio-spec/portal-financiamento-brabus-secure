@@ -2422,6 +2422,7 @@ function secureModelRows(data, family){
         receitaSPF:0, receitaTotal:0, parcelasWeighted:0, parcelasWeight:0,
         pmtWeighted:0, pmtWeight:0, entradaQtd:0, entradaTotal:0,
         valorVendaTotal:0, linearQtd:0, balaoQtd:0, reversaoQtd:0, balaoMed:0,
+        coparticipadoQtd:0, subsidiadoQtd:0,
         balaoWeighted:0, balaoWeight:0
       };
     }
@@ -2460,6 +2461,8 @@ function secureModelRows(data, family){
         target.balaoWeight += avgBalao > 0 ? groupCount : 0;
       }
       else if(planType === "REVERSÃO") target.reversaoQtd += groupCount;
+      else if(planType === "COPARTICIPADO") target.coparticipadoQtd += groupCount;
+      else if(planType === "SUBSIDIADO") target.subsidiadoQtd += groupCount;
       else if(planType === "LINEAR") target.linearQtd += groupCount;
     });
   });
@@ -3704,6 +3707,8 @@ function modelRowsUnified(results, family){
       linearQtd:c.linearQtd || 0,
       balaoQtd:c.balaoQtd || 0,
       reversaoQtd:(results.fins || []).filter(r=>r.dept==="Novos" && r.modelo===model && isFinReversao(r)).length,
+      coparticipadoQtd:c.coparticipadoQtd || 0,
+      subsidiadoQtd:c.subsidiadoQtd || 0,
       balaoMed:c.balaoMed || 0,
       retornoMedio:extra.retornoMedio,
       prazoMedio:extra.prazoMedio || c.parcelasMed || 0,
@@ -4096,14 +4101,16 @@ async function renderModelos(results){
       {k:"receitaTotal",label:"Receita Total",f:money,compare:true},
       {k:"ticket",label:"Ticket Médio Financiado",f:money,compare:true},
       {k:"retornoMedio",label:"Média Retorno",f:pct,compare:true},
-      {k:"prazoMedio",label:"Prazo Médio",f:(v)=>num(v,1)+"x"},
-      {k:"pmtMed",label:"Média Parcela",f:money},
+      {k:"prazoMedio",label:"Prazo Médio",f:(v)=>num(v,1)+"x",compare:true},
+      {k:"pmtMed",label:"Média Parcela",f:money,compare:true},
       {k:"entradaMed",label:"Entrada Média",f:money,compare:true},
       {k:"entradaPct",label:"% Entrada",f:pct,compare:true},
-      {k:"linearQtd",label:"Qtd Linear",f:(v)=>num(v)},
-      {k:"balaoQtd",label:"Qtd Balão",f:(v)=>num(v)},
-      {k:"reversaoQtd",label:"Qtd Reversão",f:(v)=>num(v)},
-      {k:"balaoMed",label:"Valor Médio Balão",f:money}
+      {k:"linearQtd",label:"Qtd Linear",f:(v)=>num(v),compare:true},
+      {k:"balaoQtd",label:"Qtd Balão",f:(v)=>num(v),compare:true},
+      {k:"reversaoQtd",label:"Qtd Reversão",f:(v)=>num(v),compare:true},
+      {k:"coparticipadoQtd",label:"Qtd Coparticipado",f:(v)=>num(v),compare:true},
+      {k:"subsidiadoQtd",label:"Qtd Subsidiado",f:(v)=>num(v),compare:true},
+      {k:"balaoMed",label:"Valor Médio Balão",f:money,compare:true}
     ], prevModelMap)+
     (inconsistenciaTritonRows(results).length ? table("Inconsistências TRITON", inconsistenciaTritonRows(results), [
       {k:"Base",label:"Base"},
