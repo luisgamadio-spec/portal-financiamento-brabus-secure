@@ -1124,9 +1124,9 @@ function operationalSalaryDetailItemHtml(row){
       <span>Valor financiado: <b>${fmtMoney(Number(row.financed_value)||0)}</b></span>
       <span>Modalidade: <b>${escapeOperationalHtml(row.modality||'-')}</b></span>
       <span>Prazo / parcela: <b>${term}</b></span>
-      <span>Retorno considerado: <b>${fmtMoney(returnConsidered)}</b><small>Bruto: ${fmtMoney(returnGross)}</small></span>
-      <span>SPF considerado: <b>${fmtMoney(spfConsidered)}</b><small>${Number(row.spf_count)||0} produto(s) · bruto ${fmtMoney(spfGross)}</small></span>
-      <span>70% do SPF: <b>${fmtMoney(Number(row.spf_70)||0)}</b></span>
+      <span>Retorno considerado: <b>${fmtMoney(returnConsidered)}</b><small class="detailSub">Bruto: ${fmtMoney(returnGross)}</small></span>
+      <span>SPF considerado: <b>${fmtMoney(spfConsidered)}</b><small class="detailSub">${Number(row.spf_count)||0} produto(s) · bruto ${fmtMoney(spfGross)}</small></span>
+      <span>70% do SPF considerado: <b>${fmtMoney(Number(row.spf_70)||0)}</b></span>
       <span>Rentabilidade total: <b>${fmtMoney(Number(row.operation_profitability)||0)}</b></span>
       <span>Comissao: ${commissionStatus}<small>${escapeOperationalHtml(row.applied_rule||'Faixa consolidada')}</small></span>
     </div>
