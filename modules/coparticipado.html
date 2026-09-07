@@ -404,6 +404,14 @@ function renderVendorAlerts(rowsOverride=null){
 // indisponível, sem ACTIVE, formato inesperado) lança exceção e é
 // tratada pelo catch já existente de processar() — nunca cai
 // silenciosamente para o xlsx estático.
+// FASE 3.I -- nota de proveniência (Fase 3.H4): no runtime real, este
+// processar()/loadCoparticipadoRateAuthority() é sobrescrito por
+// assets/js/score-coparticipated-secure-adapter.js (processar=secureProcess),
+// carregado depois deste script -- ver esse arquivo para o caminho
+// realmente executado (que agora usa a MESMA authority governada
+// abaixo). Esta função permanece funcional e testada (golden/fail-closed)
+// como referência e para o caso do adapter externo não estar presente;
+// não é código morto arbitrário -- ver COPART_DUPLICATE_RUNTIME_PIPELINE_DEBT.
 async function loadCoparticipadoRateAuthority(){
   if(window.parent===window || typeof window.parent.simuladorGetBase!=='function'){
     throw new Error('Base governada de taxas indisponível (Portal pai não encontrado — sessão inválida).');
