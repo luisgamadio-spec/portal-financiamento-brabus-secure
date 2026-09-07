@@ -67,7 +67,7 @@
   <div class="tabs" id="tabs" style="display:none"><div class="tab active" onclick="showTab('copart',this)">Coparticipados / Subsidiados</div><div class="tab" onclick="showTab('diagnostico',this)">Diagnóstico</div></div>
   <section id="copart" class="active"></section>
   <section id="diagnostico"></section>
-  <div class="footer">Regras do módulo Coparticipado no Portal F&I: carregamento automático das bases em ../data/ incluindo BASE CORRETA VENDAS ATUALIZADA.xlsx; coparticipado válido somente com Base 03 FANDI + TC Devolvida = 1 + Situação PAGA/FATURADA; coparticipação calculada pela tabela taxa coparticipado.xlsx por modelo, Rebate Total e Parte Brabus; exportação em Excel nativo formatado.</div>
+  <div class="footer">Regras do módulo Coparticipado no Portal F&I: carregamento automático das bases em ../data/ incluindo BASE CORRETA VENDAS ATUALIZADA.xlsx; coparticipado válido somente com Base 03 FANDI + TC Devolvida = 1 + Situação PAGA/FATURADA; coparticipação calculada por Modelo × Rebate Total × Parte Brabus a partir da <b>base governada ativa</b> (mesma autoridade Supabase consumida pelo Simulador de Novos — <span id="copartRateSourceStatus">carregando…</span>); exportação em Excel nativo formatado.</div>
   <div class="blistiqFooter">Desenvolvido por <b>BLISTIQ</b> em 2026.</div>
 </main>
 <div class="modal" id="modal"><div class="modalBox"><div class="modalHead"><h2 id="modalTitle">Detalhes</h2><button class="secondary" onclick="closeModal()">Voltar ao ranking</button></div><div id="modalBody"></div></div></div>
@@ -195,7 +195,7 @@ const STATIC_VENDOR_MAP = {
 };
 const SCORE_WEIGHTS={Novos:{volume:150,share:250,familias:150,planos:200,spf:100,retorno:150},Seminovos:{volume:200,share:300,spf:200,retorno:300}};
 const PLAN_WEIGHT={'LINEAR':1,'BALÃO':1,'REVERSÃO':0.9,'SUBSIDIADO':0.6,'COPARTICIPADO':0.5};
-let DATA={sales:[],fins:[],vendors:{byNbs:{},byName:{},allByName:{}},b3:[],taxasCopart:{},diagnostics:{}};
+let DATA={sales:[],fins:[],vendors:{byNbs:{},byName:{},allByName:{}},b3:[],taxasCopart:{},taxasCopartMeta:null,diagnostics:{}};
 function normalizeText(v){return (v??'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/�/g,'A').replace(/\s+/g,' ').trim()}
 function onlyDigits(v){if(v===null||v===undefined)return '';let s=String(v).trim();if(/[eE]\+/.test(s)){const n=Number(s);if(Number.isFinite(n))s=Math.trunc(n).toString()}return s.replace(/\.0+$/,'').replace(/\D/g,'')}
 function asNumber(v){if(v===null||v===undefined||v==='')return 0;if(typeof v==='number')return isFinite(v)?v:0;let s=String(v).trim().replace(/[R$\s]/g,'');if(!s)return 0;if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');else if(s.includes(','))s=s.replace(',','.');const n=parseFloat(s);return isNaN(n)?0:n}
@@ -276,6 +276,10 @@ function pct(v){return isFinite(v)?(v*100).toLocaleString('pt-BR',{minimumFracti
 function getCol(row,names){const keys=Object.keys(row||{});for(const n of names){const nn=normalizeText(n);const k=keys.find(x=>normalizeText(x)===nn);if(k!==undefined)return row[k]}for(const n of names){const nn=normalizeText(n);const k=keys.find(x=>normalizeText(x).includes(nn));if(k!==undefined)return row[k]}return ''}
 async function readRows(file, required){if(!file)throw new Error('Arquivo obrigatório não selecionado.');const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];const matrix=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});let idx=0;if(required){const needle=normalizeText(required);const found=matrix.findIndex(r=>(r||[]).some(c=>normalizeText(c).includes(needle)));idx=found>=0?found:0}const headers=(matrix[idx]||[]).map(h=>(h||'').toString().trim());return matrix.slice(idx+1).filter(r=>(r||[]).some(c=>c!==''&&c!==null&&c!==undefined)).map((r,ri)=>{const o={__row:idx+ri+2};headers.forEach((h,i)=>{if(h)o[h]=r[i]??''});o.__COL_E=r[4]??'';o.__COL_F=r[5]??'';o.__HEADER_E=headers[4]||'';o.__HEADER_F=headers[5]||'';return o})}
 
+// FASE 3: não é mais chamada por processar() -- a autoridade financeira
+// runtime passou a ser loadCoparticipadoRateAuthority() (base governada
+// Supabase, ver abaixo). Mantida apenas como referência/leitura histórica
+// do formato original do xlsx; não apagar arquivos xlsx por causa disso.
 async function readTaxaCopart(file){
   const taxas={};
   if(!file)return taxas;
@@ -388,6 +392,52 @@ function renderVendorAlerts(rowsOverride=null){
   if(!rows.length){el.innerHTML='<div class="vendorOkPanel">✓ Nenhum vendedor não cadastrado identificado nas bases processadas.</div>';return;}
   el.innerHTML=`<div class="vendorAlertPanel"><h2>⚠ Vendedores não cadastrados</h2><p>Foram encontrados nomes nas bases que não constam na BASE CORRETA VENDAS ATUALIZADA.xlsx. Nomes cadastrados como GERENTE, ANALISTA, REVENDA ou MASTER são ignorados automaticamente.</p><div class="vendorAlertList"><table><thead><tr><th>Vendedor</th><th>Loja encontrada</th><th>Departamento</th><th>Origem</th><th>Ocorrências</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.nome}</td><td>${r.loja||'—'}</td><td>${r.dept||'—'}</td><td>${r.origem}</td><td>${r.qtd}</td></tr>`).join('')}</tbody></table></div></div>`;
 }
+// FASE 3 (unificação de fonte de taxas Coparticipado): a matriz Modelo ×
+// Rebate Total × Parte Brabus deixa de vir de um arquivo .xlsx estático
+// (../data/taxa coparticipado.xlsx, indisponível em produção — ver
+// auditoria) e passa a vir da MESMA autoridade governada/versionada
+// (Supabase, batch COPARTICIPADO ACTIVE) já usada pelo Simulador de
+// Novos — reaproveitando o bridge já existente
+// window.parent.simuladorGetBase() (assets/js/portal-app.js), sem
+// nenhuma RPC nova, sem service-role no browser, usando a sessão normal
+// do Portal. FAIL-CLOSED por design: qualquer falha (sem sessão, RPC
+// indisponível, sem ACTIVE, formato inesperado) lança exceção e é
+// tratada pelo catch já existente de processar() — nunca cai
+// silenciosamente para o xlsx estático.
+async function loadCoparticipadoRateAuthority(){
+  if(window.parent===window || typeof window.parent.simuladorGetBase!=='function'){
+    throw new Error('Base governada de taxas indisponível (Portal pai não encontrado — sessão inválida).');
+  }
+  const r=await window.parent.simuladorGetBase('simulador_get_coparticipado');
+  if(!r || r.ok!==true){
+    throw new Error('Base governada de taxas Coparticipado indisponível no momento (sem base ACTIVE).');
+  }
+  const modelos=r.linhas && r.linhas.matriz_modelos;
+  if(!Array.isArray(modelos) || !modelos.length){
+    throw new Error('Base governada de taxas Coparticipado retornou uma matriz de modelos vazia.');
+  }
+  const taxas={};
+  for(const m of modelos){
+    const modelo=((m&&m.modelo)||'').toString().trim();
+    const rebateTotal=Number(m&&m.rebate_total);
+    const parteBrabus=Number(m&&m.rebate_brabus);
+    if(!modelo||!isFinite(rebateTotal)||!isFinite(parteBrabus)||rebateTotal<=0)continue;
+    const key=taxaKey(modelo);
+    if(key&&!taxas[key]){taxas[key]={modeloTabela:modelo,rebateTotal,parteBrabus}}
+  }
+  if(!Object.keys(taxas).length){
+    throw new Error('Base governada de taxas Coparticipado retornou formato inesperado (nenhum modelo válido).');
+  }
+  return {taxas, meta:{batchId:r.batch_id||'', arquivoNome:r.arquivo_nome||'', origem:'ACTIVE'}};
+}
+function updateCopartRateSourceStatus(ok,meta){
+  const el=document.getElementById('copartRateSourceStatus');
+  if(!el)return;
+  if(ok===null||ok===undefined){el.textContent='carregando…';el.className='muted';el.title='';return}
+  el.textContent=ok?'ACTIVE':'indisponível';
+  el.className=ok?'ok':'bad';
+  el.title=ok&&meta&&meta.batchId?`batch ${meta.batchId}`:'';
+}
 const MODULE_DATA_PATH='../data/';
 async function fetchWorkbookFile(fileName){
   const encoded=encodeURI(fileName);
@@ -443,22 +493,24 @@ function processFins(rows,b3idx,sales){const byProp={};rows.forEach(r=>{if(rowHa
 async function processar(){
   try{
     document.getElementById('status').textContent='Carregando bases automáticas do repositório...';
-    const [f1,f2,f3,ft,fv]=await Promise.all([
+    updateCopartRateSourceStatus(null);
+    const [f1,f2,f3,fv,rateAuthority]=await Promise.all([
       fetchWorkbookFile('Base 01.xlsx'),
       fetchWorkbookFile('Base 02.xlsx'),
       fetchWorkbookFile('Base 03.xlsx'),
-      fetchWorkbookFile('taxa coparticipado.xlsx'),
-      fetchWorkbookFile('BASE CORRETA VENDAS ATUALIZADA.xlsx')
+      fetchWorkbookFile('BASE CORRETA VENDAS ATUALIZADA.xlsx'),
+      loadCoparticipadoRateAuthority()
     ]);
-    const [b1,b2,b3,taxas,vendedoresRows]=await Promise.all([
+    const [b1,b2,b3,vendedoresRows]=await Promise.all([
       readRows(f1,'Chassi'),
       readRows(f2,'Cód. Proposta'),
       readRows(f3,'Op - Código'),
-      readTaxaCopart(ft),
       readRows(fv,'TIPO')
     ]);
     DATA.vendors=buildVendors(vendedoresRows);
-    DATA.taxasCopart=taxas;
+    DATA.taxasCopart=rateAuthority.taxas;
+    DATA.taxasCopartMeta=rateAuthority.meta;
+    updateCopartRateSourceStatus(true,rateAuthority.meta);
     const b3idx=buildB3Index(b3);
     DATA.sales=processSales(b1);
     DATA.fins=processFins(b2,b3idx,DATA.sales);
@@ -470,6 +522,8 @@ async function processar(){
       vendedoresNaoCadastrados:vendedoresNaoCadastradosLista.length,
       vendedoresNaoCadastradosLista,
       taxasCopart:Object.keys(DATA.taxasCopart||{}).length,
+      taxasCopartBatch:(DATA.taxasCopartMeta&&DATA.taxasCopartMeta.batchId)||'',
+      taxasCopartArquivo:(DATA.taxasCopartMeta&&DATA.taxasCopartMeta.arquivoNome)||'',
       sales:DATA.sales.length,fins:DATA.fins.length,
       cop:DATA.fins.filter(x=>x.plano==='COPARTICIPADO').length,
       copSemTaxa:DATA.fins.filter(x=>x.plano==='COPARTICIPADO'&&!calcCoparticipacaoDetalhe(x).ok).length,
@@ -478,12 +532,13 @@ async function processar(){
     populateStores();
     document.getElementById('filters').style.display='flex';
     document.getElementById('tabs').style.display='flex';
-    document.getElementById('status').innerHTML=`<span class="ok">Bases carregadas automaticamente:</span> Base 01.xlsx, Base 02.xlsx, Base 03.xlsx, taxa coparticipado.xlsx e BASE CORRETA VENDAS ATUALIZADA.xlsx · ${DATA.sales.length} vendas, ${DATA.fins.length} financiamentos · ${Object.keys(DATA.vendors.byName||{}).length} vendedores válidos TIPO=VENDEDOR.`;
+    document.getElementById('status').innerHTML=`<span class="ok">Bases carregadas automaticamente:</span> Base 01.xlsx, Base 02.xlsx, Base 03.xlsx e BASE CORRETA VENDAS ATUALIZADA.xlsx · Condições comerciais (Coparticipado): base governada ativa · ${DATA.sales.length} vendas, ${DATA.fins.length} financiamentos · ${Object.keys(DATA.vendors.byName||{}).length} vendedores válidos TIPO=VENDEDOR.`;
     bindFilterEvents();
     renderVendorAlerts();
     render();
   }catch(e){
     console.error(e);
+    updateCopartRateSourceStatus(false);
     document.getElementById('status').innerHTML=`<span class="bad">Erro no carregamento automático:</span> ${e.message}`;
   }
 }
@@ -556,7 +611,7 @@ function coparViewSwitcherHtml(){
 function renderCopa(fins){
   if(currentCoparView==='SUBSIDIADO') return renderSubsidiados(fins);
   const rows=fins.filter(r=>r.plano==='COPARTICIPADO');
-  document.getElementById('copart').innerHTML=`<div class="panel">${coparViewSwitcherHtml()}<h2>Planos Coparticipados</h2><p class="muted">Coparticipação calculada pela tabela <b>taxa coparticipado.xlsx</b>: Modelo × Rebate Total × Rebate Parte Brabus.</p><div class="tableWrap"><table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Loja</th><th>Modelo Base</th><th>Modelo Taxa</th><th>Valor Financiado</th><th>Rebate Total</th><th>Parte Brabus</th><th>Valor Rebate Total</th><th>Coparticipação</th><th>Situação</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(r=>{const c=calcCoparticipacaoDetalhe(r);return `<tr><td>${r.cliente}</td><td>${r.vendedor}</td><td>${r.loja}</td><td>${r.modelo}</td><td>${c.modeloTabela||'<span class="warn">Não encontrado</span>'}</td><td>${money(r.valorFinanciado)}</td><td>${c.ok?pct(c.rebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?pct(c.parteBrabus):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.valorRebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.coparticipacao):'<span class="warn">Modelo não encontrado na tabela de taxa</span>'}</td><td>${r.situacaoB3||''}</td><td>${iso(r.data)}</td><td>${r.chassi}</td></tr>`}).join('')||'<tr><td colspan="13" class="muted">Nenhum coparticipado encontrado no filtro atual.</td></tr>'}</tbody></table></div></div>`;
+  document.getElementById('copart').innerHTML=`<div class="panel">${coparViewSwitcherHtml()}<h2>Planos Coparticipados</h2><p class="muted">Coparticipação calculada pela <b>base governada ativa</b> (Supabase, mesma autoridade do Simulador de Novos): Modelo × Rebate Total × Rebate Parte Brabus.</p><div class="tableWrap"><table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Loja</th><th>Modelo Base</th><th>Modelo Taxa</th><th>Valor Financiado</th><th>Rebate Total</th><th>Parte Brabus</th><th>Valor Rebate Total</th><th>Coparticipação</th><th>Situação</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(r=>{const c=calcCoparticipacaoDetalhe(r);return `<tr><td>${r.cliente}</td><td>${r.vendedor}</td><td>${r.loja}</td><td>${r.modelo}</td><td>${c.modeloTabela||'<span class="warn">Não encontrado</span>'}</td><td>${money(r.valorFinanciado)}</td><td>${c.ok?pct(c.rebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?pct(c.parteBrabus):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.valorRebateTotal):'<span class="warn">—</span>'}</td><td>${c.ok?money(c.coparticipacao):'<span class="warn">Modelo não encontrado na tabela de taxa</span>'}</td><td>${r.situacaoB3||''}</td><td>${iso(r.data)}</td><td>${r.chassi}</td></tr>`}).join('')||'<tr><td colspan="13" class="muted">Nenhum coparticipado encontrado no filtro atual.</td></tr>'}</tbody></table></div></div>`;
 }
 function renderSubsidiados(fins){
   const rows=fins.filter(r=>r.plano==='SUBSIDIADO');
@@ -564,7 +619,7 @@ function renderSubsidiados(fins){
   const vendedores=new Set(rows.map(r=>r.vendedor)).size;
   document.getElementById('copart').innerHTML=`<div class="panel">${coparViewSwitcherHtml()}<h2>Planos Subsidiados</h2><p class="muted">Todas as operações classificadas como <b>SUBSIDIADO</b> no período (mesma regra oficial já usada nos indicadores do Portal: código IF = 999 ou "SUBSIDIADO" na Base 03).</p><div class="summary"><div class="summaryItem"><div class="k">Operações</div><div class="v">${num(rows.length)}</div></div><div class="summaryItem"><div class="k">Lojas</div><div class="v">${num(lojas)}</div></div><div class="summaryItem"><div class="k">Vendedores</div><div class="v">${num(vendedores)}</div></div></div><div class="tableWrap"><table><thead><tr><th>Cliente</th><th>Vendedor</th><th>Loja</th><th>Departamento</th><th>Modelo</th><th>Valor Financiado</th><th>Retorno</th><th>SPF Extra</th><th>Situação</th><th>Data</th><th>Chassi</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.cliente}</td><td>${r.vendedor}</td><td>${r.loja}</td><td>${r.dept}</td><td>${r.modelo}</td><td>${money(r.valorFinanciado)}</td><td>${money(r.retorno)}</td><td>${money(r.receitaSPF)}</td><td>${r.situacaoB3||''}</td><td>${iso(r.data)}</td><td>${r.chassi}</td></tr>`).join('')||'<tr><td colspan="11" class="muted">Nenhum subsidiado encontrado no filtro atual.</td></tr>'}</tbody></table></div></div>`;
 }
-function renderDiag(f){const d=DATA.diagnostics;const planCounts=DATA.fins.reduce((a,r)=>(a[r.plano]=(a[r.plano]||0)+1,a),{});const txt=[`Base 01 linhas lidas: ${d.b1Rows||0}`,`Base 02 linhas lidas: ${d.b2Rows||0}`,`Base 03 linhas lidas: ${d.b3Rows||0}`,`Base 03 FANDI: ${d.b3Fandi||0}`,`Base vendedores linhas lidas: ${d.vendorBaseRows||0}`,`Vendedores válidos TIPO=VENDEDOR: ${d.vendors||0}`,`Tabela taxa coparticipado lida: ${d.taxasCopart||0} modelos`, `Vendedores não cadastrados: ${d.vendedoresNaoCadastrados||0}`, `Coparticipados sem modelo na tabela de taxa: ${d.copSemTaxa||0}`,`Vendas válidas antes do filtro: ${d.sales||0}`,`Financiamentos válidos antes do filtro: ${d.fins||0}`,`Financiamentos com Base 03 vinculada: ${d.matchedB3||0}`,`Planos antes do filtro: ${JSON.stringify(planCounts)}`,`Filtro atual: ${f.sales.length} vendas / ${f.fins.length} financiamentos / ${f.fins.filter(x=>x.plano==='COPARTICIPADO').length} coparticipados`].join('\n');document.getElementById('diagnostico').innerHTML=`<div class="panel"><h2>Diagnóstico de Leitura</h2><pre class="diag">${txt}</pre></div>`}
+function renderDiag(f){const d=DATA.diagnostics;const planCounts=DATA.fins.reduce((a,r)=>(a[r.plano]=(a[r.plano]||0)+1,a),{});const txt=[`Base 01 linhas lidas: ${d.b1Rows||0}`,`Base 02 linhas lidas: ${d.b2Rows||0}`,`Base 03 linhas lidas: ${d.b3Rows||0}`,`Base 03 FANDI: ${d.b3Fandi||0}`,`Base vendedores linhas lidas: ${d.vendorBaseRows||0}`,`Vendedores válidos TIPO=VENDEDOR: ${d.vendors||0}`,`Base governada de taxas Coparticipado: ${d.taxasCopart||0} modelos (batch ${d.taxasCopartBatch||'-'}, arquivo: ${d.taxasCopartArquivo||'-'})`, `Vendedores não cadastrados: ${d.vendedoresNaoCadastrados||0}`, `Coparticipados sem modelo na tabela de taxa: ${d.copSemTaxa||0}`,`Vendas válidas antes do filtro: ${d.sales||0}`,`Financiamentos válidos antes do filtro: ${d.fins||0}`,`Financiamentos com Base 03 vinculada: ${d.matchedB3||0}`,`Planos antes do filtro: ${JSON.stringify(planCounts)}`,`Filtro atual: ${f.sales.length} vendas / ${f.fins.length} financiamentos / ${f.fins.filter(x=>x.plano==='COPARTICIPADO').length} coparticipados`].join('\n');document.getElementById('diagnostico').innerHTML=`<div class="panel"><h2>Diagnóstico de Leitura</h2><pre class="diag">${txt}</pre></div>`}
 function excelDateValue(value){
   if(!value)return '';
   if(value instanceof Date && !isNaN(value.getTime())) return value;
