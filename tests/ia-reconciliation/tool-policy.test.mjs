@@ -1,11 +1,15 @@
-// IA-3D -- synthetic policy tests for the new tool-policy.ts foundation.
-// This file is NOT part of the live runtime (tool-policy.ts is not
-// imported by index.ts yet) -- these tests prove the POLICY LOGIC
-// itself is correct in isolation, entirely synthetically, with 0 real
-// Supabase project touched and 0 non-MASTER profile ever activated
-// live. Node 24's native TypeScript import loads the real module
-// directly (same "never a hand-copied duplicate" discipline as every
-// other file in this directory).
+// IA-3D -- synthetic policy tests for the tool-policy.ts foundation.
+// As of IA-3F.1, tool-policy.ts IS imported and wired into
+// index.ts's live dispatch path (see index.ts's own "IA-3F.1"
+// comments) -- these tests still prove the POLICY LOGIC itself in
+// isolation, entirely synthetically, with 0 real Supabase project
+// touched and 0 non-MASTER profile ever activated live; the
+// *integration* seam (policy actually gating dispatchTool inside the
+// real handler) is proven separately by
+// tests/ai-uat-e2e/policy-dispatch-integration.mjs, which drives the
+// real, unmodified handler end to end. Node 24's native TypeScript
+// import loads the real module directly (same "never a hand-copied
+// duplicate" discipline as every other file in this directory).
 //
 // Run: node tests/ia-reconciliation/tool-policy.test.mjs
 

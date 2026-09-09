@@ -206,7 +206,22 @@ const FIXTURES = {
   simulador_get_antecipacao: {
     ok: true,
     linhas: Array.from({ length: 60 }, (_, i) => ({ meses_antecipacao: i + 1, desconto: Math.min(0.35, (i + 1) * 0.006) }))
-  }
+  },
+  // IA-3F.1 -- governed tool-policy is now wired into the real handler
+  // (see index.ts's own "IA-3F.1" comments); these two RPCs are the
+  // real authority sources it calls (operational_current_scope for the
+  // AuthorityEnvelope, portal_modulos_permitidos for module grants),
+  // shaped to match FIXED_USER (perfil MASTER, loja MATRIZ) exactly as
+  // the real function would resolve them for that same row.
+  operational_current_scope: {
+    profile: "MASTER",
+    store: "MATRIZ",
+    departments: ["NOVOS", "SEMINOVOS"],
+    is_master: true,
+    is_director: false,
+    is_seller: false
+  },
+  portal_modulos_permitidos: ["gestao", "comissoes", "coparticipadoPortal", "analiseScoreVendedores", "simuladorCompleto", "simuladorSeminovos"]
 };
 
 // Synthetic-but-realistically-shaped fixture (Gate 30 -- never real
@@ -456,6 +471,18 @@ const MODEL_SCRIPT = [
   {
     match: /outro cliente, esquece esse/i,
     call: { name: "iniciar_novo_cliente", arguments: {} }
+  },
+  // IA-3F.1 -- governed tool-policy integration probe. The mock
+  // "model" requesting a tool name that was never registered in
+  // TOOL_POLICY is the one live-reachable denial case with the global
+  // MASTER barrier still in place (TOOL_NOT_REGISTERED is checked
+  // BEFORE the MASTER bypass inside authorizeToolCall itself -- see
+  // tool-policy.ts) -- this scenario proves the real wiring actually
+  // stops dispatchTool from ever running, not just that the policy
+  // FILE's own logic is correct in isolation.
+  {
+    match: /policy denial probe/i,
+    call: { name: "definitely_not_a_real_tool", arguments: {} }
   }
 ];
 

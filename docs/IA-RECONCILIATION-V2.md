@@ -745,3 +745,70 @@ Re-ran the full 232-test structural/policy suite (`tests/
 ia-reconciliation/*.test.mjs`) and `deno check` on all 4 relevant
 files — unchanged, all green, confirming the redeploy changed nothing
 about application behavior beyond the platform JWT gate.
+
+## 26. IA-3F.1 — real runtime blocker closure
+
+### 26.1 Live semantic policy wired into the real dispatch path
+
+`tool-policy.ts` (IA-3D foundation, previously inert) is now imported
+by `index.ts` and evaluated before every `dispatchTool()` call — see
+`docs/IA-3D-TOOL-POLICY.md`'s own updated status/activation-plan
+sections for the full detail. Summary: `AuthorityEnvelope` resolved
+live via `operational_current_scope()`, module permission checked live
+via `portal_modulos_permitidos()` (never a hardcoded table),
+`simular_financiamento`'s department-dependent module resolved via
+`resolveSimulatorModulePermission()`. The global MASTER-only gate is
+**unchanged** and remains the effective boundary for all real traffic
+— confirmed, not assumed, by a new real, live, end-to-end integration
+test (`tests/ai-uat-e2e/policy-dispatch-integration.mjs`, 7/7): a real
+tool dispatches its backend RPC exactly once when policy allows; an
+unregistered tool name dispatches zero backend RPCs when policy
+denies (the one live-reachable denial case with MASTER still the only
+real caller — `TOOL_NOT_REGISTERED` is checked before the MASTER
+bypass inside `authorizeToolCall()` itself). `checkDepartmentScope()`/
+`checkStoreScope()` argument-narrowing was deliberately **not** wired
+this Wave (both are no-ops for MASTER, the only real caller today) —
+carried as an explicit open item for a future non-MASTER-activation
+wave. `portal-ai-homolog` redeployed once for this (v38→v39);
+`verify_jwt` re-confirmed `true` after, source re-confirmed
+byte-identical to this repo, full 232-test suite + `deno check`
+re-run clean.
+
+### 26.2 MASTER identity — forensic discovery, not fabrication
+
+Read-only inventory (no file modified, no DB/API call made) of the
+existing user-administration capability found: a complete, already-
+governed, double-gated invite chain already exists
+(`master_convidar_usuario` RPC → `admin-invite-user` Edge Function →
+optionally `admin-generate-user-access-link` to bypass needing a real
+inbox click) capable of creating a `perfil='MASTER'` test identity.
+**One structural human-dependency was found, and only one:** both
+gates require the caller to already hold a bearer token belonging to
+an existing, active MASTER row — there is no seed/bootstrap path that
+creates the first MASTER without one already existing. This is
+Cloudflare-Turnstile-gated real login, correctly not something to
+script around. No dedicated homolog MASTER identity exists yet (a
+homolog **VENDEDOR** identity was found, created and Human-approved in
+an earlier, unrelated V2 Painel Master wave — not a MASTER substitute).
+`MASTER_RUNTIME_503_ORIGINAL_INCIDENT_INSUFFICIENT_EVIDENCE` and the
+"dedicated homolog MASTER account" debt both remain **open, carried**.
+
+### 26.3 OpenAI homolog key binding — still open
+
+Checked only the sources this Wave's own brief named as likely (shell
+environment variables, `.env*` files, `supabase secrets list`'s own
+metadata) — found none give access to the actual key value in this
+environment (`supabase secrets list` only ever returns a one-way
+digest, confirmed, not printed here). No indiscriminate search was
+performed. `CURRENT_SUPABASE_OPENAI_KEY_ENVIRONMENT_BINDING_UNPROVEN`
+remains open — closing it requires either the Human directly running
+`supabase secrets set OPENAI_API_KEY=<value> --project-ref
+yacqlelpzchcotgngwbh` themselves (the value never needs to enter this
+conversation), or another wave finding a different safe source.
+
+### 26.4 Real MASTER runtime proof — still not attempted
+
+Blocked entirely on 26.2 — no genuine MASTER session was available.
+No real OpenAI call was made (0, same as IA-3F). No fake auth bypass,
+hardcoded JWT, or service-role-pretending-to-be-browser-user was used
+or considered.

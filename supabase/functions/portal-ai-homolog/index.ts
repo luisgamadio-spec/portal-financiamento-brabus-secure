@@ -1,5 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// IA-3F.1 — governed semantic tool-policy (IA-3D foundation), wired
+// into the live dispatch path for the first time this Wave. See the
+// "Gate MASTER"/tool-call-loop comments below for exactly where and
+// why; docs/IA-3D-TOOL-POLICY.md's own activation plan (steps 1-3)
+// describes this wiring in advance of it existing.
+import {
+  authorizeToolCall,
+  isKnownProfile,
+  resolveSimulatorModulePermission,
+  type AuthorityEnvelope,
+  type AuthorizeResult,
+  type ModulePermissionChecker,
+  type Profile
+} from "./tool-policy.ts";
 
 // Fase IA-2A — Brabus F&I Intelligence v0.1, backend MVP.
 //
@@ -6402,6 +6416,57 @@ function extractFunctionCalls(response: any): Array<{ call_id: string; name: str
 }
 
 // =========================================================
+// IA-3F.1 — governed semantic tool-policy wiring helpers
+// =========================================================
+
+// operational_current_scope()'s own real profile strings use a SPACE
+// ("DIRETOR NOVOS"/"DIRETOR DE NOVOS") -- tool-policy.ts's Profile type
+// uses an underscore, matching portal_modulos_permitidos()'s own
+// internal normalization (fase93 migration, same two branches). Never
+// invents a new mapping -- mirrors that existing, already-live
+// normalization exactly.
+function toAuthorityEnvelope(scope: any): AuthorityEnvelope | null {
+  if (!scope || typeof scope.profile !== "string") return null;
+  const raw = String(scope.profile).trim().toUpperCase();
+  let profile: string;
+  if (raw === "DIRETOR NOVOS" || raw === "DIRETOR DE NOVOS") profile = "DIRETOR_NOVOS";
+  else if (raw === "DIRETOR SEMINOVOS" || raw === "DIRETOR DE SEMINOVOS") profile = "DIRETOR_SEMINOVOS";
+  else profile = raw;
+  if (!isKnownProfile(profile)) return null;
+  return {
+    profile: profile as Profile,
+    store: typeof scope.store === "string" ? scope.store : null,
+    departments: Array.isArray(scope.departments) ? scope.departments : [],
+    isMaster: scope.is_master === true
+  };
+}
+
+// simular_financiamento's module permission is department-dependent
+// (resolveSimulatorModulePermission), deliberately kept OUT of
+// authorizeToolCall's own signature (Gate: the policy module stays
+// decoupled from any single tool's argument shape) -- this is the one
+// narrow, per-tool follow-up check the activation plan's own step 3
+// describes, applied only when the primary decision already allowed
+// and only for a non-MASTER caller (MASTER already returned
+// allowed:true unconditionally inside authorizeToolCall itself).
+async function evaluateToolPolicy(
+  toolName: string,
+  args: any,
+  authority: AuthorityEnvelope | null,
+  checkModulePermission: ModulePermissionChecker
+): Promise<AuthorizeResult> {
+  const decision = await authorizeToolCall(toolName, authority, checkModulePermission);
+  if (!decision.allowed) return decision;
+  if (toolName === "simular_financiamento" && authority && !authority.isMaster) {
+    const moduleId = resolveSimulatorModulePermission(args?.department);
+    if (!moduleId) return { allowed: false, reason: "MODULE_PERMISSION_REQUIRED", detail: "department" };
+    const granted = await checkModulePermission(moduleId).catch(() => false);
+    if (!granted) return { allowed: false, reason: "MODULE_PERMISSION_DENIED", detail: moduleId };
+  }
+  return decision;
+}
+
+// =========================================================
 // Handler principal
 // =========================================================
 serve(async (req) => {
@@ -6499,6 +6564,39 @@ serve(async (req) => {
         { status: 503, headers }
       );
     }
+
+    // ---- IA-3F.1 — governed semantic tool-policy: resolve a REAL
+    // authority envelope from operational_current_scope() (the same
+    // canonical, already cross-profile-tested resolver every other
+    // Portal surface uses), via userClient so it is scoped to the
+    // caller's own auth.uid() -- never trusts anything from the
+    // request body. This is a SECOND, independent gate alongside the
+    // MASTER check above (unchanged) -- only MASTER ever reaches this
+    // line today, so this has no live behavioral effect on real
+    // traffic yet, but proves the wiring genuinely executes (see the
+    // tool-call loop below, where a denied tool never reaches
+    // dispatchTool). portal_modulos_permitidos() is called lazily, at
+    // most once per request (its own result depends only on auth.uid(),
+    // not on which tool is being checked), never a hardcoded table.
+    let authorityEnvelope: AuthorityEnvelope | null = null;
+    try {
+      const { data: scopeData, error: scopeError } = await userClient.rpc("operational_current_scope");
+      if (!scopeError) authorityEnvelope = toAuthorityEnvelope(scopeData);
+    } catch {
+      authorityEnvelope = null;
+    }
+    let allowedModuleIdsCache: string[] | null = null;
+    const checkModulePermission: ModulePermissionChecker = async (moduleId: string): Promise<boolean> => {
+      if (allowedModuleIdsCache === null) {
+        try {
+          const { data, error } = await userClient.rpc("portal_modulos_permitidos");
+          allowedModuleIdsCache = !error && Array.isArray(data) ? data : [];
+        } catch {
+          allowedModuleIdsCache = [];
+        }
+      }
+      return allowedModuleIdsCache.includes(moduleId);
+    };
 
     // ---- Body (Parte 10-11) — só lê message/conversation, nunca
     // user_id/perfil/loja/departamento vindos do cliente. ----
@@ -6626,7 +6724,27 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
         let parsedArgs: any = null;
         try {
           parsedArgs = JSON.parse(call.arguments || "{}");
-          output = await dispatchTool(userClient, call.name, parsedArgs);
+          // IA-3F.1 — the governed semantic tool-policy decision runs
+          // BEFORE dispatchTool is ever called. A denial short-circuits
+          // here: dispatchTool (and therefore every RPC/backend call it
+          // could make) is never invoked for a denied tool — proven by
+          // the integration test added this Wave (a denied case's own
+          // dispatch-call counter stays at 0). Only the reason CODE is
+          // logged server-side, never raw policy internals in the
+          // response itself (Section 24's own "no raw SQL/RPC/policy
+          // implementation details" requirement).
+          const policyDecision = await evaluateToolPolicy(call.name, parsedArgs, authorityEnvelope, checkModulePermission);
+          if (!policyDecision.allowed) {
+            console.log(JSON.stringify({
+              request_id: requestId,
+              event: "denied_tool_policy",
+              tool: call.name,
+              reason: policyDecision.reason
+            }));
+            output = { error: "Esta consulta não está disponível para o seu perfil." };
+          } else {
+            output = await dispatchTool(userClient, call.name, parsedArgs);
+          }
         } catch (e) {
           output = { error: e instanceof ToolError ? e.message : "Não consegui executar essa consulta agora." };
         }

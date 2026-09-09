@@ -1,12 +1,26 @@
 # Brabus F&I Intelligence — Governed Semantic Tool Policy (IA-3D)
 
-Status: **FOUNDATION ONLY. NOT WIRED IN. NOT ACTIVATED.** The global
-MASTER-only gate in `portal-ai-homolog/index.ts` (unchanged this phase)
-remains the sole live authorization boundary for every real request.
-`supabase/functions/portal-ai-homolog/tool-policy.ts` exists, is fully
-tested in isolation (`tests/ia-reconciliation/tool-policy.test.mjs`,
-79/79), but `index.ts` does not `import` it — it has zero effect on the
-deployed function.
+Status (updated IA-3F.1): **WIRED IN. STILL NOT ACTIVATED for any
+non-MASTER caller.** As of IA-3F.1, `index.ts` imports and calls
+`authorizeToolCall()` before every `dispatchTool()` invocation (see
+`index.ts`'s own "IA-3F.1" comments for the exact integration point) —
+this module is a real, second, independent gate now, not inert code.
+The global MASTER-only gate remains **unchanged and is still the gate
+that matters for all real traffic today**: no non-MASTER caller can
+reach the tool-dispatch path at all (403 first), so in practice this
+policy layer currently only ever evaluates MASTER requests, for which
+`authorizeToolCall()` returns `allowed:true` unconditionally (its own
+MASTER bypass) — **except** for a genuinely unregistered tool name,
+which is denied even for MASTER (`TOOL_NOT_REGISTERED` is checked
+before the MASTER bypass). Proven end-to-end against the real,
+deployed handler by `tests/ai-uat-e2e/policy-dispatch-integration.mjs`
+(7/7): an allowed real tool dispatches its backend RPC exactly once;
+an unregistered tool name dispatches zero backend RPCs. The original
+79/79 isolated policy-logic tests
+(`tests/ia-reconciliation/tool-policy.test.mjs`) are unchanged and
+still pass. Activating real non-MASTER traffic through this policy
+(narrowing the global MASTER gate itself) remains a separate, later,
+explicitly-authorized decision — not performed by this Wave.
 
 ## 1. Why a policy foundation, not an activation
 
@@ -160,27 +174,42 @@ wired into TEXT's own `dispatchTool()`, Voice/Realtime inherit it
 automatically through that same bridge, with no separate Voice policy
 registry ever created.
 
-## 11. Activation plan (future wave, not this one)
+## 11. Activation plan (updated IA-3F.1 — steps 1/2/3/5 now DONE)
 
-1. Construct `AuthorityEnvelope` from a real, live
-   `userClient.rpc("operational_current_scope")` call, immediately
-   after the existing MASTER-gate-equivalent session check.
-2. Call `authorizeToolCall(toolName, envelope, checkModulePermission)`
-   inside `dispatchTool()`, before the existing per-tool argument
-   validation — `checkModulePermission` must call the real
-   `portal_modulos_permitidos()` RPC live, never a hardcoded table.
-3. For `simular_financiamento`, resolve
-   `resolveSimulatorModulePermission(args.department)` and check it
-   the same way.
-4. Apply `checkDepartmentScope()`/`checkStoreScope()` to every relevant
-   tool argument before it reaches the tool's own implementation.
-5. Keep the global MASTER gate in place initially — this policy layer
-   becomes a **second**, narrower gate for non-MASTER callers, not a
-   replacement, until non-MASTER activation is separately,
-   explicitly authorized.
-6. Confirm `HOMOLOG_PLATFORM_VERIFY_JWT_HARDENING_PENDING` and
-   `CURRENT_SUPABASE_OPENAI_KEY_ENVIRONMENT_BINDING_UNPROVEN` (see
-   `docs/IA-RECONCILIATION-V2.md` §22–23) are both closed before any
-   real non-MASTER traffic is ever allowed to reach this code path.
+1. ✅ **Done (IA-3F.1).** `AuthorityEnvelope` is constructed from a
+   real, live `userClient.rpc("operational_current_scope")` call,
+   immediately after the kill-switch check (which itself runs
+   immediately after the MASTER gate).
+2. ✅ **Done (IA-3F.1).** `authorizeToolCall(toolName, envelope,
+   checkModulePermission)` is called before `dispatchTool()`, inside
+   the tool-call loop (not inside `dispatchTool()` itself — the call
+   site is the loop that invokes it, functionally equivalent).
+   `checkModulePermission` calls the real `portal_modulos_permitidos()`
+   RPC live (lazily, at most once per request), never a hardcoded
+   table.
+3. ✅ **Done (IA-3F.1).** `simular_financiamento` resolves
+   `resolveSimulatorModulePermission(args.department)` and checks it
+   via `evaluateToolPolicy()`'s own narrow follow-up, exactly as
+   planned.
+4. ⬜ **Not done.** `checkDepartmentScope()`/`checkStoreScope()` are
+   **not yet applied** to tool arguments — deliberately deferred
+   (IA-3F.1's own scoping decision): both are unconditional no-ops for
+   MASTER (`authority.isMaster` returns `allowed:true` immediately),
+   the only caller who can reach this code today, so wiring them now
+   would add real code risk (per-tool argument-field extraction) for
+   zero live behavioral benefit. Carried as an explicit open item for
+   whichever wave first authorizes non-MASTER activation.
+5. ✅ **Done (IA-3F.1).** The global MASTER gate is unchanged and
+   still the effective gate for all real traffic — this policy layer
+   is confirmed (by a real, live, end-to-end integration test) to be a
+   genuine second, independent, narrower gate, not a replacement.
+6. ⬜ **Still open.** `HOMOLOG_PLATFORM_VERIFY_JWT_HARDENING_PENDING`
+   was closed in IA-3F (platform `verify_jwt=true` on all 3 homolog
+   functions). `CURRENT_SUPABASE_OPENAI_KEY_ENVIRONMENT_BINDING_UNPROVEN`
+   remains open (see `docs/IA-RECONCILIATION-V2.md` §22, §25, §26) —
+   still required before any real non-MASTER traffic, and before any
+   real OpenAI traffic of any kind.
 
-Not executed this wave.
+Steps 1/2/3/5 executed this Wave (IA-3F.1); step 4 deliberately
+deferred; step 6 partially closed. Non-MASTER activation itself
+remains a separate, later, explicitly-authorized decision.
