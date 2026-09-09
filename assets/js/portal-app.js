@@ -5011,7 +5011,21 @@ function renderFechamentoCompetenciaPreview(){
   const periodoNome=PERIODO_SELECIONADO?.nome_periodo||'Datas manuais';
   const fechamento=fechamentoAtual();
 
-  const rows=preview.linhas.slice(0,40).map(l=>`
+  // RH-5C.4B, UAT VISIBILITY ONLY -- not a financial change, not a
+  // production UX decision (Gate 12 of that Wave's own brief). The
+  // real preview array (preview.linhas) already holds every row --
+  // VENDEDOR rows are appended first (see calcularPreviewFechamentoCompetenciaSegura,
+  // ~line 4903), so a period with more than 40 real sellers (this one:
+  // 62) pushes every GERENTE/ANALISTA/GESTOR F&I row past the old
+  // slice(0,40) cutoff, making them invisible in this preview table
+  // even though they were always correctly computed. Raised to 500
+  // (a bounded, generous margin over today's 86 rows, not an
+  // unbounded render) specifically so the Human's RH-5C.3 UAT can see
+  // the corrected GERENTE NOVOS rows. Whether the real 40-row limit
+  // should change for PRODUCTION is a separate decision, not made
+  // here -- revisit/revert after this Wave's Human UAT concludes.
+  const PREVIEW_ROW_LIMIT_RH5C4B_UAT=500;
+  const rows=preview.linhas.slice(0,PREVIEW_ROW_LIMIT_RH5C4B_UAT).map(l=>`
     <tr><td><b>${l.loja}</b></td><td>${l.perfil}</td><td>${l.nome}</td><td>${l.status}</td><td>${l.m.vendidas||0}</td><td>${l.m.financiadas||0}</td><td>${fmtMoney(l.m.retorno||0)}</td><td>${fmtMoney(l.c.spfLiquido||0)}</td><td>${fmtMoney(l.c.rentTotal||0)}</td><td><b>${fmtMoney(l.comissao||0)}</b></td></tr>`).join('');
 
   const hist=(FECHAMENTOS_COMISSAO||[]).slice(0,20).map(f=>renderFechamentoHistoricoRow(f,`
@@ -5054,9 +5068,10 @@ function renderFechamentoCompetenciaPreview(){
       <div class="fechamentoWarning"><b>Atenção:</b> ao fechar, o Portal grava uma foto das linhas de comissão em snapshot_comissoes. A Prévia RH/DP não grava nada — é só para conferência.</div>
     </div>
     <h3 style="margin-top:24px">Prévia das linhas do snapshot</h3>
+    <p class="note" style="color:#caa200"><b>UAT LOCAL — VISUALIZAÇÃO COMPLETA DA PRÉVIA</b> (limite temporário de exibição elevado só neste ambiente local, para conferência; nenhum valor foi recalculado).</p>
     <p class="note">Tabela densa (10 colunas numéricas) — mantida em formato de tabela com rolagem horizontal própria; transformar cada linha em card prejudicaria a leitura comparativa entre vendedores.</p>
     <div class="tableWrapScroll"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Retorno</th><th>70% SPF</th><th>Rentab.</th><th>Comissão</th></tr></thead><tbody>${rows||'<tr><td colspan="10">Nenhuma linha prevista para o período.</td></tr>'}</tbody></table></div>
-    ${preview.linhas.length>40?`<p class="note">Exibindo as primeiras 40 linhas de ${preview.linhas.length} previstas.</p>`:''}
+    ${preview.linhas.length>PREVIEW_ROW_LIMIT_RH5C4B_UAT?`<p class="note">Exibindo as primeiras ${PREVIEW_ROW_LIMIT_RH5C4B_UAT} linhas de ${preview.linhas.length} previstas.</p>`:''}
     <h3 style="margin-top:24px">Histórico de Fechamentos</h3>
     <div class="adminListWrap">${hist||'<p class="note" style="padding:16px">Nenhum fechamento encontrado.</p>'}</div>
     ${(SNAPSHOT_VIEW||[]).length?`<div class="snapshotBox"><h3>Snapshot Visualizado</h3><div class="tableWrapScroll"><table class="adminTable"><thead><tr><th>Loja</th><th>Perfil</th><th>Nome</th><th>Status</th><th>Vend.</th><th>Fin.</th><th>Comissão</th></tr></thead><tbody>${snapRows}</tbody></table></div>${SNAPSHOT_VIEW.length>60?`<p class="note">Exibindo 60 de ${SNAPSHOT_VIEW.length} linhas.</p>`:''}</div>`:''}`;
