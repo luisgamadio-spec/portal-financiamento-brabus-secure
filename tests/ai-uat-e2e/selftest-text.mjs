@@ -3,6 +3,22 @@
 // on top. Not the final Playwright suite -- a fast sanity pass on the
 // mock+bootstrap plumbing itself.
 const BASE = process.argv[2] || "http://127.0.0.1:8801";
+const MOCK_BASE = process.argv[3] || "http://127.0.0.1:8790";
+
+// IA-3C -- this file's scenarios are all POSITIVE (dispatch-correctness)
+// cases, written before the real ia_texto_habilitada kill switch
+// existed. Explicitly enable it in the mock's operational_portal_config()
+// state before running them, matching the same "mock true for positive
+// tests" discipline the new kill-switch-specific suite (see
+// kill-switch-e2e.mjs) uses for its own negative cases. This file does
+// not test kill-switch STATES itself -- that is kill-switch-e2e.mjs's
+// job -- it only needs the switch turned on so its pre-existing tool-
+// dispatch assertions remain meaningful.
+await fetch(MOCK_BASE + "/__uat/set-portal-config", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ rows: [{ chave: "ia_texto_habilitada", valor: "true" }], forceRpcError: false })
+});
 
 async function call(message, conversation = [], authHeader = "Bearer uat-mock-access-token") {
   const resp = await fetch(BASE + "/", {

@@ -115,6 +115,23 @@ const NON_MASTER_USER = {
 const MASTER_ACCESS_TOKEN = "uat-mock-access-token";
 const NON_MASTER_ACCESS_TOKEN = "uat-mock-non-master-access-token";
 
+// ---------- IA-3C: controllable operational_portal_config() mock ----------
+// The real ia_texto_habilitada/ia_voz_habilitada kill switches are read
+// via userClient.rpc("operational_portal_config"), never a direct table
+// read (mirrors the real RPC's own allowlist contract). This mock lets
+// a test set the current "row set" and/or force an RPC-level error
+// BEFORE issuing a request, via a small control endpoint
+// (POST /__uat/set-portal-config), matching the existing
+// /__uat/log,/__uat/ping control-endpoint convention. Keys not present
+// in `rows` correctly simulate "missing row" (same fail-closed path
+// the real code takes for an absent key) -- nothing here invents a
+// key the caller didn't explicitly set.
+let PORTAL_CONFIG_STATE = { rows: [], forceRpcError: false };
+function setPortalConfigState(next) {
+  if (typeof next.forceRpcError === "boolean") PORTAL_CONFIG_STATE.forceRpcError = next.forceRpcError;
+  if (Array.isArray(next.rows)) PORTAL_CONFIG_STATE.rows = next.rows;
+}
+
 const log = [];
 function record(kind, detail) {
   log.push({ t: Date.now(), kind, detail });
@@ -277,6 +294,13 @@ async function handleRest(req, res, url) {
 
     if (name === "usuario_logado_fi" || name === "registrar_meu_login") return json(res, 200, [FIXED_USER]);
     if (name === "operational_record_access_event") return json(res, 200, { ok: true });
+    if (name === "operational_portal_config") {
+      record("rpc.operational_portal_config", { forceRpcError: PORTAL_CONFIG_STATE.forceRpcError, rows: PORTAL_CONFIG_STATE.rows });
+      if (PORTAL_CONFIG_STATE.forceRpcError) {
+        return json(res, 500, { error: "mock_rpc_error", message: "simulated operational_portal_config() failure (IA-3C test harness)" });
+      }
+      return json(res, 200, { rows: PORTAL_CONFIG_STATE.rows });
+    }
     if (name in FIXTURES) return json(res, 200, FIXTURES[name]);
     if (name === "operational_metrics") return json(res, 200, operationalMetricsFixture(params));
 
@@ -521,6 +545,14 @@ const server = createServer(async (req, res) => {
   }
   if (url.pathname === "/__uat/log") return json(res, 200, log);
   if (url.pathname === "/__uat/ping") return json(res, 200, { ok: true });
+  if (url.pathname === "/__uat/set-portal-config" && req.method === "POST") {
+    const bodyRaw = await readBody(req);
+    let next = {};
+    try { next = JSON.parse(bodyRaw.toString("utf8")); } catch { /* ignore, no-op */ }
+    setPortalConfigState(next);
+    record("uat.set_portal_config", next);
+    return json(res, 200, { ok: true, state: PORTAL_CONFIG_STATE });
+  }
 
   const fnMatch = url.pathname.match(/^\/functions\/v1\/([a-z-]+)(.*)$/);
   if (fnMatch && FUNCTION_PORTS[fnMatch[1]]) {
