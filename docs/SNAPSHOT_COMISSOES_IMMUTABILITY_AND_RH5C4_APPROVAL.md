@@ -63,11 +63,26 @@ for the privileged role that applied the migration; the canonical
 closing RPC still succeeds end-to-end against the real current open
 period using synthetic row data.
 
-**Known related debt (not fixed this wave, out of RH-5D's scope):**
-`snapshot_operational_detail` was found to share the identical gap
-(RLS/grants only, no trigger) — it was reconfirmed, not weakened, and
-left untouched per this wave's explicit table-scoping. A future wave
-should apply the same trigger pattern there.
+**Update (RH-5D.1 — closed):** `snapshot_operational_detail` shared the
+identical gap (RLS/grants only, no trigger). Migration
+`supabase/migrations/20260909140000_rh5d1_snapshot_operational_detail_immutability.sql`
+applies the same `BEFORE UPDATE/DELETE/TRUNCATE` trigger pattern to it
+(`SNAPSHOT_OPERATIONAL_DETAIL_IMMUTABLE`, SQLSTATE `0A000`), applied
+live. `master_close_commission_period` was reconfirmed as the only
+writer (two INSERT-only blocks, CHASSIS and SPF kinds); no UPDATE/
+DELETE/TRUNCATE existed anywhere against this table in the codebase or
+live functions; reopen never touches it either. Proven live via
+`BEGIN...ROLLBACK`-scoped statements only (see
+`tests/rh5d1_snapshot_operational_detail_immutability_test.js`, 18/18).
+The table was found to be genuinely empty in production at the time of
+hardening (zero closings have run through the PM-6D.2 path yet, since
+the current competence is still open) — the live UPDATE/DELETE proofs
+therefore insert a synthetic row inside the same rolled-back
+transaction to exercise the per-row trigger path; TRUNCATE, being a
+statement-level trigger, was proven directly against the empty table.
+Both primary payroll snapshot layers (`snapshot_comissoes` and
+`snapshot_operational_detail`) are now DB-level immutable —
+**RH_SNAPSHOT_IMMUTABILITY_PARITY_COMPLETE**.
 
 ## RH-5C.4B preview row-limit — resolved (Gate 21)
 
