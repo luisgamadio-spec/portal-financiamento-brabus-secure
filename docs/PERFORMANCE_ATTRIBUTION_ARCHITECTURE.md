@@ -1,12 +1,86 @@
 # PERFORMANCE — Individual Analyst Attribution Architecture
 
 **Status:** design only. Nothing here is implemented, applied, or registered.
-**Waves:** PERF-3, PERF-3.1.
+**Waves:** PERF-3, PERF-3.1, RH-ANALYST-3 (product contract).
 **Classification:** `PERFORMANCE_ANALYST_ATTRIBUTION_ARCHITECTURE_READY_FOR_PRODUCT_DECISION`.
 
 This document records forensic evidence that is expensive to re-derive — it required
 reading the original Base 01/02/03 source workbooks, which live outside this
 repository and are not versioned anywhere. Read this before re-auditing.
+
+---
+
+## 0-BIS. PRODUCT CONTRACT — periods and participants (RH-ANALYST-3)
+
+Human product contract, recorded for PERF-4. **Nothing here is implemented.**
+
+PERFORMANCE is a **relatively simple historical ranking among ANALISTAS** — not an
+operational scoring platform. The Human needs to see **January 2026 through today**.
+
+### Participants
+
+Ranked entity: **ANALISTA only.** Never vendedores, gerentes, Gestor F&I, RH, MASTER,
+or stores. A store may be an *attribution dimension*, never a ranked participant.
+
+### Period model — CALENDAR MONTHS
+
+Not payroll competências. The commission competência runs 21→20; PERFORMANCE uses
+calendar months, unless later evidence proves an existing canonical rule otherwise.
+These two must never be silently equated.
+
+| View | Period | Status | Notes |
+| --- | --- | --- | --- |
+| Jan 2026 | 01-01 → 01-31 | CLOSED | historical authority unproven — see below |
+| Feb 2026 | 02-01 → 02-28 | CLOSED | idem |
+| Mar 2026 | 03-01 → 03-31 | CLOSED | idem |
+| Apr 2026 | 04-01 → 04-30 | CLOSED | idem |
+| May 2026 | 05-01 → 05-31 | CLOSED | idem |
+| Jun 2026 | 06-01 → 06-30 | CLOSED | idem |
+| Jul 2026 | 07-01 → 07-31 | CLOSED | idem |
+| Aug 2026 | 08-01 → 08-31 | CLOSED | idem |
+| Sep 2026 | 09-01 → 09-30 | CURRENT / OPEN | |
+| Oct / Nov / Dec 2026 | — | FUTURE | must not be fabricated |
+| **Q1** | 2026-01-01 → 2026-04-30 | **CLOSED** | Jan+Feb+Mar+Apr |
+| **Q2** | 2026-05-01 → 2026-08-31 | **CLOSED** | May+Jun+Jul+Aug |
+| **Q3** | 2026-09-01 → 2026-12-31 | **OPEN** | accrues; closes only after December is complete and data is final |
+| **YTD** | 2026-01-01 → current authoritative data date | ACCUMULATED | never projects beyond real data |
+
+"Quadrimester" here means a **four-month** block, exactly as the Human defined it.
+
+### Scoring — unchanged
+
+A Retorno Novos (bruto c/ 70% SPF) 35/17 · B Retorno Seminovos (bruto c/ 70% SPF) 35/17 ·
+C UND Financiado 15/8 · D **UND SPF — quantity, never monetary** 15/8 · **max 100**.
+Tie policy stays FULL_POINTS_COMPETITION_RANKING. The kernel is frozen
+(`assets/js/performance-scoring.js`, 111/111).
+
+### Attribution baseline — from Option C
+
+The official analyst responsible for a store during a period receives that store's
+attributable results **for the portion of the period they held responsibility**. A
+mid-period handover must split. Never use month-end analyst, current analyst,
+alphabetical analyst, or current roster.
+
+`analista_responsabilidade_janelas(loja, start, end)` already returns exactly these
+windows and is live as of RH-ANALYST-3.
+
+### THE HISTORICAL GAP — read this before building anything
+
+Responsibility authority starts **2026-08-21**, prospectively. PERFORMANCE must show
+**January 2026** onward. Roughly seven and a half of the requested months therefore have
+**no governed responsibility authority**, and none may be fabricated.
+
+Before any PERFORMANCE UI exists, each historical month must be classified
+**individually** as `AUTHORITATIVE`, `RECONSTRUCTABLE_WITH_HIGH_CONFIDENCE`, `PARTIAL`
+or `UNRESOLVED`, from existing sources only. Known constraints already established:
+
+- Frozen closings cover only 2026-05-21 → 2026-08-20 — **January–April have no closing
+  at all**.
+- Analyst snapshot rows carry **no NOVOS/SEMINOVOS split** (Categories A and B).
+- **No SPF quantity exists in any snapshot** (Category D).
+- Analyst snapshot identity is a name string; 227 of 235 rows have no CPF.
+
+That is the substance of PERF-4.
 
 ---
 
