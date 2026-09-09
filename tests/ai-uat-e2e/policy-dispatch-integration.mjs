@@ -68,13 +68,18 @@ function waitForReady(url, timeoutMs = 15000) {
 
 async function main() {
   const mockProc = spawn(process.execPath, [path.join(HERE, "mock-backend.mjs"), String(MOCK_PORT)], { stdio: "inherit" });
+  // IA-3G.4 -- stdout piped (not "inherit") so this test can parse the
+  // handler's own structured console.log lines (e.g. the "completed"
+  // event's `timings` field) while still echoing everything to this
+  // process's own stdout, exactly like "inherit" did before.
+  let textStdout = "";
   const textProc = spawn(
     "npx",
     ["--yes", "deno", "run", "--allow-net", "--allow-env", "--allow-read", "--import-map=import_map.json", "bootstrap-text.ts"],
     {
       cwd: path.join(HERE, "deno"),
       shell: true,
-      stdio: "inherit",
+      stdio: ["ignore", "pipe", "inherit"],
       env: {
         ...process.env,
         UAT_LOCAL_PORT: String(TEXT_PORT),
@@ -86,6 +91,17 @@ async function main() {
       }
     }
   );
+
+  textProc.stdout.on("data", (chunk) => {
+    process.stdout.write(chunk);
+    textStdout += chunk.toString();
+  });
+
+  function lastCompletedTimings() {
+    const lines = textStdout.split("\n").filter((l) => l.includes('"event":"completed"'));
+    if (!lines.length) return null;
+    try { return JSON.parse(lines[lines.length - 1]).timings ?? null; } catch { return null; }
+  }
 
   const cleanup = () => {
     killTree(mockProc);
@@ -125,6 +141,16 @@ async function main() {
     check("ALLOW case: HTTP 200", allowResult.status === 200, allowResult);
     check("ALLOW case: policy permitted dispatch -- operational_metrics called exactly once", afterMetrics - beforeMetrics === 1, { before: beforeMetrics, after: afterMetrics });
     check("ALLOW case: real tool result reached the model (no policy-denial text)", !JSON.stringify(allowResult.body).includes("não está disponível para o seu perfil"), allowResult.body);
+
+    // ---------- IA-3G.4: latency instrumentation shape ----------
+    const timings = lastCompletedTimings();
+    check("timings: present on the completed log line", !!timings, timings);
+    check("timings: auth_ms is a number", timings && typeof timings.auth_ms === "number", timings);
+    check("timings: master_gate_ms is a number", timings && typeof timings.master_gate_ms === "number", timings);
+    check("timings: config_scope_ms is a number", timings && typeof timings.config_scope_ms === "number", timings);
+    check("timings: openai_pass_ms has one entry per OpenAI round trip (2 for this tool-using question)", timings && Array.isArray(timings.openai_pass_ms) && timings.openai_pass_ms.length === 2, timings);
+    check("timings: tool_dispatch_ms records exactly the one real dispatch (consultar_resultado)", timings && Array.isArray(timings.tool_dispatch_ms) && timings.tool_dispatch_ms.length === 1 && timings.tool_dispatch_ms[0].name === "consultar_resultado", timings);
+    check("timings: no sensitive content leaked (no prompt/response text, no email/CPF/token shape)", !JSON.stringify(timings).match(/@|\d{3}\.\d{3}\.\d{3}-\d{2}|Bearer |eyJ/), timings);
 
     // ---------- DENY case (unregistered tool) ----------
     // "No dispatch" is scoped to dispatchTool's own business RPCs, not

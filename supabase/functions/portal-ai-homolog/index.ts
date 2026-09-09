@@ -6474,6 +6474,22 @@ serve(async (req) => {
   const headers = { ...corsHeaders(origin), "Content-Type": "application/json" };
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
+  // IA-3G.4 -- temporary latency forensics instrumentation. Stage
+  // durations only, keyed by requestId (already a random, non-identity
+  // correlation id -- never the caller's auth.uid()). Never logs
+  // prompt/response content, tool arguments/results, headers, or any
+  // financial row -- only elapsed milliseconds, tool NAMES (already
+  // logged elsewhere in this file as safe), and call counts. Meant to
+  // be read from Edge Function logs for a handful of controlled real
+  // requests, then removed or kept permanently if genuinely useful --
+  // that decision is out of scope for this Wave (forensics only).
+  const timings: {
+    auth_ms: number | null;
+    master_gate_ms: number | null;
+    config_scope_ms: number | null;
+    openai_pass_ms: number[];
+    tool_dispatch_ms: Array<{ name: string; ms: number }>;
+  } = { auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [] };
 
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers });
@@ -6508,7 +6524,9 @@ serve(async (req) => {
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } }
     });
+    const t_authStart = Date.now();
     const { data: authData, error: authError } = await userClient.auth.getUser();
+    timings.auth_ms = Date.now() - t_authStart;
     if (authError || !authData?.user) {
       return new Response(JSON.stringify({ error: "Usuário não autenticado" }), { status: 401, headers });
     }
@@ -6516,12 +6534,14 @@ serve(async (req) => {
     // ---- Gate MASTER (Partes 7-9) — prova server-side via service role,
     // nunca confia em claim customizado vindo do browser. ----
     const adminClient = createClient(supabaseUrl, serviceKey);
+    const t_masterStart = Date.now();
     const { data: caller, error: callerError } = await adminClient
       .from("usuarios")
       .select("id, perfil, ativo")
       .eq("auth_user_id", authData.user.id)
       .eq("ativo", true)
       .maybeSingle();
+    timings.master_gate_ms = Date.now() - t_masterStart;
 
     if (callerError || !caller || String(caller.perfil).trim().toUpperCase() !== "MASTER") {
       console.log(JSON.stringify({
@@ -6563,10 +6583,12 @@ serve(async (req) => {
     // check ainda decide sozinho quem hospeda o response 503). ----
     let intelligenceEnabled = false;
     let authorityEnvelope: AuthorityEnvelope | null = null;
+    const t_configScopeStart = Date.now();
     const [cfgResult, scopeResult] = await Promise.allSettled([
       userClient.rpc("operational_portal_config"),
       userClient.rpc("operational_current_scope")
     ]);
+    timings.config_scope_ms = Date.now() - t_configScopeStart;
     if (cfgResult.status === "fulfilled" && !cfgResult.value.error) {
       const rows = cfgResult.value.data?.rows ?? [];
       const row = Array.isArray(rows) ? rows.find((r: any) => r?.chave === "ia_texto_habilitada") : null;
@@ -6691,7 +6713,9 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
         throw new ToolError("A consulta demorou demais e foi interrompida.");
       }
 
+      const t_openaiStart = Date.now();
       const response = await callOpenAI(openaiKey, input);
+      timings.openai_pass_ms.push(Date.now() - t_openaiStart);
       totalInputTokens += response?.usage?.input_tokens ?? 0;
       totalOutputTokens += response?.usage?.output_tokens ?? 0;
       lastModel = response?.model ?? OPENAI_MODEL;
@@ -6755,7 +6779,9 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
             }));
             output = { error: "Esta consulta não está disponível para o seu perfil." };
           } else {
+            const t_toolStart = Date.now();
             output = await dispatchTool(userClient, call.name, parsedArgs);
+            timings.tool_dispatch_ms.push({ name: call.name, ms: Date.now() - t_toolStart });
           }
         } catch (e) {
           output = { error: e instanceof ToolError ? e.message : "Não consegui executar essa consulta agora." };
@@ -6779,7 +6805,8 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
       model: lastModel,
       latency_ms: latencyMs,
       input_tokens: totalInputTokens,
-      output_tokens: totalOutputTokens
+      output_tokens: totalOutputTokens,
+      timings // IA-3G.4 -- stage durations only, see declaration above
     }));
 
     return new Response(
@@ -6804,7 +6831,8 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
       request_id: requestId,
       event: "error",
       latency_ms: latencyMs,
-      detail: e instanceof Error ? e.message : String(e)
+      detail: e instanceof Error ? e.message : String(e),
+      timings // IA-3G.4 -- stage durations only, see declaration above
     }));
     return new Response(JSON.stringify({ error: message, request_id: requestId }), { status: 502, headers });
   }
