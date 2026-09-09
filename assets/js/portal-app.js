@@ -4918,12 +4918,22 @@ function calcularPreviewFechamentoCompetenciaSegura(){
 
   // GERENTE — soma os vendedores da mesma loja+departamento (mesma regra do modo legado);
   // um vendedor com departamento combinado ("NOVOS/SEMINOVOS") contribui para os dois grupos.
+  // RH-5C.3 fix (Incidente SEMINOVOS_MANAGER_BUCKETING_INCIDENT, P1):
+  // a comparação anterior usava .includes('NOVOS')/.includes('SEMINOVOS')
+  // (substring) -- como "SEMINOVOS" contém literalmente a substring
+  // "NOVOS", TODO vendedor de SEMINOVOS também contaminava o bucket de
+  // NOVOS do gerente (nunca o inverso). Corrigido para igualdade exata
+  // após normalização, preservando a intenção original de que um
+  // departamento combinado ("NOVOS/SEMINOVOS") ainda contribua para os
+  // dois grupos -- só que agora por comparação exata, nunca substring
+  // (mesmo padrão já usado, com segurança, por statusGroupsFrom()).
   const gerenteBuckets={};
   vendRows.forEach(row=>{
-    const dep=String(row.department||'').toUpperCase();
+    const dep=String(row.department||'').toUpperCase().trim();
     const grupos=[];
-    if(dep.includes('NOVOS')) grupos.push('NOVOS');
-    if(dep.includes('SEMINOVOS')) grupos.push('SEMINOVOS');
+    if(dep==='NOVOS/SEMINOVOS'){grupos.push('NOVOS','SEMINOVOS');}
+    else if(dep==='NOVOS'){grupos.push('NOVOS');}
+    else if(dep==='SEMINOVOS'){grupos.push('SEMINOVOS');}
     grupos.forEach(g=>{
       const key2=row.store+'|'+g;
       if(!gerenteBuckets[key2]) gerenteBuckets[key2]={store:row.store,dep:g,m:{vendidas:0,financiadas:0,producao:0,retorno:0,spf:0,spfQty:0,items:[]}};
