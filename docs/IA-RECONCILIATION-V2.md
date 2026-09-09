@@ -672,3 +672,76 @@ live function; the existing global MASTER-only gate remains the sole
 live authorization boundary. 79/79 new synthetic/adversarial tests
 pass, 0 real Supabase project or OpenAI traffic touched, 0 non-MASTER
 profile ever activated live.
+
+## 25. IA-3F — controlled real runtime hardening
+
+Prerequisite: V2's own local Text UI foundation (IA-3E, through
+IA-3E.4's visual recomposition) was Human-approved ("Aprovado") at V2
+commit `fb6e10fc85e234421ba1480e94d1c814473be230` —
+`BRABUS_INTELLIGENCE_V2_TEXT_FOUNDATION_HUMAN_APPROVED`. That approval
+covers presentation only, not real backend activation.
+
+### 25.1 Source drift guard (read before any write)
+
+Downloaded the actually-deployed source for all 3 homolog functions
+from the real project (`yacqlelpzchcotgngwbh`) and compared it,
+line-ending-normalized, against this repo's own governed source:
+
+| Function | Result |
+|---|---|
+| `portal-ai-homolog` | Byte-identical (MD5 match after CRLF normalization) |
+| `portal-voice-homolog` | Real, expected drift: exactly the IA-3B `ia_voz_habilitada` kill-switch addition (+25 lines), never previously deployed |
+| `portal-realtime-homolog` | Same, +25 lines, same reason |
+
+No unexplained drift on any of the 3.
+
+### 25.2 Voice kill-switch migration applied
+
+`supabase/migrations/20260905100000_ia_voz_kill_switch.sql` had never
+been applied to any real project (by design, per its own header).
+Confirmed via direct read-only query before touching anything: only
+`ia_texto_habilitada` existed in `public.configuracoes`;
+`operational_portal_config()`'s own live definition did not yet
+allowlist `ia_voz_habilitada`. Applied via `supabase db query -f
+<migration>` against `yacqlelpzchcotgngwbh` only — **never** `db push`.
+Verified after: `ia_voz_habilitada = 'false'` now exists,
+`ia_texto_habilitada` unchanged at `'false'`.
+
+### 25.3 Platform `verify_jwt` hardened
+
+All 3 homolog functions redeployed (source now byte-identical to this
+repo, confirmed by a second download+diff pass after deploy) with the
+platform JWT-verification gate enabled — a new `supabase/config.toml`
+(`[functions.<slug>] verify_jwt = true`) makes this declarative/durable
+rather than a one-off CLI toggle:
+
+| Function | Before | After |
+|---|---|---|
+| `portal-ai-homolog` | `false` | `true` |
+| `portal-voice-homolog` | `false` | `true` |
+| `portal-realtime-homolog` | `false` | `true` |
+
+Live HTTP proof (no secrets sent or printed): an unauthenticated
+request to each now returns `401
+{"code":"UNAUTHORIZED_NO_AUTH_HEADER"}` and a garbage-token request
+returns `401 {"code":"UNAUTHORIZED_INVALID_JWT_FORMAT"}` — both from
+the platform gateway itself, before any app code runs. The existing
+app-level MASTER gate, kill switches, and (inert) tool-policy
+foundation are unchanged (source proven identical) — this is a second,
+independent layer, not a replacement.
+
+**Positive proof (a genuine authenticated request is not incorrectly
+rejected by this new layer) could not be completed this Wave** — no
+dedicated homolog MASTER test account exists yet (a debt already
+disclosed in IA-3C: "dedicated homolog MASTER account (IA-V2-3A/C)").
+`MASTER_RUNTIME_503_ORIGINAL_INCIDENT_INSUFFICIENT_EVIDENCE` is
+therefore **carried, not closed**. Zero real OpenAI calls were made
+this Wave as a direct consequence (Section 27 of this Wave's own brief
+gates any real OpenAI call on MASTER auth being proven first).
+
+### 25.4 Regression re-proof
+
+Re-ran the full 232-test structural/policy suite (`tests/
+ia-reconciliation/*.test.mjs`) and `deno check` on all 4 relevant
+files — unchanged, all green, confirming the redeploy changed nothing
+about application behavior beyond the platform JWT gate.

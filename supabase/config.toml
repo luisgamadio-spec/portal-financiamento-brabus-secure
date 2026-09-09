@@ -1,0 +1,10 @@
+project_id = "yacqlelpzchcotgngwbh"
+
+[functions.portal-ai-homolog]
+verify_jwt = true
+
+[functions.portal-voice-homolog]
+verify_jwt = true
+
+[functions.portal-realtime-homolog]
+verify_jwt = true
