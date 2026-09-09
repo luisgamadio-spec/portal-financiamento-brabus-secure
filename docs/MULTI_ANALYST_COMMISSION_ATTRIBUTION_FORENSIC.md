@@ -1,8 +1,57 @@
 # Multi-Analyst Commission Attribution — Forensic Record
 
-**Wave:** RH-ANALYST-1. **Type:** read-only forensic. Nothing was changed, fixed or applied.
+**Waves:** RH-ANALYST-1 (forensic), RH-ANALYST-2 (business decision + authority design).
 **Classification:** `MULTI_ANALYST_COMMISSION_ATTRIBUTION_STRUCTURALLY_UNSAFE`
 **Payroll risk:** **P2 today — becomes P1 at the next closing** if a second analyst is entitled to commission.
+
+---
+
+## 0. BUSINESS MODEL DECISION — RESOLVED (RH-ANALYST-2)
+
+**The Human has decided: OPTION C.**
+
+> For commission purposes, a store has **at most ONE official F&I analyst
+> responsible at any given time.**
+
+Two ANALISTA users simultaneously active in the same store does **not** mean the store
+commission should be split, duplicated, assigned operation-by-operation, or paid to
+both. The additional registration may represent training, replacement, transition or
+handover.
+
+Therefore `MULTI_ANALYST_BUSINESS_RULE_REQUIRES_HUMAN_DECISION` is **RESOLVED**.
+
+### What this closes
+
+- The canonical commission question is now *"who is the official responsible analyst
+  for this store at this date?"* — not *"who handled this operation?"*.
+- A temporal store-responsibility authority is the correct commission architecture.
+- Model B from the RH-ANALYST-1 option matrix is confirmed as the commission answer.
+
+### What this does NOT close
+
+| Still open | State |
+| --- | --- |
+| Which analyst is officially responsible for Barra Funda today | **`BARRA_FUNDA_OFFICIAL_ANALYST_ASSIGNMENT_PENDING`** |
+| The current arbitrary rule | **`ALPHABETICAL_ANALYST_SELECTION_PENDING_RETIREMENT`** |
+| PERFORMANCE individual ranking | not superseded — see PERFORMANCE_ATTRIBUTION_ARCHITECTURE.md |
+
+**No responsible analyst was inferred or assigned.** Alphabetical order, `criado_em`,
+login activity, salary amount, absence records and user id were all explicitly rejected
+as signals — the identity of the official analyst is a business fact the system must be
+told, never one it guesses.
+
+### Authority built (design + tests, NOT applied)
+
+`supabase/migrations/20260909120000_rh_analyst2_analista_responsavel_loja.sql` —
+drafted, proven live inside `BEGIN…ROLLBACK`, deliberately not applied.
+See `tests/rh_analyst2_responsabilidade_test.js` (50/50).
+
+Key semantics: responsibility is `[valid_from, valid_to)` — **end exclusive**, so a
+handover on day D yields `A=[…, D)` and `B=[D, …)` with neither a one-day overlap nor a
+one-day gap. Identity is `usuarios.id`, never a name or CPF. A database-level
+`EXCLUDE USING gist` constraint makes two concurrent responsible analysts for one store
+**impossible to insert**, and a missing assignment resolves to NULL so callers must fail
+closed rather than fall back to alphabetical order.
 
 ---
 
