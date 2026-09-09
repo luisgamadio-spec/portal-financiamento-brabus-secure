@@ -1,24 +1,27 @@
 #!/usr/bin/env node
 /*
- * PERF-1 -- Matriz de testes determinísticos do núcleo de pontuação
- * PERFORMANCE (assets/js/performance-scoring.js).
+ * PERF-1/PERF-2 -- Matriz de testes determinísticos do núcleo de
+ * pontuação PERFORMANCE (assets/js/performance-scoring.js).
  *
- * Cobre exatamente o que o brief PERF-1 especificou de forma completa:
- *   - seções 12/13/14/15: 35/17/0 (Novos), 35/17/0 (Seminovos),
+ * Cobre o que o Humano especificou de forma completa:
+ *   - PERF-1 seções 12/13/14/15: 35/17/0 (Novos), 35/17/0 (Seminovos),
  *     15/8/0 (UND Financiado), 15/8/0 (UND SPF);
- *   - seção 16: máximo teórico = 100 pontos, provado;
- *   - seção 17: total = soma das 4 categorias, ranking por total DESC;
- *   - seção 18/49: empate NUNCA resolvido em silêncio;
- *   - seção 19: atividade zero não vira 1º lugar;
- *   - seção 39: fixtures normal / 1 participante / 2 participantes /
- *     muitos / categoria toda zerada / retorno negativo / empate no 1º /
- *     empate no 2º / empate no total / sem SPF / sem financiamento /
- *     só Novos / só Seminovos / ativo nos dois.
+ *   - PERF-1 seção 16: máximo individual = 100 pontos, provado;
+ *   - PERF-1 seção 17: total = soma das 4 categorias, ranking por total;
+ *   - PERF-2 seção 2.4: FULL_POINTS_COMPETITION_RANKING -- todos os
+ *     empatados recebem os pontos INTEGRAIS da posição empatada, e as
+ *     posições seguintes são puladas competitivamente;
+ *   - PERF-2 seção 20: as cinco formas de empate em cada faixa de
+ *     pontuação, empate no total, e prova de que ordem alfabética e
+ *     ordem de entrada nunca afetam pontos;
+ *   - PERF-2 seção 57: fixture obrigatória do empate triplo no 2º lugar
+ *     em UND SPF (1º = 15; três empatados = 8 cada; próximo = posição 5);
+ *   - PERF-2 seção 21: atividade zero não vence;
+ *   - PERF-2 seção 22: valores negativos não são coagidos para cima.
  *
  * Nenhuma leitura de banco, nenhuma rede, nenhum dado real -- o núcleo é
  * uma função pura e os fixtures são sintéticos.
  */
-const assert = require('assert');
 const path = require('path');
 const S = require(path.join(__dirname, '..', 'assets', 'js', 'performance-scoring.js'));
 
@@ -36,7 +39,7 @@ function catPts(res, key, id) { return res.categories.find(c => c.key === key).p
 function cat(res, key) { return res.categories.find(c => c.key === key); }
 
 // ---------------------------------------------------------------
-console.log('\n[1] Contrato de pontuação (seções 12-16)');
+console.log('\n[1] Contrato de pontuação (PERF-1, 12-16)');
 // ---------------------------------------------------------------
 {
   check('1.1 quatro categorias exatas', S.CATEGORIES.map(c => c.key).join(',') ===
@@ -45,7 +48,7 @@ console.log('\n[1] Contrato de pontuação (seções 12-16)');
   check('1.3 Seminovos = 35/17', S.CATEGORIES[1].first === 35 && S.CATEGORIES[1].second === 17);
   check('1.4 UND Financiado = 15/8', S.CATEGORIES[2].first === 15 && S.CATEGORIES[2].second === 8);
   check('1.5 UND SPF = 15/8', S.CATEGORIES[3].first === 15 && S.CATEGORIES[3].second === 8);
-  check('1.6 máximo teórico = 100', S.MAX_TOTAL_POINTS === 100);
+  check('1.6 máximo individual = 100', S.MAX_TOTAL_POINTS === 100);
   check('1.7 SPF é quantidade, não valor (unidade UND)', S.CATEGORIES[3].unit === 'UND');
   check('1.8 Retorno é monetário (unidade BRL)', S.CATEGORIES[0].unit === 'BRL' && S.CATEGORIES[1].unit === 'BRL');
 }
@@ -73,12 +76,12 @@ console.log('\n[2] Ranking normal, 3+ participantes, sem empate');
   check('2.12 total C = 0+35+0+0 = 35', pts(res, 'C') === 35);
   check('2.13 ranking geral por total DESC', res.rows.map(r => r.id).join('') === 'ABC');
   check('2.14 posições gerais 1,2,3', res.rows.map(r => r.overallRank).join(',') === '1,2,3');
-  check('2.15 nenhum empate pendente', res.unresolved === false);
-  check('2.16 soma nunca excede o máximo', res.rows.every(r => r.totalPoints <= S.MAX_TOTAL_POINTS));
+  check('2.15 nenhum empate', res.hasTies === false);
+  check('2.16 nenhum individual excede o máximo', res.rows.every(r => r.totalPoints <= S.MAX_TOTAL_POINTS));
 }
 
 // ---------------------------------------------------------------
-console.log('\n[3] Máximo real de 100 pontos (seção 16)');
+console.log('\n[3] Máximo individual de 100 pontos (PERF-1, 16)');
 // ---------------------------------------------------------------
 {
   const res = S.computePerformance([
@@ -100,19 +103,18 @@ console.log('\n[4] Populações degeneradas: 1 e 2 participantes');
   check('4.2 participante único é 1º geral', um.rows[0].overallRank === 1);
 
   // Com apenas 2 participantes o perdedor de cada categoria ainda ocupa o
-  // 2º lugar -- logo ambos pontuam nas 4 categorias e o piso da dupla é
-  // alto por construção. Isso é consequência do contrato do Humano, não
-  // um ajuste: com 2 participantes, 35+17 e 15+8 são sempre distribuídos.
+  // 2º lugar -- logo ambos pontuam nas 4 categorias. Isso é consequência
+  // do contrato do Humano, não um ajuste.
   const dois = S.computePerformance([P('X', 1000, 10, 5, 2), P('Y', 10, 1000, 1, 1)]);
   check('4.3 X: 35 (Novos) + 17 (2º Semin.) + 15 + 15 = 82', pts(dois, 'X') === 82);
   check('4.4 Y: 17 + 35 + 8 + 8 = 68', pts(dois, 'Y') === 68);
   check('4.5 com 2 participantes o 2º ainda pontua', catPts(dois, 'returnNovos', 'Y') === 17);
   check('4.6 ranking geral respeita o total (X > Y)', dois.rows[0].id === 'X');
-  check('4.7 com 2 participantes todos os 100 pontos são distribuídos', pts(dois, 'X') + pts(dois, 'Y') === 150);
+  check('4.7 com 2 participantes todo o pool 1º+2º é distribuído', pts(dois, 'X') + pts(dois, 'Y') === 150);
 }
 
 // ---------------------------------------------------------------
-console.log('\n[5] Muitos participantes: só 1º e 2º pontuam (seções 12-15)');
+console.log('\n[5] Muitos participantes: só 1º e 2º pontuam');
 // ---------------------------------------------------------------
 {
   const many = [];
@@ -125,7 +127,7 @@ console.log('\n[5] Muitos participantes: só 1º e 2º pontuam (seções 12-15)'
 }
 
 // ---------------------------------------------------------------
-console.log('\n[6] Atividade zero não vira 1º lugar (seção 19)');
+console.log('\n[6] Atividade zero não vence (PERF-2, 21)');
 // ---------------------------------------------------------------
 {
   const res = S.computePerformance([P('A', 0, 0, 0, 0), P('B', 0, 0, 0, 0), P('C', 0, 0, 0, 0)]);
@@ -142,13 +144,12 @@ console.log('\n[6] Atividade zero não vira 1º lugar (seção 19)');
 }
 
 // ---------------------------------------------------------------
-console.log('\n[7] Valores negativos (seção 20)');
+console.log('\n[7] Valores negativos (PERF-2, 22)');
 // ---------------------------------------------------------------
 {
-  // Auditoria ao vivo (PERF-1): portal_finance_operations.return_value
-  // tem min = 0.00 e zero linhas negativas hoje. O núcleo mesmo assim
-  // trata negativo de forma explícita: não classifica (não é atividade
-  // positiva) e nunca é "promovido" a zero para melhorar o ranking.
+  // Auditoria ao vivo: portal_finance_operations.return_value tem
+  // min = 0.00 e zero linhas negativas hoje. O núcleo mesmo assim trata
+  // negativo explicitamente: não classifica e nunca é coagido para cima.
   const res = S.computePerformance([P('NEG', -5000, 100, 1, 1), P('POS', 100, 50, 2, 2)]);
   check('7.1 retorno negativo não é classificado', cat(res, 'returnNovos').ranking.every(r => r.id !== 'NEG'));
   check('7.2 retorno negativo não pontua', catPts(res, 'returnNovos', 'NEG') === 0);
@@ -157,59 +158,88 @@ console.log('\n[7] Valores negativos (seção 20)');
 }
 
 // ---------------------------------------------------------------
-console.log('\n[8] Empates NUNCA resolvidos em silêncio (seções 18/49)');
+console.log('\n[8] Empates -- FULL_POINTS_COMPETITION_RANKING (PERF-2, 2.4)');
 // ---------------------------------------------------------------
 {
+  // ---- categoria 35/17: dois empatados em 1º ----
   const t1 = S.computePerformance([P('A', 10000, 1, 1, 1), P('B', 10000, 2, 2, 2), P('C', 500, 3, 3, 3)]);
-  check('8.1 empate no 1º: nenhum dos dois recebe os 35', catPts(t1, 'returnNovos', 'A') === 0 && catPts(t1, 'returnNovos', 'B') === 0);
-  check('8.2 empate no 1º é reportado explicitamente', t1.ties.categories.some(t => t.category === 'returnNovos' && t.position === 1 && t.pointsAtStake === 35));
-  check('8.3 empate no 1º cita os dois participantes', t1.ties.categories.find(t => t.category === 'returnNovos').participants.map(p => p.id).sort().join('') === 'AB');
-  check('8.4 categoria marcada como não resolvida', cat(t1, 'returnNovos').unresolved === true);
-  check('8.5 3º colocado real (posição 3, não 2) não recebe os 17', catPts(t1, 'returnNovos', 'C') === 0);
-  check('8.6 posição competitiva: após 2 empatados no 1º, o próximo é 3º', cat(t1, 'returnNovos').ranking.find(r => r.id === 'C').position === 3);
-  check('8.7 pontos retidos ficam visíveis para a UI', cat(t1, 'returnNovos').ranking.find(r => r.id === 'A').pointsWithheld === 35);
+  check('8.1 dois empatados em 1º recebem 35 CADA (integral)', catPts(t1, 'returnNovos', 'A') === 35 && catPts(t1, 'returnNovos', 'B') === 35);
+  check('8.2 o empate continua reportado para a UI', t1.ties.categories.some(t => t.category === 'returnNovos' && t.position === 1 && t.pointsEach === 35));
+  check('8.3 o empate cita os dois participantes', t1.ties.categories.find(t => t.category === 'returnNovos').participants.map(p => p.id).sort().join('') === 'AB');
+  check('8.4 posição pulada competitivamente: o próximo é 3º', cat(t1, 'returnNovos').ranking.find(r => r.id === 'C').position === 3);
+  check('8.5 o 3º NÃO herda os 17 (a posição 2 não existe)', catPts(t1, 'returnNovos', 'C') === 0);
+  check('8.6 as linhas empatadas ficam marcadas como tied', cat(t1, 'returnNovos').ranking.filter(r => r.tied).length === 2);
+  check('8.7 a categoria distribuiu 70 pts (excede o pool nominal 35+17)', ['A', 'B', 'C'].reduce((a, id) => a + catPts(t1, 'returnNovos', id), 0) === 70);
 
-  const t2 = S.computePerformance([P('W', 90000, 1, 1, 1), P('A', 10000, 2, 2, 2), P('B', 10000, 3, 3, 3)]);
-  check('8.8 empate no 2º: nenhum dos dois recebe os 17', catPts(t2, 'returnNovos', 'A') === 0 && catPts(t2, 'returnNovos', 'B') === 0);
-  check('8.9 o 1º NÃO é afetado pelo empate no 2º', catPts(t2, 'returnNovos', 'W') === 35);
-  check('8.10 empate no 2º reportado com os pontos em jogo', t2.ties.categories.some(t => t.position === 2 && t.pointsAtStake === 17));
+  // ---- categoria 35/17: três empatados em 1º ----
+  const t2 = S.computePerformance([P('A', 900, 1, 1, 1), P('B', 900, 1, 1, 1), P('C', 900, 1, 1, 1), P('D', 10, 1, 1, 1)]);
+  check('8.8 três empatados em 1º recebem 35 cada', ['A', 'B', 'C'].every(id => catPts(t2, 'returnNovos', id) === 35));
+  check('8.9 após três empatados em 1º o próximo é a posição 4', cat(t2, 'returnNovos').ranking.find(r => r.id === 'D').position === 4);
+  check('8.10 e a posição 4 não pontua', catPts(t2, 'returnNovos', 'D') === 0);
 
-  const t3 = S.computePerformance([P('A', 100, 100, 1, 1), P('B', 100, 100, 1, 1)]);
-  check('8.11 empate total: ambos com 0 e nada premiado', pts(t3, 'A') === 0 && pts(t3, 'B') === 0);
-  check('8.12 empate no total geral reportado', t3.ties.overall.some(t => t.position === 1));
-  check('8.13 resultado global marcado como não resolvido', t3.unresolved === true);
+  // ---- categoria 35/17: dois empatados em 2º ----
+  const t3 = S.computePerformance([P('W', 90000, 1, 1, 1), P('A', 10000, 2, 2, 2), P('B', 10000, 3, 3, 3), P('C', 5, 4, 4, 4)]);
+  check('8.11 dois empatados em 2º recebem 17 CADA', catPts(t3, 'returnNovos', 'A') === 17 && catPts(t3, 'returnNovos', 'B') === 17);
+  check('8.12 o 1º não é afetado', catPts(t3, 'returnNovos', 'W') === 35);
+  check('8.13 após dois empatados em 2º o próximo é a posição 4', cat(t3, 'returnNovos').ranking.find(r => r.id === 'C').position === 4);
 
-  const t4 = S.computePerformance([P('A', 900, 10, 5, 9), P('B', 10, 900, 9, 5)]);
-  check('8.14 totais iguais por caminhos diferentes empatam no geral', pts(t4, 'A') === pts(t4, 'B') && t4.ties.overall.length === 1);
-  // A = 35 (Novos) + 17 (2º Semin.) + 8 (2º Fin.) + 15 (SPF) = 75
-  // B = 17 (2º Novos) + 35 (Semin.) + 15 (Fin.) + 8 (2º SPF) = 75
-  check('8.15 mas os pontos de categoria foram legitimamente atribuídos', pts(t4, 'A') === 75 && pts(t4, 'B') === 75);
-  check('8.16 empate no total NÃO anula os pontos de categoria já ganhos', catPts(t4, 'returnNovos', 'A') === 35);
+  // ---- categoria 35/17: três empatados em 2º ----
+  const t4 = S.computePerformance([P('W', 90000, 1, 1, 1), P('A', 100, 2, 2, 2), P('B', 100, 3, 3, 3), P('C', 100, 4, 4, 4), P('D', 5, 5, 5, 5)]);
+  check('8.14 três empatados em 2º recebem 17 cada', ['A', 'B', 'C'].every(id => catPts(t4, 'returnNovos', id) === 17));
+  check('8.15 após 1º + três empatados em 2º o próximo é a posição 5', cat(t4, 'returnNovos').ranking.find(r => r.id === 'D').position === 5);
 
-  // Empate a 3 no 2º lugar -- caso REAL observado na competência corrente
-  // durante a auditoria PERF-1 (UND SPF: 1º com 7, três lojas com 2).
-  const t5 = S.computePerformance([P('L1', 1, 1, 1, 7), P('L2', 1, 1, 1, 2), P('L3', 1, 1, 1, 2), P('L4', 1, 1, 1, 2)]);
-  check('8.17 empate triplo no 2º não premia ninguém', [catPts(t5, 'spfUnits', 'L2'), catPts(t5, 'spfUnits', 'L3'), catPts(t5, 'spfUnits', 'L4')].every(v => v === 0));
-  check('8.18 empate triplo listado com os 3 participantes', t5.ties.categories.find(t => t.category === 'spfUnits').participants.length === 3);
-  check('8.19 o 1º isolado recebe os 15 normalmente', catPts(t5, 'spfUnits', 'L1') === 15);
+  // ---- categoria 15/8: as mesmas formas ----
+  const q1 = S.computePerformance([P('A', 1, 1, 9, 1), P('B', 1, 1, 9, 1), P('C', 1, 1, 2, 1)]);
+  check('8.16 15/8: dois empatados em 1º recebem 15 cada', catPts(q1, 'financedUnits', 'A') === 15 && catPts(q1, 'financedUnits', 'B') === 15);
+  check('8.17 15/8: o próximo é a posição 3 e não recebe os 8', cat(q1, 'financedUnits').ranking.find(r => r.id === 'C').position === 3 && catPts(q1, 'financedUnits', 'C') === 0);
+
+  const q2 = S.computePerformance([P('A', 1, 1, 9, 1), P('B', 1, 1, 9, 1), P('C', 1, 1, 9, 1), P('D', 1, 1, 2, 1)]);
+  check('8.18 15/8: três empatados em 1º recebem 15 cada', ['A', 'B', 'C'].every(id => catPts(q2, 'financedUnits', id) === 15));
+  check('8.19 15/8: o próximo é a posição 4', cat(q2, 'financedUnits').ranking.find(r => r.id === 'D').position === 4);
+
+  const q3 = S.computePerformance([P('W', 1, 1, 20, 1), P('A', 1, 1, 5, 1), P('B', 1, 1, 5, 1), P('C', 1, 1, 2, 1)]);
+  check('8.20 15/8: dois empatados em 2º recebem 8 cada', catPts(q3, 'financedUnits', 'A') === 8 && catPts(q3, 'financedUnits', 'B') === 8);
+  check('8.21 15/8: o próximo é a posição 4', cat(q3, 'financedUnits').ranking.find(r => r.id === 'C').position === 4);
+
+  // ---- PERF-2 seção 57: fixture obrigatória ----
+  // Empate triplo no 2º em UND SPF -- forma REAL observada na competência
+  // corrente na auditoria PERF-1 (1º com 7 unidades; três com 2 unidades).
+  const spf = S.computePerformance([P('L1', 1, 1, 1, 7), P('L2', 1, 1, 1, 2), P('L3', 1, 1, 1, 2), P('L4', 1, 1, 1, 2), P('L5', 1, 1, 1, 1)]);
+  check('8.22 [S.57] 1º em UND SPF recebe 15', catPts(spf, 'spfUnits', 'L1') === 15);
+  check('8.23 [S.57] os três empatados em 2º recebem 8 CADA', ['L2', 'L3', 'L4'].every(id => catPts(spf, 'spfUnits', id) === 8));
+  check('8.24 [S.57] a próxima posição competitiva é a 5ª', cat(spf, 'spfUnits').ranking.find(r => r.id === 'L5').position === 5);
+  check('8.25 [S.57] e a 5ª posição não pontua', catPts(spf, 'spfUnits', 'L5') === 0);
+  check('8.26 [S.57] os três empatados constam do relatório de empates', spf.ties.categories.find(t => t.category === 'spfUnits' && t.position === 2).participants.length === 3);
+
+  // ---- empate no total geral ----
+  const tot = S.computePerformance([P('A', 100, 100, 1, 1), P('B', 100, 100, 1, 1)]);
+  check('8.27 empate total: ambos recebem os pontos integrais das 4 categorias', pts(tot, 'A') === 100 && pts(tot, 'B') === 100);
+  check('8.28 empate no total geral reportado', tot.ties.overall.some(t => t.position === 1 && t.totalPoints === 100));
+  check('8.29 ambos são 1º no ranking geral e marcados como empatados', tot.rows.every(r => r.overallRank === 1 && r.overallTied === true));
+  check('8.30 individual continua limitado a 100 mesmo empatado', tot.rows.every(r => r.totalPoints <= 100));
+
+  const tot2 = S.computePerformance([P('A', 100, 100, 5, 5), P('B', 100, 100, 5, 5), P('C', 1, 1, 1, 1)]);
+  check('8.31 após dois empatados em 1º geral, o próximo é o 3º geral', tot2.rows.find(r => r.id === 'C').overallRank === 3);
+  check('8.32 hasTies sinaliza empate sem bloquear nada', tot2.hasTies === true && tot2.rows.every(r => typeof r.totalPoints === 'number'));
 }
 
 // ---------------------------------------------------------------
 console.log('\n[9] Política de empate é fail-closed');
 // ---------------------------------------------------------------
 {
-  let threwShare = false, threwSkip = false, threwUnknown = false;
-  try { S.computePerformance([P('A', 1, 1, 1, 1)], { tiePolicy: 'SHARE' }); } catch (e) { threwShare = true; }
-  try { S.computePerformance([P('A', 1, 1, 1, 1)], { tiePolicy: 'SKIP' }); } catch (e) { threwSkip = true; }
+  let threwPending = false, threwUnknown = false, threwShare = false;
+  try { S.computePerformance([P('A', 1, 1, 1, 1)], { tiePolicy: 'PENDING' }); } catch (e) { threwPending = true; }
   try { S.computePerformance([P('A', 1, 1, 1, 1)], { tiePolicy: 'ALFABETICA' }); } catch (e) { threwUnknown = true; }
-  check('9.1 política SHARE recusada (decisão pendente)', threwShare);
-  check('9.2 política SKIP recusada (decisão pendente)', threwSkip);
-  check('9.3 política arbitrária recusada', threwUnknown);
-  check('9.4 padrão é PENDING', S.computePerformance([P('A', 1, 1, 1, 1)]).tiePolicy === 'PENDING');
+  try { S.computePerformance([P('A', 1, 1, 1, 1)], { tiePolicy: 'SHARE' }); } catch (e) { threwShare = true; }
+  check('9.1 a política provisória PENDING de PERF-1 agora é recusada', threwPending);
+  check('9.2 política arbitrária recusada', threwUnknown);
+  check('9.3 SHARE (nunca autorizada) recusada', threwShare);
+  check('9.4 padrão é FULL_POINTS_COMPETITION_RANKING', S.computePerformance([P('A', 1, 1, 1, 1)]).tiePolicy === 'FULL_POINTS_COMPETITION_RANKING');
+  check('9.5 a política autorizada é explicitamente aceita', S.computePerformance([P('A', 1, 1, 1, 1)], { tiePolicy: S.TIE_POLICY.FULL_POINTS_COMPETITION_RANKING }).rows[0].totalPoints === 100);
 }
 
 // ---------------------------------------------------------------
-console.log('\n[10] Perfis de atividade parcial (seção 39)');
+console.log('\n[10] Perfis de atividade parcial');
 // ---------------------------------------------------------------
 {
   const soNovos = S.computePerformance([P('N1', 5000, 0, 4, 2), P('N2', 3000, 0, 2, 1)]);
@@ -233,7 +263,7 @@ console.log('\n[10] Perfis de atividade parcial (seção 39)');
 }
 
 // ---------------------------------------------------------------
-console.log('\n[11] Integridade de entrada e determinismo');
+console.log('\n[11] Ordem nunca decide pontos (PERF-2, 20)');
 // ---------------------------------------------------------------
 {
   let dup = false, semId = false, naoNumerico = false, naoLista = false;
@@ -249,23 +279,32 @@ console.log('\n[11] Integridade de entrada e determinismo');
   const base = [P('A', 30000, 5000, 9, 5), P('B', 20000, 12000, 7, 3), P('C', 10000, 20000, 5, 1)];
   const r1 = S.computePerformance(base);
   const r2 = S.computePerformance(base.slice().reverse());
-  check('11.5 resultado independe da ordem de entrada',
-    JSON.stringify(r1.rows.map(r => [r.id, r.totalPoints])) === JSON.stringify(r2.rows.map(r => [r.id, r.totalPoints])));
+  check('11.5 ordem de entrada não altera pontos nem posições',
+    JSON.stringify(r1.rows.map(r => [r.id, r.totalPoints, r.overallRank])) ===
+    JSON.stringify(r2.rows.map(r => [r.id, r.totalPoints, r.overallRank])));
 
-  // Mutação: mudar uma métrica TEM de mudar a pontuação (prova de que
-  // não há resultado hardcoded).
+  // Ordem alfabética não pode decidir pontos: dois empatados com nomes em
+  // extremos opostos do alfabeto recebem exatamente os mesmos pontos.
+  const alfa = S.computePerformance([
+    { id: 'z', name: 'ZULMIRA', returnNovos: 5000, returnSeminovos: 1, financedUnits: 1, spfUnits: 1 },
+    { id: 'a', name: 'ANA', returnNovos: 5000, returnSeminovos: 1, financedUnits: 1, spfUnits: 1 }
+  ]);
+  check('11.6 empate: nome alfabeticamente menor NÃO ganha vantagem', pts(alfa, 'a') === pts(alfa, 'z'));
+  check('11.7 empate: ambos na mesma posição de categoria', cat(alfa, 'returnNovos').ranking.every(r => r.position === 1));
+  check('11.8 empate: ambos no mesmo rank geral', alfa.rows.every(r => r.overallRank === 1));
+  check('11.9 ordenação alfabética é apenas visual dentro do grupo empatado', alfa.rows.map(r => r.id).join('') === 'az');
+
   const mut = S.computePerformance([P('A', 1, 5000, 9, 5), P('B', 20000, 12000, 7, 3), P('C', 10000, 20000, 5, 1)]);
-  check('11.6 mutação da métrica muda a pontuação', pts(mut, 'A') !== pts(r1, 'A'));
+  check('11.10 mutação da métrica muda a pontuação (sem hardcode)', pts(mut, 'A') !== pts(r1, 'A'));
 
-  // Tolerância de meio centavo: 0.001 de diferença é o mesmo valor.
   const eps = S.computePerformance([P('A', 1000.000, 1, 1, 1), P('B', 1000.001, 1, 1, 1)]);
-  check('11.7 diferença sub-centavo é tratada como empate, não como vitória', eps.ties.categories.some(t => t.category === 'returnNovos'));
+  check('11.11 diferença sub-centavo é empate (ambos recebem 35)', catPts(eps, 'returnNovos', 'A') === 35 && catPts(eps, 'returnNovos', 'B') === 35);
   const noEps = S.computePerformance([P('A', 1000.00, 1, 1, 1), P('B', 1000.01, 1, 1, 1)]);
-  check('11.8 diferença de 1 centavo é vitória real', catPts(noEps, 'returnNovos', 'B') === 35);
+  check('11.12 diferença de 1 centavo é vitória real', catPts(noEps, 'returnNovos', 'B') === 35 && catPts(noEps, 'returnNovos', 'A') === 17);
 }
 
 // ---------------------------------------------------------------
-console.log('\n[12] Sem PII no resultado (seção 26)');
+console.log('\n[12] Sem PII no resultado (PERF-2, 33)');
 // ---------------------------------------------------------------
 {
   const res = S.computePerformance([{ id: 'u1', name: 'FULANO', cpf: '12345678901', email: 'x@y.z', returnNovos: 10, returnSeminovos: 10, financedUnits: 1, spfUnits: 1 }]);

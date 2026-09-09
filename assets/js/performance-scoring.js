@@ -3,18 +3,24 @@
  *
  * ESTADO: FUNDAÇÃO. Este arquivo NÃO está ligado a nenhuma página do
  * Portal e NÃO é carregado por index.html nem por modules/*.html. Ele
- * existe para que o contrato de pontuação -- a única parte do módulo
+ * existe para que o contrato de pontuação -- a parte do módulo
  * PERFORMANCE que o Humano especificou de forma completa e inequívoca --
  * fique implementado, versionado e provado por testes determinísticos
- * (tests/perf1_performance_scoring_test.js) enquanto a AUTORIDADE DE
- * MÉTRICA das categorias A/B permanece bloqueada. Ver o relatório PERF-1,
- * seções 8/9/10 e 15.
+ * (tests/perf1_performance_scoring_test.js).
+ *
+ * PERF-2: a política de empate foi decidida pelo Humano e está
+ * implementada aqui (FULL_POINTS_COMPETITION_RANKING). O módulo continua
+ * NÃO construído porque a ATRIBUIÇÃO INDIVIDUAL POR ANALISTA não existe
+ * no Secure: nenhuma das 143 funções do banco liga uma tabela de
+ * analista a um fato financeiro, e portal_finance_operations não possui
+ * nenhuma coluna de analista. Ver o relatório PERF-2, seções 7 e 16.
  *
  * O que este arquivo deliberadamente NÃO faz:
  *  - não lê Supabase, não conhece RPC, não conhece perfil/loja/período;
- *  - não decide QUEM participa (população de participantes é decisão
- *    pendente do Humano/autoridade -- ver relatório, seção 6);
- *  - não resolve empates em silêncio (ver TIE_POLICY abaixo).
+ *  - não decide QUEM participa -- a população (ANALISTA) é regra de
+ *    negócio do Humano, e a ATRIBUIÇÃO por analista segue bloqueada;
+ *  - não usa ordem alfabética, ordem de entrada nem timestamp para
+ *    decidir pontos.
  *
  * Ele é uma função pura: recebe métricas já apuradas por uma autoridade
  * servidora e devolve posições + pontos. Isso mantém o frontend fora da
@@ -42,21 +48,37 @@
   const MAX_TOTAL_POINTS = CATEGORIES.reduce((a, c) => a + c.first, 0);
 
   // ----------------------------------------------------------------
-  // Política de empate -- NÃO DEFINIDA PELO HUMANO (brief, seções 18/49).
+  // Política de empate -- DECIDIDA PELO HUMANO em PERF-2, seção 2.4.
   //
-  // 'PENDING' (padrão, e único valor seguro hoje): um empate em posição
-  // que vale pontos (1º ou 2º) NÃO é resolvido. Nenhum dos empatados
-  // recebe os pontos daquela posição, a categoria é marcada como
-  // `unresolved: true` e o empate é descrito em `ties[]` para a UI exibir
-  // explicitamente ao Humano. Nunca ordena por nome, por produção, por
-  // primeiro registro nem por timestamp.
+  // FULL_POINTS_COMPETITION_RANKING (padrão e única política autorizada):
+  // todos os participantes empatados numa posição que vale pontos recebem
+  // INTEGRALMENTE os pontos daquela posição. As posições seguintes são
+  // puladas pelo padrão de competition ranking.
   //
-  // 'SHARE' e 'SKIP' existem apenas como pontos de extensão nomeados,
-  // para que a decisão do Humano vire uma linha de configuração e não
-  // uma reescrita -- ambos permanecem NÃO AUTORIZADOS até decisão
-  // explícita, e por isso levantam erro se usados.
+  //   dois empatados em 1º numa categoria 35/17:
+  //     ambos = posição 1 = 35 pontos; o próximo = posição 3 = 0 pontos.
+  //   um 1º e três empatados em 2º numa categoria 15/8:
+  //     1º = 15; os três = posição 2 = 8 pontos cada;
+  //     o próximo = posição 5 = 0 pontos.
+  //
+  // Consequência explicitamente aceita pelo Humano: o total distribuído
+  // por uma categoria pode exceder o pool nominal 1º+2º. O máximo
+  // INDIVIDUAL continua sendo 100, porque cada participante só pode
+  // ocupar uma posição por categoria.
+  //
+  // O empate continua sendo reportado (tied/ties[]) para que a UI o
+  // mostre explicitamente -- mas ele já não bloqueia a premiação.
+  // Ordem alfabética, ordem de entrada, produção, primeiro registro e
+  // timestamp NUNCA decidem pontos (provado em tests, grupo [11]).
+  //
+  // 'PENDING' era a política provisória de PERF-1, mantida aqui apenas
+  // como nome reservado para que qualquer chamada antiga falhe de forma
+  // ruidosa em vez de silenciosamente reter pontos.
   // ----------------------------------------------------------------
-  const TIE_POLICY = Object.freeze({ PENDING: 'PENDING', SHARE: 'SHARE', SKIP: 'SKIP' });
+  const TIE_POLICY = Object.freeze({
+    FULL_POINTS_COMPETITION_RANKING: 'FULL_POINTS_COMPETITION_RANKING',
+    PENDING: 'PENDING'
+  });
 
   // ----------------------------------------------------------------
   // Regra de atividade zero (brief, seção 19).
@@ -108,7 +130,6 @@
     participants.forEach(function (p) { points[p.id] = 0; });
 
     const ties = [];
-    let unresolved = false;
 
     // Agrupa por valor para detectar empates reais antes de premiar.
     const groups = [];
@@ -127,35 +148,34 @@
       const tied = g.members.length > 1;
 
       if (tied && award > 0) {
-        // Empate em posição premiada: nunca resolvido em silêncio.
-        unresolved = true;
+        // Empate em posição premiada: TODOS recebem os pontos integrais.
+        // Continua reportado para a UI poder exibir "empate".
         ties.push({
           category: category.key,
           position: position,
           value: g.value,
-          pointsAtStake: award,
+          pointsEach: award,
           participants: g.members.map(function (m) { return { id: m.id, name: m.name }; })
         });
       }
 
       g.members.forEach(function (m) {
-        const awarded = (tied && award > 0) ? 0 : award;
-        points[m.id] = awarded;
+        points[m.id] = award;
         ranking.push({
           id: m.id,
           name: m.name,
           value: m[category.key],
           position: position,
           tied: tied,
-          points: awarded,
-          pointsWithheld: (tied && award > 0) ? award : 0
+          points: award
         });
       });
 
+      // Competition ranking: a próxima posição pula o tamanho do grupo.
       position += g.members.length;
     });
 
-    return { key: category.key, label: category.label, unit: category.unit, first: category.first, second: category.second, ranking: ranking, points: points, ties: ties, unresolved: unresolved };
+    return { key: category.key, label: category.label, unit: category.unit, first: category.first, second: category.second, ranking: ranking, points: points, ties: ties, hasTies: ties.length > 0 };
   }
 
   /**
@@ -168,11 +188,13 @@
    */
   function computePerformance(rawParticipants, options) {
     const opts = options || {};
-    const tiePolicy = opts.tiePolicy || TIE_POLICY.PENDING;
-    // Fail-closed: qualquer política de desempate diferente de PENDING
-    // exigiria uma decisão de produto que o Humano ainda não tomou.
-    if (tiePolicy !== TIE_POLICY.PENDING) {
-      throw new Error('Política de empate não autorizada: ' + tiePolicy + '. Decisão de produto pendente (PERF-1, seção 15).');
+    const tiePolicy = opts.tiePolicy || TIE_POLICY.FULL_POINTS_COMPETITION_RANKING;
+    // Fail-closed: FULL_POINTS_COMPETITION_RANKING é a única política
+    // autorizada pelo Humano (PERF-2, seção 2.4). Qualquer outro valor --
+    // inclusive o 'PENDING' provisório de PERF-1 -- falha ruidosamente,
+    // em vez de reter pontos em silêncio.
+    if (tiePolicy !== TIE_POLICY.FULL_POINTS_COMPETITION_RANKING) {
+      throw new Error('Política de empate não autorizada: ' + tiePolicy + '. Única política válida: FULL_POINTS_COMPETITION_RANKING (PERF-2, seção 2.4).');
     }
     if (!Array.isArray(rawParticipants)) throw new Error('Lista de participantes inválida.');
 
@@ -195,7 +217,14 @@
       return { id: p.id, name: p.name, breakdown: breakdown, totalPoints: total };
     });
 
-    rows.sort(function (a, b) { return b.totalPoints - a.totalPoints; });
+    // Ordenação: pontos DESC. O desempate por nome é APENAS ordenação
+    // visual determinística DENTRO de um grupo já empatado (brief 3.5) --
+    // não altera overallRank nem pontos, e é aplicado depois que os
+    // pontos já foram atribuídos. Prova disso no teste 11.5/11.9.
+    rows.sort(function (a, b) {
+      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
 
     // Ranking geral -- mesma regra competitiva, mesmos empates explícitos.
     const overallTies = [];
@@ -228,7 +257,10 @@
       categories: categories,
       rows: rows,
       ties: { categories: categoryTies, overall: overallTies },
-      unresolved: categoryTies.length > 0 || overallTies.length > 0
+      // hasTies é informativo (a UI deve marcar "empate" visivelmente).
+      // Sob FULL_POINTS_COMPETITION_RANKING um empate JÁ ESTÁ resolvido:
+      // não bloqueia nada, ao contrário do `unresolved` de PERF-1.
+      hasTies: categoryTies.length > 0 || overallTies.length > 0
     };
   }
 
