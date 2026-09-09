@@ -1,19 +1,23 @@
 -- RH-ANALYST-2 -- Autoridade governada de RESPONSABILIDADE OFICIAL do
 -- Analista de F&I por loja, com vigência temporal.
 --
--- *** DRAFTED ONLY. NOT APPLIED. ***
--- Este arquivo foi escrito na fase de design/forense da RH-ANALYST-2 e
--- está versionado em disco para revisão, mas deliberadamente NÃO foi
--- executado contra o banco live (nenhum `supabase db push`, nenhum
--- apply). Ele foi, porém, VALIDADO ao vivo dentro de uma transação com
--- ROLLBACK (ver tests/rh_analyst2_responsabilidade_test.js), então o
--- comportamento abaixo está provado contra o Postgres real sem deixar
--- qualquer resíduo.
+-- *** APLICADA EM PRODUÇÃO NA RH-ANALYST-3 (2026-09-09). ***
+-- Desenhada e provada na RH-ANALYST-2 (validada ao vivo dentro de uma
+-- transação com ROLLBACK, ver tests/rh_analyst2_responsabilidade_test.js),
+-- e aplicada na RH-ANALYST-3 depois do "vai" humano explícito, por
+-- método pontual guardado por project-ref (nunca `supabase db push`).
 --
--- Segue o mesmo precedente já estabelecido neste repositório em
--- 20260909100000_rh5c_gestor_fi_governed_authority.sql: lógica que
--- afeta pagamento real merece um "vai" humano explícito antes de tocar
--- produção, mesmo quando o brief da própria Wave pré-autoriza a escrita.
+-- Renumerada de 20260909120000 para 20260909130000 na RH-ANALYST-3: a
+-- Wave concorrente RH-5D publicou 20260909120000_rh5d_snapshot_comissoes_
+-- immutability.sql com o MESMO prefixo. Esta era a migration ainda não
+-- aplicada das duas, então foi ela que se moveu -- e a ordem passa a
+-- refletir a realidade (o trigger de imutabilidade do RH-5D já estava
+-- live quando esta foi aplicada).
+--
+-- O que a RH-ANALYST-3 aplicou além deste DDL: as 9 linhas de vigência
+-- inicial (uma por loja com analista ativo), todas com
+-- valid_from = 2026-08-21 e vigência aberta, mais os 9 eventos CREATED
+-- de auditoria. Nenhuma vigência anterior a 2026-08-21 foi criada.
 --
 -- ============================================================
 -- DECISÃO DE NEGÓCIO (Humano, RH-ANALYST-2): OPÇÃO C

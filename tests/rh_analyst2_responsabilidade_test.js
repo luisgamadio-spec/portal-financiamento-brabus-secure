@@ -30,7 +30,7 @@ const PROJECT_REF = 'yacqlelpzchcotgngwbh';
 const FORBIDDEN_PROJECT_REF = 'zhzubcismiwdypavwdxf';
 const MIGRATION = path.join(
   __dirname, '..', 'supabase', 'migrations',
-  '20260909120000_rh_analyst2_analista_responsavel_loja.sql'
+  '20260909130000_rh_analyst2_analista_responsavel_loja.sql'
 );
 
 let passed = 0, failed = 0;
@@ -76,7 +76,7 @@ check('1.23 NÃO toca ausencias_analistas', !/alter table public\.ausencias_anal
 // documentação da regra que esta autoridade vai substituir na Fase 4 --
 // por isso a asserção é sobre DROP/redefinição real, não sobre o texto.
 check('1.24 NÃO faz DROP de nenhuma função/objeto existente', !/drop function|drop table|drop index/i.test(code));
-check('1.25 marcada como NÃO APLICADA', /NOT APPLIED/i.test(sql));
+check('1.25 registra o estado real de aplicação (RH-ANALYST-3)', /APLICADA EM PRODU/i.test(sql));
 
 // ---------------------------------------------------------------
 // LIVE -- tudo dentro de BEGIN ... ROLLBACK
@@ -292,12 +292,17 @@ async function runLive() {
   rows.forEach(row => check(row.k, row.ok === true));
 
   // Prova de que NADA persistiu.
+  // Pos RH-ANALYST-3 a tabela EXISTE em producao (foundation aplicada).
+  // O que o rollback ainda tem de provar e que a execucao deste teste
+  // nao deixou residuo sintetico nem contaminou as vigencias reais.
   const after = await runSql(token, `select
-      (select count(*) from pg_class where relname='analista_responsavel_loja') as tabela,
-      (select count(*) from public.usuarios where loja='${LOJA}') as usuarios_sinteticos;`);
+      (select count(*) from public.analista_responsavel_loja where loja_normalizada = upper('${LOJA}')) as vigencias_sinteticas,
+      (select count(*) from public.usuarios where loja='${LOJA}') as usuarios_sinteticos,
+      (select count(*) from public.analista_responsavel_loja_auditoria where loja = upper('${LOJA}')) as auditoria_sintetica;`);
   const a = Array.isArray(after.body) ? after.body[0] : {};
-  check('3.1 ROLLBACK: a tabela NÃO foi criada em produção', Number(a.tabela) === 0);
+  check('3.1 ROLLBACK: nenhuma vigência sintética persistiu', Number(a.vigencias_sinteticas) === 0);
   check('3.2 ROLLBACK: nenhum usuário sintético persistiu', Number(a.usuarios_sinteticos) === 0);
+  check('3.3 ROLLBACK: nenhuma auditoria sintética persistiu', Number(a.auditoria_sintetica) === 0);
 }
 
 (async () => {
