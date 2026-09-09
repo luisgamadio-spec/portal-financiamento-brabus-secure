@@ -43,7 +43,13 @@ const ALLOWED_ORIGINS = new Set([
 function corsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": origin && ALLOWED_ORIGINS.has(origin) ? origin : "",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    // IA-3G.5A -- x-nx-correlation-id allow-listed so the browser will
+    // actually send it (an unlisted custom header is stripped by CORS
+    // preflight, not an error, just silently dropped) -- an OPAQUE,
+    // client-generated, non-identity id (crypto.randomUUID(), never a
+    // user/session identifier), echoed back in logs only to correlate
+    // a frontend request with its own Edge Function log lines.
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-nx-correlation-id",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin"
   };
@@ -6467,13 +6473,40 @@ async function evaluateToolPolicy(
 }
 
 // =========================================================
+// IA-3G.5A -- cold-start forensics. MODULE_LOADED_AT/INSTANCE_ID are
+// captured ONCE, at module top-level scope, when this Deno isolate is
+// first instantiated -- NOT inside serve()'s callback (which only
+// starts running once the isolate is already up). A genuine cold
+// start (fresh isolate) produces a NEW instance_id and a
+// module_loaded_at close to "now"; a warm isolate reused for a later
+// request keeps the SAME instance_id, with module_loaded_at far in the
+// past. This is the only way to see isolate lifecycle from inside the
+// function's own code -- proven necessary because the real-UAT sample
+// (IA-3G.4B) showed latency_ms staying flat (~8-10s) across wildly
+// different Human-perceived wall-clock times (10.57s to >100s),
+// meaning whatever is slow is NOT inside the POST handler's own
+// instrumented stages. The one branch that runs BEFORE any of that
+// existing instrumentation, on every real request (every browser fetch
+// with custom headers triggers a CORS preflight first, and this
+// project sets no Access-Control-Max-Age, so it is never cached) is
+// the OPTIONS handler below -- which previously had ZERO logging.
+// =========================================================
+const MODULE_LOADED_AT = Date.now();
+const INSTANCE_ID = crypto.randomUUID();
+
+// =========================================================
 // Handler principal
 // =========================================================
 serve(async (req) => {
   const origin = req.headers.get("origin");
   const headers = { ...corsHeaders(origin), "Content-Type": "application/json" };
   const requestId = crypto.randomUUID();
+  // IA-3G.5A -- opaque, client-generated, non-identity correlation id,
+  // echoed as-is (never trusted, never used for auth/authorization) so
+  // a frontend timing log can be matched to its own Edge log lines.
+  const clientCorrelationId = req.headers.get("x-nx-correlation-id") || null;
   const startedAt = Date.now();
+  const instanceAgeMs = startedAt - MODULE_LOADED_AT;
   // IA-3G.4 -- temporary latency forensics instrumentation. Stage
   // durations only, keyed by requestId (already a random, non-identity
   // correlation id -- never the caller's auth.uid()). Never logs
@@ -6492,6 +6525,16 @@ serve(async (req) => {
   } = { auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [] };
 
   if (req.method === "OPTIONS") {
+    // IA-3G.5A -- the ONE branch every real browser request hits first
+    // (CORS preflight, never cached -- no Access-Control-Max-Age is
+    // set), and previously the ONE branch with zero logging at all.
+    // Logs only instance lifecycle + timing -- no request content, no
+    // headers beyond what's already safe (origin is not PII).
+    console.log(JSON.stringify({
+      request_id: requestId, event: "preflight", instance_id: INSTANCE_ID,
+      instance_age_ms: instanceAgeMs, preflight_handling_ms: Date.now() - startedAt,
+      client_correlation_id: clientCorrelationId
+    }));
     return new Response(null, { status: 204, headers });
   }
   if (req.method !== "POST") {
@@ -6806,7 +6849,9 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
       latency_ms: latencyMs,
       input_tokens: totalInputTokens,
       output_tokens: totalOutputTokens,
-      timings // IA-3G.4 -- stage durations only, see declaration above
+      timings, // IA-3G.4 -- stage durations only, see declaration above
+      instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, // IA-3G.5A -- cold-start correlation
+      client_correlation_id: clientCorrelationId
     }));
 
     return new Response(
@@ -6820,7 +6865,13 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
         // histórico antigo de qualquer forma (Parte 12: back-end é sem
         // estado, a continuidade inteira vem do array que o cliente manda).
         scenario_reset: scenarioReset,
-        _homolog_debug: { tools_used: toolsUsed, tool_call_count: toolCallCount, calls: homologCalls } // portal-ai-homolog ONLY
+        _homolog_debug: { tools_used: toolsUsed, tool_call_count: toolCallCount, calls: homologCalls }, // portal-ai-homolog ONLY
+        // IA-3G.5A -- homolog-only, non-sensitive (epoch numbers and an
+        // opaque instance id only) so a frontend can compute the
+        // client-fetch -> Edge-handler-entry gap and the Edge-response
+        // -> browser-receive gap ITSELF, without needing any log
+        // retrieval at all for a future controlled timing run.
+        _homolog_edge_timing: { handler_entry_epoch_ms: startedAt, response_ready_epoch_ms: Date.now(), instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, latency_ms: latencyMs }
       }),
       { status: 200, headers }
     );
@@ -6832,7 +6883,9 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
       event: "error",
       latency_ms: latencyMs,
       detail: e instanceof Error ? e.message : String(e),
-      timings // IA-3G.4 -- stage durations only, see declaration above
+      timings, // IA-3G.4 -- stage durations only, see declaration above
+      instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, // IA-3G.5A -- cold-start correlation
+      client_correlation_id: clientCorrelationId
     }));
     return new Response(JSON.stringify({ error: message, request_id: requestId }), { status: 502, headers });
   }
