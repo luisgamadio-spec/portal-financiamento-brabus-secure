@@ -1,13 +1,20 @@
-/* RH-5C.2 -- deterministic regression proving the exact SEMINOVOS/NOVOS
-   manager-bucketing string collision (portal-app.js:4925-4926, verbatim
-   below), and demonstrating a safe, mutually-exclusive counterfactual
-   classifier. TEST/FORENSIC ONLY -- proves nothing was changed in any
-   runtime file this Wave; no production code is imported or modified
-   by this file, and no other file in this repo requires this one.
+/* RH-5C.2/RH-5C.3 -- deterministic regression proving (a) the exact
+   SEMINOVOS/NOVOS manager-bucketing string collision as it originally
+   existed (forensic record, kept verbatim -- RH-5C.2), and (b) that
+   the REAL, LIVE, CURRENTLY-DEPLOYED classifier in
+   assets/js/portal-app.js no longer has it (RH-5C.3 -- extracted
+   directly from the real file at test time via regex + eval, not a
+   disconnected synthetic copy, so this test fails if the runtime ever
+   regresses back to substring matching).
+
+   TEST/FORENSIC ONLY for the RH-5C.2 portion. The RH-5C.3 portion
+   reads (never modifies) assets/js/portal-app.js.
 
    Zero business data, zero network calls, zero writes. Run with:
      node tests/rh5c2_seminovos_novos_bucketing_incident_test.js
 */
+var fs = require('fs');
+var path = require('path');
 
 // Verbatim from assets/js/portal-app.js:4922-4927 (the real, live
 // GERENTE bucketing loop inside calcularPreviewFechamentoCompetenciaSegura).
@@ -55,6 +62,51 @@ var REAL_LIVE_DEPARTMENT_VALUES = ['NOVOS', 'SEMINOVOS']; // portal_sales.depart
 REAL_LIVE_DEPARTMENT_VALUES.forEach(function (d) {
   check('counterfactual handles every real live department value (' + d + ')', counterfactualClassify(d).length === 1);
 });
+
+// ---------- RH-5C.3: extract and test the ACTUAL, currently-deployed
+// classifier from the real runtime file -- proves the real fix, not
+// just a synthetic stand-in, and fails loudly if the file ever
+// regresses back to substring matching. ----------
+(function () {
+  var portalAppSrc;
+  try {
+    portalAppSrc = fs.readFileSync(path.join(__dirname, '..', 'assets', 'js', 'portal-app.js'), 'utf8');
+  } catch (e) {
+    check('RH-5C.3: could read assets/js/portal-app.js to extract the real classifier', false);
+    return;
+  }
+
+  // Extract the exact classification block between the gerenteBuckets
+  // declaration and the grupos.forEach call that consumes it -- the
+  // real, live decision logic, not a paraphrase.
+  var blockMatch = portalAppSrc.match(/const gerenteBuckets=\{\};\s*vendRows\.forEach\(row=>\{([\s\S]*?)grupos\.forEach\(g=>\{/);
+  check('RH-5C.3: the real gerenteBuckets classification block was found in portal-app.js (extraction did not silently fail)', !!blockMatch);
+  if (!blockMatch) { return; }
+
+  var block = blockMatch[1];
+
+  // The exact defect signature must be GONE from the real file.
+  check('RH-5C.3: the real runtime no longer uses substring .includes(\'NOVOS\')/.includes(\'SEMINOVOS\') for this classification', !/\.includes\(\s*['"]NOVOS['"]\s*\)/.test(block) && !/\.includes\(\s*['"]SEMINOVOS['"]\s*\)/.test(block));
+
+  // Build a callable function from the real extracted block and run it
+  // against the same inputs as the synthetic counterfactualClassify
+  // above -- proves the ACTUAL deployed logic, not a copy.
+  var realClassifyFn;
+  try {
+    /* eslint-disable no-new-func */
+    realClassifyFn = new Function('row', block + 'return grupos;'); // block itself declares `const grupos=[]`
+  } catch (e) {
+    check('RH-5C.3: the extracted real classification block is syntactically valid on its own', false);
+    return;
+  }
+
+  check('RH-5C.3 (real runtime): NOVOS classifies as NOVOS only', JSON.stringify(realClassifyFn({ department: 'NOVOS' })) === JSON.stringify(['NOVOS']));
+  check('RH-5C.3 (real runtime): SEMINOVOS classifies as SEMINOVOS only -- the incident is fixed in the actual deployed file', JSON.stringify(realClassifyFn({ department: 'SEMINOVOS' })) === JSON.stringify(['SEMINOVOS']));
+  check('RH-5C.3 (real runtime): SEMINOVOS must NOT contribute to the NOVOS bucket', realClassifyFn({ department: 'SEMINOVOS' }).indexOf('NOVOS') === -1);
+  check('RH-5C.3 (real runtime): combined "NOVOS/SEMINOVOS" still contributes to both (original intent preserved)', JSON.stringify(realClassifyFn({ department: 'NOVOS/SEMINOVOS' }).sort()) === JSON.stringify(['NOVOS', 'SEMINOVOS']));
+  check('RH-5C.3 (real runtime): an unknown department value fails safe -- excluded, never silently becomes NOVOS', JSON.stringify(realClassifyFn({ department: 'OUTROS' })) === JSON.stringify([]));
+  check('RH-5C.3 (real runtime): whitespace/case variants normalize correctly', JSON.stringify(realClassifyFn({ department: '  seminovos  ' })) === JSON.stringify(['SEMINOVOS']));
+})();
 
 var passed = results.filter(function (r) { return r[1]; }).length;
 results.forEach(function (r) { console.log('[' + (r[1] ? 'PASS' : 'FAIL') + '] ' + r[0]); });
