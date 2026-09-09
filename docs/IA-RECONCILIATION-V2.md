@@ -134,8 +134,25 @@ commit only, not to the feature work built on top of it.
 | `index.html` | Modified in-branch, +6 lines | Wires the 3 new script tags, commented as MASTER-only/flag-gated/lab-only |
 
 `supabase/functions/portal-ai/index.ts` was **not** touched or
-imported — per Gate 10, it stays exactly as `origin/main` already has
-it (untouched, undeployed, frozen).
+imported by this phase's own commits — per Gate 10, this phase never
+wrote to it.
+
+**IA-3B correction (`IA_RECONCILIATION_LEDGER_PORTAL_AI_FROZEN_CLAIM_INACCURATE`,
+LOW, documentation debt)**: the paragraph above, and Gate 10's own
+framing, describe this file as "untouched... stays exactly as
+`origin/main` already has it." Direct measurement on this branch
+contradicts that: `origin/main`'s copy is 869 lines / 3 tools, but
+**this branch's own copy of `portal-ai/index.ts` is 5,784 lines / 11
+tools** — it independently diverged through the same IA-2C→2G feature
+history as `portal-ai-homolog`, via a separate, slightly-behind
+lineage, well before this phase ever ran. Gate 10's intent (never
+write to this file, treat `portal-ai-homolog` as the forward
+authority) was honored correctly — no commit in this phase touches
+it. But the "stays exactly as `origin/main` already has it" claim
+itself was never true and should not be repeated or trusted as
+provenance evidence for this file going forward. This correction does
+not rewrite the rest of this document's historical narrative — it
+corrects one factual claim, discovered and proven during IA-3A.1.
 
 ## 6. Frontend inventory classification (Gate 29)
 
