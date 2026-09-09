@@ -227,14 +227,79 @@ end;
 $function$;
 
 -- ============================================================
--- 5. New RPC: operational_gestor_fi_commission(p_start, p_end)
+-- 5a. Pure formula: _operational_gestor_fi_formula(...)
+-- ============================================================
+-- RH-5C.1: split out of the original single RPC specifically so the
+-- formula can be parity-tested with synthetic numeric inputs (Section
+-- 16/17 -- "no business-table fixtures") without ever touching
+-- usuarios/configuracoes/portal_sales/etc. Zero DB reads, zero auth,
+-- zero side effects -- a straight arithmetic port of calcGestorFIGrupo
+-- (portal-app.js:6252-6284), taking every config value as a parameter
+-- instead of reading it, so a parity harness can pass both the current
+-- defaults AND deliberately-changed values (Section 13/19 "golden
+-- Faixa consistency" -- proving classification follows governed
+-- config, never stale frontend literals).
+create or replace function public._operational_gestor_fi_formula(
+  p_vendidas integer,
+  p_financiadas integer,
+  p_retorno numeric,
+  p_spf numeric,
+  p_spf_qty integer,
+  p_share_minimo numeric,
+  p_faixa_baixo numeric,
+  p_faixa_alto numeric,
+  p_bonus_unit numeric,
+  p_spf_liquido_percentual numeric
+)
+ returns jsonb
+ language sql
+ immutable
+ set search_path to 'pg_catalog', 'public'
+as $function$
+  -- Every intermediate value carries full numeric precision, exactly
+  -- mirroring the JS reference's own zero-internal-rounding contract
+  -- (RH-5C.1 Gate 7 finding -- an earlier draft rounded intermediate
+  -- values and could diverge from the JS reference by up to a cent).
+  select jsonb_build_object(
+    'share', case when p_vendidas > 0 then (p_financiadas::numeric / p_vendidas::numeric) * 100 else 0 end,
+    'faixa',
+      case when (case when p_vendidas > 0 then (p_financiadas::numeric / p_vendidas::numeric) * 100 else 0 end) < p_share_minimo
+        then p_faixa_baixo / 100
+        else p_faixa_alto / 100
+      end,
+    'spf_liquido', p_spf * (p_spf_liquido_percentual / 100),
+    'base', p_retorno + (p_spf * (p_spf_liquido_percentual / 100)),
+    'comissao_principal',
+      (p_retorno + (p_spf * (p_spf_liquido_percentual / 100))) *
+      (case when (case when p_vendidas > 0 then (p_financiadas::numeric / p_vendidas::numeric) * 100 else 0 end) < p_share_minimo
+        then p_faixa_baixo / 100
+        else p_faixa_alto / 100
+      end),
+    'bonus_spf', p_spf_qty * p_bonus_unit,
+    'comissao_final',
+      ((p_retorno + (p_spf * (p_spf_liquido_percentual / 100))) *
+      (case when (case when p_vendidas > 0 then (p_financiadas::numeric / p_vendidas::numeric) * 100 else 0 end) < p_share_minimo
+        then p_faixa_baixo / 100
+        else p_faixa_alto / 100
+      end)) + (p_spf_qty * p_bonus_unit)
+  );
+$function$;
+
+revoke all on function public._operational_gestor_fi_formula(integer, integer, numeric, numeric, integer, numeric, numeric, numeric, numeric, numeric) from public;
+revoke all on function public._operational_gestor_fi_formula(integer, integer, numeric, numeric, integer, numeric, numeric, numeric, numeric, numeric) from anon;
+grant execute on function public._operational_gestor_fi_formula(integer, integer, numeric, numeric, integer, numeric, numeric, numeric, numeric, numeric) to authenticated, service_role;
+
+comment on function public._operational_gestor_fi_formula(integer, integer, numeric, numeric, integer, numeric, numeric, numeric, numeric, numeric) is
+  'RH-5C.1: pure, side-effect-free port of calcGestorFIGrupo() (portal-app.js:6252-6284). Every input is a parameter -- no table reads, no auth -- specifically so it can be parity-tested with synthetic fixtures. Leading underscore marks it internal/non-API; operational_gestor_fi_commission() is the real authorized entry point.';
+
+-- ============================================================
+-- 5b. New RPC: operational_gestor_fi_commission(p_start, p_end)
 -- ============================================================
 -- MASTER-only, read-only, live/current-period equivalent of V1's
--- calcGestorFIGrupo() + showGestorFICommission() -- a faithful,
--- config-driven port (Pattern C auth gate, matching
--- master_close_commission_period's own inline MASTER row-lookup style
--- since this function also needs v_actor for parity with that
--- convention, even though it performs no writes).
+-- calcGestorFIGrupo() + showGestorFICommission() -- resolves real
+-- inputs (auth, beneficiary, governed metrics/config) then delegates
+-- the arithmetic itself to the pure formula function above (single
+-- source of truth -- Gate 19).
 --
 -- Deliberately reuses operational_commission_metrics(p_start, p_end)
 -- internally for its `totals` object -- the SAME pre-aggregated group
@@ -253,18 +318,12 @@ declare
   v_beneficiary public.usuarios;
   v_metrics jsonb;
   v_totals jsonb;
-  v_share numeric;
   v_share_minimo numeric;
   v_faixa_baixo numeric;
   v_faixa_alto numeric;
   v_bonus_unit numeric;
   v_spf_liquido_percentual numeric;
-  v_faixa numeric;
-  v_spf_liquido numeric;
-  v_base numeric;
-  v_comissao_principal numeric;
-  v_bonus_spf numeric;
-  v_comissao_final numeric;
+  v_formula jsonb;
   v_vendidas integer;
   v_financiadas integer;
   v_producao numeric;
@@ -342,16 +401,10 @@ begin
   v_bonus_unit := coalesce(v_bonus_unit, 30);
   v_spf_liquido_percentual := coalesce(v_spf_liquido_percentual, 70);
 
-  -- Formula: byte-identical to calcGestorFIGrupo() (portal-app.js:
-  -- 6252-6284), with the 3 former literals now sourced from governed
-  -- config (defaults reproduce the exact same numbers).
-  v_share := case when v_vendidas > 0 then (v_financiadas::numeric / v_vendidas::numeric) * 100 else 0 end;
-  v_faixa := case when v_share < v_share_minimo then v_faixa_baixo / 100 else v_faixa_alto / 100 end;
-  v_spf_liquido := round(v_spf * (v_spf_liquido_percentual / 100), 2);
-  v_base := round(v_retorno + v_spf_liquido, 2);
-  v_comissao_principal := round(v_base * v_faixa, 2);
-  v_bonus_spf := round(v_spf_qty * v_bonus_unit, 2);
-  v_comissao_final := round(v_comissao_principal + v_bonus_spf, 2);
+  v_formula := public._operational_gestor_fi_formula(
+    v_vendidas, v_financiadas, v_retorno, v_spf, v_spf_qty,
+    v_share_minimo, v_faixa_baixo, v_faixa_alto, v_bonus_unit, v_spf_liquido_percentual
+  );
 
   return jsonb_build_object(
     'pronto', true,
@@ -360,17 +413,17 @@ begin
     'beneficiary_name', v_beneficiary.nome,
     'vendidas', v_vendidas,
     'financiadas', v_financiadas,
-    'share', round(v_share, 4),
+    'share', round((v_formula ->> 'share')::numeric, 4),
     'producao', v_producao,
     'retorno', v_retorno,
     'spf', v_spf,
     'spf_qty', v_spf_qty,
-    'spf_liquido', v_spf_liquido,
-    'base', v_base,
-    'faixa', v_faixa,
-    'comissao_principal', v_comissao_principal,
-    'bonus_spf', v_bonus_spf,
-    'comissao_final', v_comissao_final,
+    'spf_liquido', (v_formula ->> 'spf_liquido')::numeric,
+    'base', (v_formula ->> 'base')::numeric,
+    'faixa', (v_formula ->> 'faixa')::numeric,
+    'comissao_principal', (v_formula ->> 'comissao_principal')::numeric,
+    'bonus_spf', (v_formula ->> 'bonus_spf')::numeric,
+    'comissao_final', (v_formula ->> 'comissao_final')::numeric,
     'contains_client_identity', false,
     'contains_personal_documents', false
   );
@@ -385,10 +438,312 @@ comment on function public.operational_gestor_fi_commission(date, date) is
   'RH-5C: governed, config-driven live (open-period) equivalent of V1''s calcGestorFIGrupo(). MASTER-only. Returns pronto=false with a reason code if 0 or >1 active users are flagged gestor_fi_beneficiario, never a guessed/fabricated identity. Never returns cpf. Historical/closed periods are unaffected -- they already read from snapshot_comissoes via master_commission_snapshot.';
 
 -- ============================================================
+-- 6a. Pure formula: _operational_commission_faixa_formula(...)
+-- ============================================================
+-- RH-5C.1 -- FIX-THE-DRIFT (Human Decision A, RH-5C.1 brief Section 2):
+-- byte-identical, config-driven port of commissionCalc() (portal-app.js:
+-- 111-131), PLUS a semantic share_tier/retorno_tier/faixa_level the
+-- ORIGINAL commissionCalc() already implicitly computes but never
+-- returns -- faixaBadge() (portal-app.js:62) tries to reverse-engineer
+-- this same tier information by comparing the raw faixa fraction
+-- against its OWN independent hardcoded literals (400/450/20/15),
+-- which drifts silently from the real config-driven faixa the moment
+-- an admin changes a threshold (RH-5C forensic finding). This function
+-- eliminates that class of bug by construction: share_tier/
+-- retorno_tier are the SAME branch decisions the financial faixa
+-- itself is computed from, never a second independent comparison.
+--
+-- Zero DB reads, zero auth, zero side effects -- every config value is
+-- a parameter, exactly like _operational_gestor_fi_formula above, for
+-- the same parity-testing reason (Section 16/17).
+create or replace function public._operational_commission_faixa_formula(
+  p_status text,
+  p_cls text, -- 'seller' | 'manager' | 'analyst'
+  p_vendidas numeric,
+  p_financiadas numeric,
+  p_retorno numeric,
+  p_spf numeric,
+  p_spf_qty numeric,
+  p_share_minimo numeric,
+  p_spf_liquido_percentual numeric,
+  p_limite_retorno_novos numeric,
+  p_limite_retorno_seminovos numeric,
+  p_vendedor_faixa_baixo_share_baixo numeric,
+  p_vendedor_faixa_baixo_share_alto numeric,
+  p_vendedor_faixa_alto_share_baixo numeric,
+  p_vendedor_faixa_alto_share_alto numeric,
+  p_gerente_faixa_share_baixo numeric,
+  p_gerente_faixa_share_alto numeric,
+  p_analista_faixa_share_baixo numeric,
+  p_analista_faixa_share_alto numeric,
+  p_bonus_spf_analista numeric
+)
+ returns jsonb
+ language plpgsql
+ immutable
+ set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_share numeric;
+  v_spf_liquido numeric;
+  v_rent_total numeric;
+  v_faixa numeric;
+  v_comissao_principal numeric;
+  v_comissao_spf numeric := 0;
+  v_comissao_total numeric;
+  v_share_tier text;
+  v_retorno_tier text := null;
+  v_is_semi boolean;
+  v_limite numeric;
+  v_faixa_level text;
+begin
+  -- share/spfLiquido/rentTotal: identical for every role, matching
+  -- commissionCalc()'s own pre-branch computation (portal-app.js:112-115).
+  v_share := case when coalesce(p_vendidas, 0) > 0 then (coalesce(p_financiadas, 0) / p_vendidas) * 100 else 0 end;
+  v_spf_liquido := coalesce(p_spf, 0) * (p_spf_liquido_percentual / 100);
+  v_rent_total := coalesce(p_retorno, 0) + v_spf_liquido;
+  v_share_tier := case when v_share >= p_share_minimo then 'ALTO' else 'BAIXO' end;
+
+  if p_cls = 'manager' then
+    v_faixa := case when v_share_tier = 'ALTO' then p_gerente_faixa_share_alto / 100 else p_gerente_faixa_share_baixo / 100 end;
+  elsif p_cls = 'analyst' then
+    v_faixa := case when v_share_tier = 'ALTO' then p_analista_faixa_share_alto / 100 else p_analista_faixa_share_baixo / 100 end;
+    v_comissao_spf := coalesce(p_spf_qty, 0) * p_bonus_spf_analista;
+  else
+    -- seller: byte-identical to commissionCalc()'s isSemi/limite branch
+    -- (portal-app.js:123-126), including the "NOVOS/SEMINOVOS" combined
+    -- status exclusion.
+    v_is_semi := upper(coalesce(p_status, '')) like '%SEMINOVOS%' and upper(coalesce(p_status, '')) not like '%NOVOS/SEMINOVOS%';
+    v_limite := case when v_is_semi then p_limite_retorno_seminovos else p_limite_retorno_novos end;
+    v_retorno_tier := case when v_rent_total < v_limite then 'BAIXO' else 'ALTO' end;
+    if v_retorno_tier = 'BAIXO' then
+      v_faixa := case when v_share_tier = 'ALTO' then p_vendedor_faixa_baixo_share_alto / 100 else p_vendedor_faixa_baixo_share_baixo / 100 end;
+    else
+      v_faixa := case when v_share_tier = 'ALTO' then p_vendedor_faixa_alto_share_alto / 100 else p_vendedor_faixa_alto_share_baixo / 100 end;
+    end if;
+  end if;
+
+  v_comissao_principal := v_rent_total * v_faixa;
+  v_comissao_total := v_comissao_principal + v_comissao_spf;
+
+  -- FIX-THE-DRIFT semantic classification: manager/analyst have exactly
+  -- 2 reachable tiers (never a 3rd "red" state -- matching V1's own
+  -- reachable branches, not fabricating a state V1 never had); seller
+  -- has 4 (2x2), collapsed to 3 semantic levels for the badge.
+  v_faixa_level := case
+    when p_cls in ('manager', 'analyst') then (case when v_share_tier = 'ALTO' then 'MAXIMA' else 'MINIMA' end)
+    else (case
+      when v_share_tier = 'ALTO' and v_retorno_tier = 'ALTO' then 'MAXIMA'
+      when v_share_tier = 'BAIXO' and v_retorno_tier = 'BAIXO' then 'MINIMA'
+      else 'INTERMEDIARIA'
+    end)
+  end;
+
+  return jsonb_build_object(
+    'share', v_share,
+    'spf_liquido', v_spf_liquido,
+    'rent_total', v_rent_total,
+    'faixa', v_faixa,
+    'share_tier', v_share_tier,
+    'retorno_tier', v_retorno_tier,
+    'faixa_level', v_faixa_level,
+    'comissao_principal', v_comissao_principal,
+    'comissao_spf', v_comissao_spf,
+    'comissao_total', v_comissao_total
+  );
+end;
+$function$;
+
+revoke all on function public._operational_commission_faixa_formula(text, text, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) from public;
+revoke all on function public._operational_commission_faixa_formula(text, text, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) from anon;
+grant execute on function public._operational_commission_faixa_formula(text, text, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) to authenticated, service_role;
+
+comment on function public._operational_commission_faixa_formula(text, text, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) is
+  'RH-5C.1: pure, side-effect-free port of commissionCalc() (portal-app.js:111-131), FIX-THE-DRIFT variant -- returns share_tier/retorno_tier/faixa_level derived from the SAME branch decisions the financial faixa itself uses, replacing faixaBadge()''s independent hardcoded classification. Every input is a parameter -- no table reads, no auth.';
+
+-- ============================================================
+-- 6b. New RPC: operational_commission_faixa_rows(p_start, p_end)
+-- ============================================================
+-- MASTER-only (per-row Faixa across every seller/manager/analyst is
+-- exactly the aggregate view only MASTER already sees in Equipe/
+-- Analistas today -- scoping this identically avoids inventing a new,
+-- untested cross-profile authorization matrix in the same Wave that
+-- also activates live financial writes). Assembles rows from the SAME
+-- 2 existing governed RPCs V2 already calls (operational_commission_
+-- metrics for sellers, operational_analyst_commission_metrics_v2 for
+-- analysts) plus the SAME store+department manager-bucketing already
+-- proven correct in commission-aggregation-v1-reference.js (PM-5J),
+-- reproduced here in SQL -- then delegates every row's arithmetic to
+-- the single pure formula function above (Gate 19: one canonical
+-- calculation contract, not three separate implementations).
+create or replace function public.operational_commission_faixa_rows(p_start date, p_end date)
+ returns jsonb
+ language plpgsql
+ stable security definer
+ set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_actor public.usuarios;
+  v_cfg record;
+  v_seller_metrics jsonb;
+  v_analyst_metrics jsonb;
+  v_seller_rows jsonb;
+  v_analyst_rows jsonb;
+  v_row jsonb;
+  v_result jsonb := '[]'::jsonb;
+  v_calc jsonb;
+  v_manager_buckets jsonb;
+begin
+  select u.* into v_actor
+  from public.usuarios u
+  where u.auth_user_id = auth.uid()
+    and u.ativo is true
+    and upper(trim(coalesce(u.perfil, ''))) = 'MASTER'
+  limit 1;
+
+  if v_actor.id is null then
+    raise exception 'Acesso exclusivo do perfil Master.'
+      using errcode = '42501';
+  end if;
+
+  if p_start is null or p_end is null or p_start > p_end then
+    raise exception 'Periodo invalido.' using errcode = '22023';
+  end if;
+
+  -- Same sanitize-then-cast config read pattern as every other
+  -- function in this schema (configuracoes.valor is text). All 13
+  -- pre-existing keys -- none of these are new, all already governed.
+  select
+    max(case when chave = 'share_minimo' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as share_minimo,
+    max(case when chave = 'spf_liquido_percentual' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as spf_liquido_percentual,
+    max(case when chave = 'limite_retorno_novos' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as limite_retorno_novos,
+    max(case when chave = 'limite_retorno_seminovos' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as limite_retorno_seminovos,
+    max(case when chave = 'vendedor_faixa_baixo_share_baixo' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as vfbb,
+    max(case when chave = 'vendedor_faixa_baixo_share_alto' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as vfba,
+    max(case when chave = 'vendedor_faixa_alto_share_baixo' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as vfab,
+    max(case when chave = 'vendedor_faixa_alto_share_alto' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as vfaa,
+    max(case when chave = 'gerente_faixa_share_baixo' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as gfb,
+    max(case when chave = 'gerente_faixa_share_alto' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as gfa,
+    max(case when chave = 'analista_faixa_share_baixo' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as afb,
+    max(case when chave = 'analista_faixa_share_alto' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as afa,
+    max(case when chave = 'bonus_spf_analista' and replace(valor, ',', '.') ~ '^[0-9]+([.][0-9]+)?$' then replace(valor, ',', '.')::numeric end) as bonus_spf
+  into v_cfg
+  from public.configuracoes
+  where chave in ('share_minimo', 'spf_liquido_percentual', 'limite_retorno_novos', 'limite_retorno_seminovos',
+    'vendedor_faixa_baixo_share_baixo', 'vendedor_faixa_baixo_share_alto', 'vendedor_faixa_alto_share_baixo', 'vendedor_faixa_alto_share_alto',
+    'gerente_faixa_share_baixo', 'gerente_faixa_share_alto', 'analista_faixa_share_baixo', 'analista_faixa_share_alto', 'bonus_spf_analista');
+
+  -- ---- VENDEDOR rows ----
+  v_seller_metrics := public.operational_commission_metrics(p_start, p_end);
+  v_seller_rows := coalesce(v_seller_metrics -> 'rows', '[]'::jsonb);
+
+  for v_row in select * from jsonb_array_elements(v_seller_rows)
+  loop
+    v_calc := public._operational_commission_faixa_formula(
+      v_row ->> 'department', 'seller',
+      (v_row ->> 'sold_count')::numeric, (v_row ->> 'financed_count')::numeric, (v_row ->> 'return_value')::numeric,
+      (v_row ->> 'spf_value')::numeric, (v_row ->> 'spf_count')::numeric,
+      coalesce(v_cfg.share_minimo, 40), coalesce(v_cfg.spf_liquido_percentual, 70),
+      coalesce(v_cfg.limite_retorno_novos, 12000), coalesce(v_cfg.limite_retorno_seminovos, 8000),
+      coalesce(v_cfg.vfbb, 10), coalesce(v_cfg.vfba, 15), coalesce(v_cfg.vfab, 15), coalesce(v_cfg.vfaa, 20),
+      coalesce(v_cfg.gfb, 3), coalesce(v_cfg.gfa, 4), coalesce(v_cfg.afb, 3.5), coalesce(v_cfg.afa, 4.5),
+      coalesce(v_cfg.bonus_spf, 150)
+    );
+    v_result := v_result || jsonb_build_array(jsonb_build_object(
+      'perfil', 'VENDEDOR', 'seller_id', v_row -> 'seller_id', 'store', v_row -> 'store', 'department', v_row -> 'department',
+      'faixa', v_calc -> 'faixa', 'faixa_level', v_calc -> 'faixa_level', 'share_tier', v_calc -> 'share_tier', 'retorno_tier', v_calc -> 'retorno_tier'
+    ));
+  end loop;
+
+  -- ---- GERENTE buckets (store+department, matching commission-
+  -- aggregation-v1-reference.js's own gerenteBuckets logic exactly:
+  -- a row whose department contains both NOVOS and SEMINOVOS
+  -- contributes to BOTH buckets) ----
+  with dept_rows as (
+    select
+      r ->> 'store' as store,
+      dep.g as department,
+      coalesce((r ->> 'sold_count')::numeric, 0) as vendidas,
+      coalesce((r ->> 'financed_count')::numeric, 0) as financiadas,
+      coalesce((r ->> 'return_value')::numeric, 0) as retorno,
+      coalesce((r ->> 'spf_value')::numeric, 0) as spf,
+      coalesce((r ->> 'spf_count')::numeric, 0) as spf_qty
+    from jsonb_array_elements(v_seller_rows) r
+    cross join lateral (
+      select unnest(array_remove(array[
+        case when upper(coalesce(r ->> 'department', '')) like '%NOVOS%' then 'NOVOS' end,
+        case when upper(coalesce(r ->> 'department', '')) like '%SEMINOVOS%' then 'SEMINOVOS' end
+      ], null)) as g
+    ) dep
+  ),
+  buckets as (
+    select store, department, sum(vendidas) as vendidas, sum(financiadas) as financiadas,
+      sum(retorno) as retorno, sum(spf) as spf, sum(spf_qty) as spf_qty
+    from dept_rows
+    group by store, department
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'perfil', 'GERENTE', 'store', b.store, 'department', b.department,
+    'calc', public._operational_commission_faixa_formula(
+      'GERENTE ' || b.department, 'manager', b.vendidas, b.financiadas, b.retorno, b.spf, b.spf_qty,
+      coalesce(v_cfg.share_minimo, 40), coalesce(v_cfg.spf_liquido_percentual, 70),
+      coalesce(v_cfg.limite_retorno_novos, 12000), coalesce(v_cfg.limite_retorno_seminovos, 8000),
+      coalesce(v_cfg.vfbb, 10), coalesce(v_cfg.vfba, 15), coalesce(v_cfg.vfab, 15), coalesce(v_cfg.vfaa, 20),
+      coalesce(v_cfg.gfb, 3), coalesce(v_cfg.gfa, 4), coalesce(v_cfg.afb, 3.5), coalesce(v_cfg.afa, 4.5),
+      coalesce(v_cfg.bonus_spf, 150)
+    )
+  )), '[]'::jsonb)
+  into v_manager_buckets
+  from buckets b;
+
+  select v_result || coalesce(jsonb_agg(jsonb_build_object(
+    'perfil', 'GERENTE', 'store', mb -> 'store', 'department', mb -> 'department',
+    'faixa', mb -> 'calc' -> 'faixa', 'faixa_level', mb -> 'calc' -> 'faixa_level', 'share_tier', mb -> 'calc' -> 'share_tier', 'retorno_tier', mb -> 'calc' -> 'retorno_tier'
+  )), '[]'::jsonb)
+  into v_result
+  from jsonb_array_elements(v_manager_buckets) mb;
+
+  -- ---- ANALISTA rows ----
+  v_analyst_metrics := public.operational_analyst_commission_metrics_v2(p_start, p_end);
+  v_analyst_rows := coalesce(v_analyst_metrics -> 'rows', '[]'::jsonb);
+
+  for v_row in select * from jsonb_array_elements(v_analyst_rows)
+  loop
+    v_calc := public._operational_commission_faixa_formula(
+      'ANALISTA', 'analyst',
+      (v_row ->> 'sold_count')::numeric, (v_row ->> 'financed_count')::numeric, (v_row ->> 'return_value')::numeric,
+      (v_row ->> 'spf_value')::numeric, (v_row ->> 'spf_count')::numeric,
+      coalesce(v_cfg.share_minimo, 40), coalesce(v_cfg.spf_liquido_percentual, 70),
+      coalesce(v_cfg.limite_retorno_novos, 12000), coalesce(v_cfg.limite_retorno_seminovos, 8000),
+      coalesce(v_cfg.vfbb, 10), coalesce(v_cfg.vfba, 15), coalesce(v_cfg.vfab, 15), coalesce(v_cfg.vfaa, 20),
+      coalesce(v_cfg.gfb, 3), coalesce(v_cfg.gfa, 4), coalesce(v_cfg.afb, 3.5), coalesce(v_cfg.afa, 4.5),
+      coalesce(v_cfg.bonus_spf, 150)
+    );
+    v_result := v_result || jsonb_build_array(jsonb_build_object(
+      'perfil', 'ANALISTA', 'store', v_row -> 'store',
+      'faixa', v_calc -> 'faixa', 'faixa_level', v_calc -> 'faixa_level', 'share_tier', v_calc -> 'share_tier', 'retorno_tier', v_calc -> 'retorno_tier'
+    ));
+  end loop;
+
+  return jsonb_build_object('rows', v_result, 'contains_client_identity', false, 'contains_personal_documents', false);
+end;
+$function$;
+
+revoke all on function public.operational_commission_faixa_rows(date, date) from public;
+revoke all on function public.operational_commission_faixa_rows(date, date) from anon;
+grant execute on function public.operational_commission_faixa_rows(date, date) to authenticated, service_role;
+
+comment on function public.operational_commission_faixa_rows(date, date) is
+  'RH-5C.1: MASTER-only. Server-authoritative per-row Faixa classification for VENDEDOR/GERENTE/ANALISTA, current/open period only. Never returns seller/analyst identity beyond what operational_commission_metrics/operational_analyst_commission_metrics_v2 already expose to this caller -- this function adds classification fields only.';
+
+-- ============================================================
 -- ROLLBACK (NOT executed by this file -- keep as a separate, reviewed
 -- step if this migration is ever applied and later needs reverting)
 -- ============================================================
 -- drop function if exists public.operational_gestor_fi_commission(date, date);
+-- drop function if exists public._operational_gestor_fi_formula(integer, integer, numeric, numeric, integer, numeric, numeric, numeric, numeric, numeric);
+-- drop function if exists public.operational_commission_faixa_rows(date, date);
+-- drop function if exists public._operational_commission_faixa_formula(text, text, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric);
 -- create or replace function public.master_update_portal_config(p_key text, p_value numeric, p_description text default null::text) ... -- restore the pre-RH-5C body (17-line whitelist array without the 4 gestor_fi_* keys), captured live before this migration.
 -- create or replace function public.operational_portal_config() ... -- restore the pre-RH-5C body (16-key allowlist without the 4 gestor_fi_* keys), captured live before this migration.
 -- delete from public.configuracoes where chave in ('gestor_fi_share_minimo','gestor_fi_faixa_share_baixo','gestor_fi_faixa_share_alto','gestor_fi_bonus_spf');
