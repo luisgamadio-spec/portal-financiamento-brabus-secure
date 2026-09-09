@@ -6545,17 +6545,35 @@ serve(async (req) => {
     // ausente, valor nulo/malformado ou qualquer coisa diferente de
     // exatamente "true" (após lower/trim, mesmo critério de
     // ativacao_global_habilitada()) é tratado como desabilitado —
-    // nunca "assume ligado". ----
+    // nunca "assume ligado".
+    //
+    // IA-3G.1 — perf: esta chamada e a de operational_current_scope()
+    // logo abaixo (IA-3F.1) são mutuamente independentes — nenhuma lê o
+    // resultado da outra, ambas só precisam do userClient já autenticado
+    // — e AMBAS já rodam estritamente depois do gate MASTER acima (a
+    // única ordem que a invariante de segurança do comentário anterior
+    // exige: nunca antes do MASTER, para não revelar a um não-MASTER se
+    // a Intelligence existe). Antes rodavam em série (2 round-trips
+    // sequenciais); Promise.all as paraleliza sem mudar essa invariante
+    // — um não-MASTER nunca chega aqui de qualquer forma (já recebeu
+    // 403 e retornou acima). Único efeito colateral aceito: quando o
+    // kill switch está desligado, operational_current_scope() agora
+    // roda mesmo assim (antes era pulada pelo curto-circuito abaixo) —
+    // uma leitura a mais, sem mutação, sem novo dado exposto (o next
+    // check ainda decide sozinho quem hospeda o response 503). ----
     let intelligenceEnabled = false;
-    try {
-      const { data: cfgData, error: cfgError } = await userClient.rpc("operational_portal_config");
-      if (!cfgError) {
-        const rows = cfgData?.rows ?? [];
-        const row = Array.isArray(rows) ? rows.find((r: any) => r?.chave === "ia_texto_habilitada") : null;
-        intelligenceEnabled = String(row?.valor ?? "").trim().toLowerCase() === "true";
-      }
-    } catch {
-      intelligenceEnabled = false;
+    let authorityEnvelope: AuthorityEnvelope | null = null;
+    const [cfgResult, scopeResult] = await Promise.allSettled([
+      userClient.rpc("operational_portal_config"),
+      userClient.rpc("operational_current_scope")
+    ]);
+    if (cfgResult.status === "fulfilled" && !cfgResult.value.error) {
+      const rows = cfgResult.value.data?.rows ?? [];
+      const row = Array.isArray(rows) ? rows.find((r: any) => r?.chave === "ia_texto_habilitada") : null;
+      intelligenceEnabled = String(row?.valor ?? "").trim().toLowerCase() === "true";
+    }
+    if (scopeResult.status === "fulfilled" && !scopeResult.value.error) {
+      authorityEnvelope = toAuthorityEnvelope(scopeResult.value.data);
     }
     if (!intelligenceEnabled) {
       console.log(JSON.stringify({ request_id: requestId, event: "denied_intelligence_disabled" }));
@@ -6565,26 +6583,20 @@ serve(async (req) => {
       );
     }
 
-    // ---- IA-3F.1 — governed semantic tool-policy: resolve a REAL
-    // authority envelope from operational_current_scope() (the same
-    // canonical, already cross-profile-tested resolver every other
-    // Portal surface uses), via userClient so it is scoped to the
-    // caller's own auth.uid() -- never trusts anything from the
-    // request body. This is a SECOND, independent gate alongside the
-    // MASTER check above (unchanged) -- only MASTER ever reaches this
-    // line today, so this has no live behavioral effect on real
-    // traffic yet, but proves the wiring genuinely executes (see the
-    // tool-call loop below, where a denied tool never reaches
-    // dispatchTool). portal_modulos_permitidos() is called lazily, at
-    // most once per request (its own result depends only on auth.uid(),
-    // not on which tool is being checked), never a hardcoded table.
-    let authorityEnvelope: AuthorityEnvelope | null = null;
-    try {
-      const { data: scopeData, error: scopeError } = await userClient.rpc("operational_current_scope");
-      if (!scopeError) authorityEnvelope = toAuthorityEnvelope(scopeData);
-    } catch {
-      authorityEnvelope = null;
-    }
+    // ---- IA-3F.1 — governed semantic tool-policy: authorityEnvelope
+    // resolved above (IA-3G.1, in parallel with the kill-switch check)
+    // from operational_current_scope() (the same canonical,
+    // already cross-profile-tested resolver every other Portal surface
+    // uses), via userClient so it is scoped to the caller's own
+    // auth.uid() -- never trusts anything from the request body. This
+    // is a SECOND, independent gate alongside the MASTER check above
+    // (unchanged) -- only MASTER ever reaches this line today, so this
+    // has no live behavioral effect on real traffic yet, but proves the
+    // wiring genuinely executes (see the tool-call loop below, where a
+    // denied tool never reaches dispatchTool). portal_modulos_permitidos()
+    // is called lazily, at most once per request (its own result depends
+    // only on auth.uid(), not on which tool is being checked), never a
+    // hardcoded table.
     let allowedModuleIdsCache: string[] | null = null;
     const checkModulePermission: ModulePermissionChecker = async (moduleId: string): Promise<boolean> => {
       if (allowedModuleIdsCache === null) {
