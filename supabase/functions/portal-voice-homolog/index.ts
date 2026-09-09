@@ -96,6 +96,31 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Voz ainda não está disponível para este perfil." }), { status: 403, headers: jsonHeaders });
     }
 
+    // ---- IA-3B — kill switch server-authoritative (mesmo padrão de
+    // ia_texto_habilitada em portal-ai-homolog, reaproveitando
+    // operational_portal_config() -- nenhum RPC/endpoint novo). Roda
+    // DEPOIS do gate MASTER (nunca antes -- não revela se Voice existe
+    // para quem não é MASTER) e ANTES de qualquer chamada de STT/TTS à
+    // OpenAI. Fail-closed em toda ambiguidade: RPC error, linha
+    // ausente, valor nulo/malformado ou qualquer coisa diferente de
+    // exatamente "true" é tratado como desabilitado. Uma única flag
+    // gate as duas funções de voz (esta e portal-realtime-homolog). ----
+    let voiceEnabled = false;
+    try {
+      const { data: cfgData, error: cfgError } = await userClient.rpc("operational_portal_config");
+      if (!cfgError) {
+        const rows = cfgData?.rows ?? [];
+        const row = Array.isArray(rows) ? rows.find((r: any) => r?.chave === "ia_voz_habilitada") : null;
+        voiceEnabled = String(row?.valor ?? "").trim().toLowerCase() === "true";
+      }
+    } catch {
+      voiceEnabled = false;
+    }
+    if (!voiceEnabled) {
+      console.log(JSON.stringify({ request_id: requestId, event: "denied_voice_disabled" }));
+      return new Response(JSON.stringify({ error: "Conversa por voz está temporariamente indisponível." }), { status: 503, headers: jsonHeaders });
+    }
+
     if (action === "transcribe") {
       const audioBuf = await req.arrayBuffer();
       if (audioBuf.byteLength === 0) {

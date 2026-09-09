@@ -155,6 +155,31 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Conversa por voz ainda não está disponível para este perfil." }), { status: 403, headers: jsonHeaders });
     }
 
+    // ---- IA-3B — kill switch server-authoritative (mesmo padrão de
+    // ia_texto_habilitada em portal-ai-homolog / portal-voice-homolog).
+    // Roda DEPOIS do gate MASTER, ANTES de qualquer parsing de body,
+    // mint de credencial efêmera ou chamada à OpenAI -- inclui o modo
+    // Voice Studio (Parte C), que nunca pode ser usado para contornar
+    // esta flag: o check abaixo acontece antes de `overrides`/`isStudio`
+    // sequer serem lidos. Fail-closed em toda ambiguidade. Mesma flag
+    // única de portal-voice-homolog -- Voice-01 e Realtime sempre
+    // ligam/desligam juntos nesta fase. ----
+    let voiceEnabled = false;
+    try {
+      const { data: cfgData, error: cfgError } = await userClient.rpc("operational_portal_config");
+      if (!cfgError) {
+        const rows = cfgData?.rows ?? [];
+        const row = Array.isArray(rows) ? rows.find((r: any) => r?.chave === "ia_voz_habilitada") : null;
+        voiceEnabled = String(row?.valor ?? "").trim().toLowerCase() === "true";
+      }
+    } catch {
+      voiceEnabled = false;
+    }
+    if (!voiceEnabled) {
+      console.log(JSON.stringify({ request_id: requestId, event: "denied_voice_disabled" }));
+      return new Response(JSON.stringify({ error: "Conversa por voz está temporariamente indisponível." }), { status: 503, headers: jsonHeaders });
+    }
+
     // IA-UAT-VOICE-03 — corpo opcional, só para os dois usos explícitos
     // desta fase (Parte B: experimento de latência; Parte C: Voice
     // Studio). Body vazio == exatamente o comportamento do VOICE-02,
