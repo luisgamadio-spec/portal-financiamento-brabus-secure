@@ -547,3 +547,128 @@ process-teardown race unrelated to this code (both files also exited
 cleanly with code 0 on other runs, same PASS output every time).
 Treat the printed PASS/FAIL lines, not the process exit code alone, as
 the result of record for these two files.
+
+## 21. IA-3B — reconciliation onto a surgical `origin/main` base
+
+Local branch `ia3b-intelligence-reconciliation` (worktree
+`C:\Projetos\portal-financiamento-brabus-secure-ia3b`), based on
+`origin/main` (`4d8ce1d`) — **not** on this branch, and **not** a
+branch merge. Only the 7 authorized Intelligence files were brought in
+via explicit `git checkout ia-reconciliation-v2-local -- <path>`
+(`portal-ai-homolog/index.ts`, the 3 Voice/Realtime frontend files,
+`portal-ai-ui.js`) plus the existing test harness/docs/kill-switch
+migration — never a blind merge of this branch's other, unrelated
+commits. `supabase/functions/portal-ai/index.ts` deliberately left
+untouched (Gate 11) — this document's own Gate 10 claim about that file
+is corrected below.
+
+**Gate 10 correction (`IA_RECONCILIATION_LEDGER_PORTAL_AI_FROZEN_CLAIM_INACCURATE`,
+LOW, documentation debt):** §5's original text and Gate 10 above state
+`supabase/functions/portal-ai/index.ts` "stays exactly as `origin/main`
+already has it (untouched, undeployed, frozen)." Direct measurement
+(IA-3A.1) proved this false as a *provenance* claim: on **this
+branch**, `portal-ai/index.ts` is 5,784 lines / 11 tools, not
+`origin/main`'s 869 lines / 3 tools — it independently diverged through
+the same feature history as `portal-ai-homolog`, before any
+reconciliation phase touched anything. The corrected, accurate claim:
+no commit in IA-RECON-01 or any later phase (IA-3B included) ever
+writes to this file — Gate 10's actual *intent* (never touch it,
+`portal-ai-homolog` is the forward authority) was honored correctly
+throughout; only the "stays exactly as origin/main" *provenance*
+sentence itself was never true and should not be repeated as evidence.
+
+New this phase: `ia_voz_habilitada` kill switch added to
+`portal-voice-homolog`/`portal-realtime-homolog` (same
+`operational_portal_config()` pattern as `ia_texto_habilitada`,
+default `FALSE`, fail-closed, checked before Voice Studio mode is even
+read). Migration `20260905100000_ia_voz_kill_switch.sql` created, **not
+applied**. `MANIFEST.md` corrected (deployment-status claim only, using
+live-probe evidence — tool-count description left as-is since this
+branch's `portal-ai` copy genuinely still has 3 tools) and extended
+with rows for the 3 previously-undocumented `-homolog` functions.
+
+## 22. IA-3C — operational security verification
+
+Closed `PLATFORM_VERIFY_JWT_CONFIGURATION` fully via the Supabase
+Management API (already authenticated in this environment — no Human
+lookup needed):
+
+| Function | Live version | Platform `verify_jwt` |
+|---|---|---|
+| `portal-ai` | v2 | `true` |
+| `portal-ai-homolog` | **v36** | `false` |
+| `portal-voice-homolog` | v3 | `false` |
+| `portal-realtime-homolog` | v3 | `false` |
+
+`OPENAI_API_KEY` existence reconfirmed live (name present; only a
+one-way digest was ever returned by the CLI, never a usable value).
+Provenance (dedicated vs. shared) searched across all git history and
+docs — genuinely absent — escalated as the one Human checkpoint
+(closed in §23 below).
+
+Closed the IA-3B D1 debt: extended `tests/ai-uat-e2e/mock-backend.mjs`
+with a controllable `operational_portal_config()` mock and added
+`tests/ai-uat-e2e/kill-switch-e2e.mjs` — real HTTP-level proof, against
+the real unmodified Deno processes, of the full kill-switch matrix for
+all 3 functions (25/25), including the Voice Studio bypass check and
+the Realtime long-lived-key/600s-TTL boundary. Found and fixed a real
+staleness bug in `selftest-text.mjs` (written before the TEXT kill
+switch existed, silently broken by it, 12/37 → 37/37 after an explicit
+mock-config fix). **215/215 tests green this wave, 0 regressions, 0
+production function code changed.**
+
+**`MASTER_RUNTIME_503` correction:** IA-3C's own report classified this
+historical debt `RESOLVED`, interpreting it as the kill switches' own
+intended fail-closed default. **That inference was insufficiently
+evidenced** — no occurrence of this exact label was ever found anywhere
+in this repository's tracked history or docs (its origin is external to
+this repo). Corrected classification:
+`MASTER_RUNTIME_503_ORIGINAL_INCIDENT_INSUFFICIENT_EVIDENCE` — open/
+unproven, not claimed resolved, until a controlled real runtime test
+against the real project specifically reproduces and explains it.
+
+**Recommendation, not applied:** enable `verify_jwt=true` on the 3
+homolog functions before Human production UAT (mirrors `portal-ai`'s
+own already-`true` setting) — carried as
+`HOMOLOG_PLATFORM_VERIFY_JWT_HARDENING_PENDING`.
+
+## 23. IA-3C.1 — Human secret-provenance evidence
+
+Human inspected the OpenAI Platform directly (no key value, prefix, or
+credential shared) and found **two active, environment-specifically-named
+API keys**: one labeled for Production, one labeled for Homologação.
+
+**Classification: `OPENAI_INTELLIGENCE_KEYS_ENVIRONMENT_SEPARATED_HUMAN_CONFIRMED`**
+— intentional Production/Homologation credential separation is
+confirmed at the OpenAI Platform level.
+
+This does **not** by itself prove which of the two keys is the one
+currently stored in Supabase as `OPENAI_API_KEY` — no metadata links
+the two systems together automatically. **Do not claim**
+`CURRENT_SUPABASE_OPENAI_KEY_IS_HOMOLOGATION_KEY`.
+
+**Classification: `CURRENT_SUPABASE_OPENAI_KEY_ENVIRONMENT_BINDING_UNPROVEN`**
+— a narrow, disclosed operational debt. Before any eventual
+activation/real-OpenAI-traffic wave, the environment binding must be
+independently proven (e.g. a controlled, disclosed test call whose
+response metadata identifies which OpenAI project served it) or the
+key intentionally reset to the correct environment-specific credential.
+No secret-value work was performed to reach this classification, and
+none is needed to close it later — it is a binding-proof question, not
+a rotation question.
+
+This does not block IA-3D, which performs no OpenAI activation.
+
+## 24. IA-3D — governed semantic tool-policy foundation
+
+New file `supabase/functions/portal-ai-homolog/tool-policy.ts` — a
+deny-by-default authorization module for all 12 real tools, built from
+directly-read evidence (the real `TOOLS` array, the real, already
+cross-profile-tested `public.operational_current_scope()`, and the
+real `public.modulos_portal`/`permissoes_modulos` catalog — see
+`docs/IA-3D-TOOL-POLICY.md` for the full design and activation plan).
+**Foundation only** — not imported by `index.ts`, zero effect on the
+live function; the existing global MASTER-only gate remains the sole
+live authorization boundary. 79/79 new synthetic/adversarial tests
+pass, 0 real Supabase project or OpenAI traffic touched, 0 non-MASTER
+profile ever activated live.
