@@ -20,6 +20,11 @@
 
   var AI_SENDING = false;
   var AI_CONVERSATION = []; // [{role:'user'|'assistant', content:string}], só em memória
+  // IA-UAT-VOICE-NOVOCLIENTE-01 — incrementado a cada reset (Nova conversa
+  // OU reset de cenário vindo do backend); uma resposta cujo "gen" capturado
+  // no envio não bate mais com o atual chegou depois de um reset e é
+  // descartada em silêncio (nunca deve contaminar o novo cenário).
+  var AI_CONVERSATION_GEN = 0;
 
   var BAI_SUGGESTIONS = [
     'Como estamos nesta competência?',
@@ -237,6 +242,14 @@
   // livre do modelo.
 
   function baiFormatValue(value, format) {
+    // UAT-ANTECIPACAO-AUTONOMY-01 — único format que recebe uma STRING
+    // (AAAA-MM-DD), não um number; tratado antes da checagem numérica
+    // abaixo, que continua exatamente como era para todo outro format.
+    if (format === 'date') {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return { text: '—', title: null };
+      var dParts = value.split('-');
+      return { text: dParts[2] + '/' + dParts[1] + '/' + dParts[0], title: null };
+    }
     if (value === null || value === undefined || typeof value !== 'number' || !isFinite(value)) {
       return { text: '—', title: null };
     }
@@ -744,6 +757,12 @@
       bubble.textContent = content;
     } else {
       baiRenderMarkdown(bubble, content);
+      // IA-UAT-VOICE-01 — gancho opcional: só existe quando
+      // portal-ai-voice.js está carregado (UAT isolada), nunca no
+      // frontend de produção. No-op inofensivo caso contrário.
+      if (typeof window.baiAttachVoiceControls === 'function') {
+        window.baiAttachVoiceControls(bubble, content);
+      }
     }
     return bubble;
   }
@@ -788,13 +807,25 @@
       '<div><div class="brabusAiTitle">Brabus F&amp;I Intelligence <span class="brabusAiBadge">BETA</span></div>' +
       '<div class="brabusAiSubtitle">Inteligência operacional conectada aos dados do Portal.</div></div>' +
       '<div class="brabusAiHeaderActions">' +
+      '<button type="button" id="brabusAiRealtimeStartBtn" class="brabusAiRealtimeStartBtn" title="Conversa contínua por voz (VOICE-02)" onclick="window.baiRealtimeStart && window.baiRealtimeStart()">🗣️ Conversa por voz</button>' +
+      '<button type="button" id="brabusAiVoiceStudioBtn" class="brabusAiVoiceStudioBtn" title="Voice Studio — laboratório de voz (LAB ONLY)" onclick="window.baiVoiceStudioOpen && window.baiVoiceStudioOpen()">🧪</button>' +
+      '<button type="button" id="brabusAiAutoplayBtn" class="brabusAiAutoplayBtn" aria-pressed="true" title="Leitura automática de respostas" onclick="window.baiToggleAutoplay && window.baiToggleAutoplay()">🔊</button>' +
       '<button type="button" class="brabusAiNewChatBtn" onclick="novaConversaBrabusAI()">Nova conversa</button>' +
       '<button type="button" id="brabusAiExpandBtn" class="brabusAiExpandBtn" aria-label="Expandir" aria-pressed="false" onclick="toggleBrabusAIExpand()">⤢</button>' +
       '<button type="button" class="brabusAiCloseBtn" aria-label="Fechar" onclick="fecharBrabusAI()">✕</button>' +
       '</div></div>' +
       '<div class="brabusAiBody" id="brabusAiBody"></div>' +
-      '<div class="brabusAiInputBar">' +
-      '<textarea id="brabusAiInput" class="brabusAiInput" placeholder="Pergunte sobre os resultados do Portal..." rows="1" onkeydown="brabusAiKeydown(event)" oninput="brabusAiOnInput()"></textarea>' +
+      '<div class="brabusAiVoiceStatus" id="brabusAiVoiceStatus" hidden></div>' +
+      '<div class="brabusAiRealtimeBar" id="brabusAiRealtimeBar" hidden>' +
+      '<span class="brabusAiRealtimeState" id="brabusAiRealtimeState">CONECTANDO</span>' +
+      '<button type="button" id="brabusAiRealtimeMuteBtn" class="brabusAiRealtimeCtrlBtn" aria-pressed="false" onclick="window.baiRealtimeToggleMute && window.baiRealtimeToggleMute()">Mutar microfone</button>' +
+      '<button type="button" id="brabusAiRealtimeSilenceBtn" class="brabusAiRealtimeCtrlBtn" aria-pressed="false" onclick="window.baiRealtimeToggleSilence && window.baiRealtimeToggleSilence()">Silenciar IA</button>' +
+      '<button type="button" id="brabusAiRealtimeEndBtn" class="brabusAiRealtimeEndBtn" onclick="window.baiRealtimeEnd && window.baiRealtimeEnd()">Encerrar conversa</button>' +
+      '</div>' +
+      '<div class="brabusAiInputBar" id="brabusAiInputBar">' +
+      '<button type="button" id="brabusAiMicBtn" class="brabusAiMicBtn" aria-label="Falar" title="Falar (clique para começar, clique novamente para terminar)" onclick="window.baiToggleRecording && window.baiToggleRecording()">🎤</button>' +
+      '<button type="button" id="brabusAiMicCancelBtn" class="brabusAiMicCancelBtn" aria-label="Cancelar gravação" title="Cancelar gravação" onclick="window.baiCancelRecording && window.baiCancelRecording()" hidden>✕</button>' +
+      '<textarea id="brabusAiInput" class="brabusAiInput" aria-label="Pergunta para a Brabus F&amp;I Intelligence" placeholder="Pergunte sobre os resultados do Portal..." rows="1" onkeydown="brabusAiKeydown(event)" oninput="brabusAiOnInput()"></textarea>' +
       '<button type="button" id="brabusAiSendBtn" class="brabusAiSendBtn" onclick="enviarBrabusAI()" disabled>Enviar</button>' +
       '</div>' +
       '<div class="brabusAiFooter">' + BAI_FOOTER + '</div>';
@@ -850,9 +881,16 @@
 
   // ---------- Envio ----------
 
+  // IA-UAT-VOICE-02 — baiSend agora devolve {ok, reply, blocks} ou
+  // {ok:false, error}; chamadores existentes (enviarBrabusAI etc.)
+  // continuam ignorando o retorno como sempre — só a ponte de Realtime
+  // (baiSendFromRealtime, mais abaixo) usa esse valor, para reaproveitar
+  // 100% deste caminho (mesma sessão, mesmo histórico, mesmo
+  // portal-ai-homolog) em vez de duplicar a chamada de rede.
   async function baiSend(text) {
-    if (AI_SENDING || !text) return;
+    if (AI_SENDING || !text) return { ok: false, error: 'busy' };
     AI_SENDING = true;
+    var sentGen = AI_CONVERSATION_GEN; // IA-UAT-VOICE-NOVOCLIENTE-01
     AI_CONVERSATION.push({ role: 'user', content: text });
     baiRenderBody();
     window.brabusAiOnInput();
@@ -867,7 +905,7 @@
         AI_SENDING = false;
         if (timeoutId) clearTimeout(timeoutId);
         baiRenderBodyWithError('Sessão expirada — entre novamente.');
-        return;
+        return { ok: false, error: 'no-session' };
       }
 
       // Envia só {role, content} — blocks é dado já servido ao cliente,
@@ -878,7 +916,7 @@
       });
       var resp;
       try {
-        resp = await fetch(SUPABASE_URL + '/functions/v1/portal-ai', {
+        resp = await fetch(SUPABASE_URL + '/functions/v1/portal-ai-homolog', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -895,7 +933,7 @@
         } else {
           baiRenderBodyWithError('Não foi possível concluir a análise agora. Tente novamente.');
         }
-        return;
+        return { ok: false, error: 'network' };
       } finally {
         if (timeoutId) clearTimeout(timeoutId);
       }
@@ -903,13 +941,41 @@
       var result = await resp.json().catch(function () { return {}; });
       AI_SENDING = false;
 
+      // IA-UAT-VOICE-NOVOCLIENTE-01 — um reset (Nova conversa ou novo
+      // cliente) aconteceu enquanto esta resposta estava a caminho: ela
+      // pertence a um cenário que já não existe mais neste front-end.
+      // Descarta em silêncio, nunca injeta como resposta do novo cenário
+      // (mesmo princípio já usado no bridge de Realtime via latestCallId).
+      if (sentGen !== AI_CONVERSATION_GEN) {
+        return { ok: false, error: 'stale-scenario' };
+      }
+
       if (resp.ok && typeof result.reply === 'string') {
+        // IA-UAT-VOICE-NOVOCLIENTE-01 — o backend confirmou que este turno
+        // era início de novo cliente/cenário: poda AI_CONVERSATION até a
+        // mensagem do usuário que disparou o reset (mantém só ela + a
+        // resposta que chega agora), senão o PRÓXIMO turno reenviaria o
+        // histórico antigo de qualquer forma (back-end não guarda estado).
+        if (result.scenario_reset === true) {
+          var lastUserIdx = -1;
+          for (var i = AI_CONVERSATION.length - 1; i >= 0; i--) {
+            if (AI_CONVERSATION[i].role === 'user') { lastUserIdx = i; break; }
+          }
+          if (lastUserIdx > 0) AI_CONVERSATION = AI_CONVERSATION.slice(lastUserIdx);
+          AI_CONVERSATION_GEN++;
+          sentGen = AI_CONVERSATION_GEN;
+        }
         // blocks é opcional (Parte AL) — undefined/null aqui produz o
         // mesmo comportamento de sempre (só a bolha de texto).
         AI_CONVERSATION.push({ role: 'assistant', content: result.reply, blocks: Array.isArray(result.blocks) ? result.blocks : null });
         baiRenderBody();
         window.brabusAiOnInput();
-        return;
+        // IA-UAT-VOICE-01 — mesmo princípio de gancho opcional acima:
+        // dispara leitura automática só se a UAT de voz estiver carregada.
+        if (typeof window.baiOnAssistantReply === 'function') {
+          window.baiOnAssistantReply(result.reply);
+        }
+        return { ok: true, reply: result.reply, blocks: Array.isArray(result.blocks) ? result.blocks : null };
       }
 
       var friendly;
@@ -923,12 +989,28 @@
         friendly = 'Não foi possível concluir a análise agora. Tente novamente.';
       }
       baiRenderBodyWithError(friendly);
+      return { ok: false, error: 'http-' + resp.status };
     } catch (e) {
       AI_SENDING = false;
       if (timeoutId) clearTimeout(timeoutId);
       baiRenderBodyWithError('Não foi possível concluir a análise agora. Tente novamente.');
+      return { ok: false, error: 'exception' };
     }
   }
+
+  window.baiSendFromRealtime = function (text) {
+    return baiSend(text);
+  };
+
+  // IA-UAT-VOICE-02 — turnos de conversa social (sem chamar
+  // portal-ai-homolog, ex.: "que horas são", cumprimentos) ainda
+  // precisam aparecer na mesma transcrição — só a bolha, sem rede.
+  window.baiAppendRealtimeTurn = function (role, text) {
+    if ((role !== 'user' && role !== 'assistant') || typeof text !== 'string' || !text) return;
+    AI_CONVERSATION.push({ role: role, content: text });
+    baiRenderBody();
+    window.brabusAiOnInput();
+  };
 
   // ---------- API pública (chamada via onclick inline / portal-app.js) ----------
 
@@ -975,6 +1057,7 @@
     baiRenderBody();
     var input = document.getElementById('brabusAiInput');
     if (input) { input.value = ''; window.brabusAiOnInput(); }
+    if (typeof window.baiOnNewConversation === 'function') window.baiOnNewConversation();
   };
 
   window.enviarSugestaoBrabusAI = function (text) {

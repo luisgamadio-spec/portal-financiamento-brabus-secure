@@ -1,0 +1,327 @@
+{
+  "scenarios": [
+    {
+      "id": "test01-text-basic",
+      "label": "Basic TEXT question",
+      "prompt": "Qual foi o resultado do mês passado?",
+      "responseText": "[UAT mock narration for consultar_resultado] {\"period\":{\"start_date\":\"2026-08-01\",\"end_date\":\"2026-08-31\",\"label\":\"mês anterior\"},\"filters\":{\"store\":null,\"department\":null},\"sales\":13,\"financed\":10,\"share_percent\":76.92,\"production\":100500,\"return\":68600,\"return_avg_percent\":81.34,\"spf\":14400,\"spf_net\":13150,\"profitability\":84200}\n\n🔇 Áudio indisponível",
+      "blockCount": 1,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00"
+      ],
+      "screenshot": "03-test01-text-basic.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test02-linear",
+      "label": "Financiamento Linear",
+      "prompt": "Simula um financiamento linear de um veículo novo de R$ 120.000, com R$ 30.000 de entrada, em 36 meses.",
+      "responseText": "[UAT mock narration for simular_financiamento] {\"mode\":\"payment\",\"department\":\"NOVOS\",\"vehicle_value\":120000,\"down_payment\":30000,\"down_payment_percent\":25,\"financed_amount\":90000,\"vehicle_year\":null,\"results\":[{\"term_months\":36,\"payment\":4010.97}],\"calculation_source\":\"simulador_novos_financiamento_linear\",\"constraints_applied\":[\"Financiamento Linear Novos: sem entrada mínima (faixas de taxa em 0%/20%/30%/40%/50%).\"]}\n\n🔇 Áudio indisponível",
+      "blockCount": 2,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97"
+      ],
+      "screenshot": "04-test02-linear.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test03-balao",
+      "label": "Balão",
+      "prompt": "Simula um financiamento com balão de R$ 40.000 num veículo de R$ 150.000, entrada de R$ 30.000, em 36 meses.",
+      "responseText": "[UAT mock narration for simular_financiamento] {\"mode\":\"payment\",\"department\":\"NOVOS\",\"feasible\":true,\"vehicle_value\":150000,\"down_payment\":30000,\"down_payment_percent\":20,\"financed_amount\":120000,\"term_months\":36,\"vehicle_year\":null,\"monthly_payment\":4364.99,\"balloon_value\":40000,\"balloon_month\":36,\"balloon_month_total_due\":44364.99,\"max_balloon_allowed\":480000,\"calculation_source\":\"simulador_novos_balao_tradicional\",\"constraints_applied\":[\"Financiamento Balão Tradicional: entrada mínima de 10%; até 4 balões por simulação (Novos); soma de todos os balões limitada a um percentual do valor financiado, definido pela tabela oficial vigente.\"]}\n\n🔇 Áudio indisponível",
+      "blockCount": 3,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97",
+        "SIMULAÇÃO — FINANCIAMENTO BALÃO NOVOS (36X)\nVALOR DO VEÍCULO\nR$ 150.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n20,0%\nFINANCIADO\nR$ 120.000,00\nPARCELA MENSAL\nR$ 4.364,99\nBALÃO (MÊS 36)\nR$ 40.000,00\nTOTAL DEVIDO NO MÊS DO ÚLTIMO BALÃO (PARCELA + BALÃO)\nR$ 44.364,99\nTOTAL DE BALÕES MÁXIMO PERMITIDO NESSA ENTRADA\nR$ 480.000,00"
+      ],
+      "screenshot": "05-test03-balao.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test04-coparticipado",
+      "label": "Coparticipado",
+      "prompt": "Quero simular Coparticipado para a L200 Triton, R$ 200.000, entrada R$ 120.000, 24 meses.",
+      "responseText": "[UAT mock narration for simular_financiamento] {\"mode\":\"payment\",\"department\":\"NOVOS\",\"model\":\"L200 TRITON\",\"valid\":true,\"vehicle_value\":200000,\"down_payment\":120000,\"down_payment_percent\":60,\"min_down_payment_percent\":60,\"min_down_payment_value\":120000,\"financed_amount\":80000,\"results\":[{\"term_months\":24,\"rate\":1.99,\"payment\":3747.96}],\"rebate_total\":4000,\"rebate_hpe\":2000,\"rebate_brabus\":2000,\"final_sale_value\":198000,\"message\":null,\"calculation_source\":\"simulador_novos_plano_coparticipado\",\"constraints_applied\":[\"Plano Coparticipado (L200 TRITON): entrada mínima de 60%; acréscimo de 4,11% sobre o valor financiado em prazos até 24 meses, ou 6,22% acima de 24 meses, antes de aplicar o coeficiente oficial da tabela.\"]}\n\n🔇 Áudio indisponível",
+      "blockCount": 4,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97",
+        "SIMULAÇÃO — FINANCIAMENTO BALÃO NOVOS (36X)\nVALOR DO VEÍCULO\nR$ 150.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n20,0%\nFINANCIADO\nR$ 120.000,00\nPARCELA MENSAL\nR$ 4.364,99\nBALÃO (MÊS 36)\nR$ 40.000,00\nTOTAL DEVIDO NO MÊS DO ÚLTIMO BALÃO (PARCELA + BALÃO)\nR$ 44.364,99\nTOTAL DE BALÕES MÁXIMO PERMITIDO NESSA ENTRADA\nR$ 480.000,00",
+        "SIMULAÇÃO — PLANO COPARTICIPADO (L200 TRITON, 24X)\nVALOR DE VENDA\nR$ 200.000,00\nENTRADA\nR$ 120.000,00\nENTRADA (%)\n60,0%\nENTRADA MÍNIMA\n60,0%\nFINANCIADO\nR$ 80.000,00\nPARCELA (24X)\nR$ 3.747,96\nREBATE TOTAL\nR$ 4.000,00\nREBATE HPE\nR$ 2.000,00\nREBATE BRABUS\nR$ 2.000,00\nVALOR FINAL DE VENDA\nR$ 198.000,00"
+      ],
+      "screenshot": "06-test04-coparticipado.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test05-subsidiado",
+      "label": "Taxas Subsidiadas",
+      "prompt": "Quais as condições de Taxas Subsidiadas para um bem de R$ 90.000 com entrada de R$ 50.000?",
+      "responseText": "[UAT mock narration for simular_financiamento] {\"mode\":\"payment\",\"department\":\"NOVOS\",\"valid\":true,\"vehicle_value\":90000,\"down_payment\":50000,\"down_payment_percent\":55.56,\"min_down_payment_percent\":50,\"financed_amount\":40000,\"min_sale_value\":null,\"options\":[{\"term_months\":24,\"rate\":0.0049,\"coefficient\":0.048,\"payment\":1920,\"rebate_percent\":2,\"rebate_value\":800,\"final_sale_value\":89200,\"viable\":true,\"best\":true},{\"term_months\":36,\"rate\":0.0099,\"coefficient\":0.036,\"payment\":1530,\"rebate_percent\":3,\"rebate_value\":1200,\"final_sale_value\":88800,\"viable\":true,\"best\":false}],\"calculation_source\":\"simulador_novos_taxas_subsidiadas\",\"constraints_applied\":[\"Taxas Subsidiadas (Novos): entrada mínima de 50%; tarifa adicional de R$2.500 sobre o financiado em prazos acima de 24 meses; sem modelo específico — condição universal do produto; 'melhor opção' considera maior valor final de venda entre as viáveis (margem do lojista), não a menor parcela para o cliente.\"]}\n\n🔇 Áudio indisponível",
+      "blockCount": 5,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97",
+        "SIMULAÇÃO — FINANCIAMENTO BALÃO NOVOS (36X)\nVALOR DO VEÍCULO\nR$ 150.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n20,0%\nFINANCIADO\nR$ 120.000,00\nPARCELA MENSAL\nR$ 4.364,99\nBALÃO (MÊS 36)\nR$ 40.000,00\nTOTAL DEVIDO NO MÊS DO ÚLTIMO BALÃO (PARCELA + BALÃO)\nR$ 44.364,99\nTOTAL DE BALÕES MÁXIMO PERMITIDO NESSA ENTRADA\nR$ 480.000,00",
+        "SIMULAÇÃO — PLANO COPARTICIPADO (L200 TRITON, 24X)\nVALOR DE VENDA\nR$ 200.000,00\nENTRADA\nR$ 120.000,00\nENTRADA (%)\n60,0%\nENTRADA MÍNIMA\n60,0%\nFINANCIADO\nR$ 80.000,00\nPARCELA (24X)\nR$ 3.747,96\nREBATE TOTAL\nR$ 4.000,00\nREBATE HPE\nR$ 2.000,00\nREBATE BRABUS\nR$ 2.000,00\nVALOR FINAL DE VENDA\nR$ 198.000,00",
+        "TAXAS SUBSIDIADAS — NOVOS\n🥇 1º\n24x — taxa 0,49%\nParcela: R$ 1.920,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00\n🥈 2º\n36x — taxa 0,99%\nParcela: R$ 1.530,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00"
+      ],
+      "screenshot": "07-test05-subsidiado.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test06-taxa-implicita",
+      "label": "Taxa Implícita",
+      "prompt": "Um cliente financiou R$ 100.000 em 36x de R$ 4.485,75. Qual a taxa implícita desse contrato?",
+      "responseText": "[UAT mock narration for calcular_taxa_financiamento] {\"feasible\":true,\"financed_amount\":100000,\"term_months\":36,\"payment\":4485.75,\"taxa_net\":0.0258,\"taxa_cet_mes\":0.0286,\"total_pago\":161487,\"juros_totais\":61487,\"annual_effective_rate_net_derived\":0.35729999999999995,\"calculation_source\":\"simulador_novos_descobridor_taxa\",\"constraints_applied\":[\"Calculadora de Taxa: motor oficial (Tabela PRICE, resolvida por bisseção) calcula DUAS taxas a partir dos mesmos 3 dados — Taxa NET (resultado principal, sobre um valor total financiado ESTIMADO que inclui tarifas fixas de cadastro/registro e um IOF fixo, premissas embutidas nesta calculadora) e Taxa CET ao mês (KPI secundário, sobre o valor financiado exatamente como informado, sem ajuste). As duas quase sempre divergem — sempre apresente qual é qual, nunca uma só como 'a' taxa. Este é um cálculo MATEMÁTICO de apoio comercial rápido — NÃO comparável numericamente às tabelas de taxa de Linear/Coparticipado/Taxas Subsidiadas (premissas de tarifa diferentes, comprovado em auditoria) e NÃO prova nem refuta a existência comercial ou histórica de um contrato. annual_effective_rate_net_derived é uma extensão adicional (não existe no motor oficial): a taxa NET anualizada por juros compostos — nunca confundir com uma taxa nominal anual contratual.\"]}\n\n🔇 Áudio indisponível",
+      "blockCount": 6,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97",
+        "SIMULAÇÃO — FINANCIAMENTO BALÃO NOVOS (36X)\nVALOR DO VEÍCULO\nR$ 150.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n20,0%\nFINANCIADO\nR$ 120.000,00\nPARCELA MENSAL\nR$ 4.364,99\nBALÃO (MÊS 36)\nR$ 40.000,00\nTOTAL DEVIDO NO MÊS DO ÚLTIMO BALÃO (PARCELA + BALÃO)\nR$ 44.364,99\nTOTAL DE BALÕES MÁXIMO PERMITIDO NESSA ENTRADA\nR$ 480.000,00",
+        "SIMULAÇÃO — PLANO COPARTICIPADO (L200 TRITON, 24X)\nVALOR DE VENDA\nR$ 200.000,00\nENTRADA\nR$ 120.000,00\nENTRADA (%)\n60,0%\nENTRADA MÍNIMA\n60,0%\nFINANCIADO\nR$ 80.000,00\nPARCELA (24X)\nR$ 3.747,96\nREBATE TOTAL\nR$ 4.000,00\nREBATE HPE\nR$ 2.000,00\nREBATE BRABUS\nR$ 2.000,00\nVALOR FINAL DE VENDA\nR$ 198.000,00",
+        "TAXAS SUBSIDIADAS — NOVOS\n🥇 1º\n24x — taxa 0,49%\nParcela: R$ 1.920,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00\n🥈 2º\n36x — taxa 0,99%\nParcela: R$ 1.530,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00",
+        "CÁLCULO — TAXA IMPLÍCITA (DESCOBRIDOR DE TAXA)\nVALOR FINANCIADO INFORMADO\nR$ 100.000,00\nPARCELA (36X)\nR$ 4.485,75\nTAXA NET AO MÊS (RESULTADO PRINCIPAL)\n2,6%\nTAXA CET AO MÊS (SOBRE O VALOR INFORMADO, SEM AJUSTE)\n2,9%\nTOTAL PAGO (NOMINAL)\nR$ 161.487,00\nJUROS TOTAIS APROXIMADOS\nR$ 61.487,00\nTAXA NET EFETIVA ANUAL (DERIVADA, CÁLCULO ADICIONAL)\n35,7%"
+      ],
+      "screenshot": "08-test06-taxa-implicita.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test07-antecipacao",
+      "label": "Antecipação (sem due date)",
+      "prompt": "Quero simular a antecipação de um contrato com saldo de R$ 50.000, sem informar a data da próxima parcela.",
+      "responseText": "[UAT mock narration for simular_antecipacao] {\"feasible\":true,\"term_months\":36,\"monthly_payment\":1800,\"first_due_date\":\"2026-10-01\",\"first_due_date_assumed\":true,\"settlement_date\":\"2027-03-01\",\"scope_label\":\"Antecipação do contrato todo\",\"installments_considered\":30,\"first_installment_considered\":7,\"last_installment_considered\":36,\"gross_total\":54000,\"balloon_total\":0,\"discount_total\":5346,\"settlement_amount\":48654,\"discount_percent_of_gross\":9.9,\"missing_discount_data\":false,\"calculation_source\":\"simulador_novos_antecipacao\",\"constraints_applied\":[\"Antecipação (Novos/Seminovos): motor oficial baseado em tabela de desconto por meses de antecedência até o vencimento (1 a 60 meses), sem taxa de juros nem PMT — vale para qualquer contrato cuja estrutura final seja parcela mensal fixa + até 8 balões (Linear, Balão, Coparticipado, Taxas Subsidiadas). NÃO representa nativamente planos sem parcela mensal regular (Semestral/Anual — cada pagamento periódico precisa ser simulado individualmente como parcela única). Estimativa comercial para conferência — o valor oficial de quitação pode variar conforme regra operacional do banco, tarifas e liquidação do contrato.\"]}\n\n🔇 Áudio indisponível",
+      "blockCount": 7,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97",
+        "SIMULAÇÃO — FINANCIAMENTO BALÃO NOVOS (36X)\nVALOR DO VEÍCULO\nR$ 150.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n20,0%\nFINANCIADO\nR$ 120.000,00\nPARCELA MENSAL\nR$ 4.364,99\nBALÃO (MÊS 36)\nR$ 40.000,00\nTOTAL DEVIDO NO MÊS DO ÚLTIMO BALÃO (PARCELA + BALÃO)\nR$ 44.364,99\nTOTAL DE BALÕES MÁXIMO PERMITIDO NESSA ENTRADA\nR$ 480.000,00",
+        "SIMULAÇÃO — PLANO COPARTICIPADO (L200 TRITON, 24X)\nVALOR DE VENDA\nR$ 200.000,00\nENTRADA\nR$ 120.000,00\nENTRADA (%)\n60,0%\nENTRADA MÍNIMA\n60,0%\nFINANCIADO\nR$ 80.000,00\nPARCELA (24X)\nR$ 3.747,96\nREBATE TOTAL\nR$ 4.000,00\nREBATE HPE\nR$ 2.000,00\nREBATE BRABUS\nR$ 2.000,00\nVALOR FINAL DE VENDA\nR$ 198.000,00",
+        "TAXAS SUBSIDIADAS — NOVOS\n🥇 1º\n24x — taxa 0,49%\nParcela: R$ 1.920,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00\n🥈 2º\n36x — taxa 0,99%\nParcela: R$ 1.530,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00",
+        "CÁLCULO — TAXA IMPLÍCITA (DESCOBRIDOR DE TAXA)\nVALOR FINANCIADO INFORMADO\nR$ 100.000,00\nPARCELA (36X)\nR$ 4.485,75\nTAXA NET AO MÊS (RESULTADO PRINCIPAL)\n2,6%\nTAXA CET AO MÊS (SOBRE O VALOR INFORMADO, SEM AJUSTE)\n2,9%\nTOTAL PAGO (NOMINAL)\nR$ 161.487,00\nJUROS TOTAIS APROXIMADOS\nR$ 61.487,00\nTAXA NET EFETIVA ANUAL (DERIVADA, CÁLCULO ADICIONAL)\n35,7%",
+        "SIMULAÇÃO — ANTECIPAÇÃO / LIQUIDAÇÃO ANTECIPADA\nPRAZO ORIGINAL\n36\nPARCELA MENSAL DO CONTRATO\nR$ 1.800,00\nPRIMEIRA PARCELA CONSIDERADA (PREMISSA: HOJE + 30 DIAS)\n01/10/2026\nDATA DA ANTECIPAÇÃO/QUITAÇÃO\n01/03/2027\nANTECIPAÇÃO DO CONTRATO TODO\n30\nVALOR BRUTO (NOMINAL RESTANTE)\nR$ 54.000,00\nDESCONTO TOTAL\nR$ 5.346,00\nVALOR PARA QUITAÇÃO\nR$ 48.654,00"
+      ],
+      "screenshot": "09-test07-antecipacao.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test08-cash-conversion",
+      "label": "Cash Conversion basic",
+      "prompt": "Vale mais a pena o cliente pagar à vista R$ 50.000 ou financiar e deixar o dinheiro aplicado por 12 meses?",
+      "responseText": "[UAT mock narration for simular_cash_conversion] {\"capital\":50000,\"monthly_payment\":1500,\"term_months\":12,\"application_rate\":0.0112,\"rate_is_fixed_policy\":true,\"rate_override_requested\":false,\"requested_rate\":null,\"final_financing_value\":18000,\"future_investment_value\":57149.8,\"investment_earnings\":7149.8,\"projected_difference\":39149.8,\"classification\":\"FINANCIAR\",\"break_even_rate\":-0.0816,\"calculation_source\":\"simulador_novos_cash_conversion\",\"constraints_applied\":[\"Cash Conversion: compara o total nominal das parcelas (parcela × prazo, sem desconto a valor presente) contra o capital mantido aplicado a juros compostos pela taxa de aplicação, pelo mesmo prazo. NÃO deduz as parcelas do capital aplicado (são dois cenários paralelos e independentes, não um fluxo de caixa único) — premissa do motor oficial, não uma simplificação desta tool. NÃO considera imposto de renda, IOF, come-cotas, inflação, risco/volatilidade nem CDI. Taxa de aplicação: premissa comercial padrão fixa da Brabus Intelligence, 1,12% ao mês — não configurável nesta fase, mesmo se o usuário pedir outro valor. break_even_rate é um cálculo adicional (não existe no Cash Conversion oficial do Portal): a rentabilidade mensal que faria os dois cenários terminarem equivalentes dentro destas mesmas premissas — nunca uma rentabilidade garantida ou recomendada.\"]}\n\n🔇 Áudio indisponível",
+      "blockCount": 8,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97",
+        "SIMULAÇÃO — FINANCIAMENTO BALÃO NOVOS (36X)\nVALOR DO VEÍCULO\nR$ 150.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n20,0%\nFINANCIADO\nR$ 120.000,00\nPARCELA MENSAL\nR$ 4.364,99\nBALÃO (MÊS 36)\nR$ 40.000,00\nTOTAL DEVIDO NO MÊS DO ÚLTIMO BALÃO (PARCELA + BALÃO)\nR$ 44.364,99\nTOTAL DE BALÕES MÁXIMO PERMITIDO NESSA ENTRADA\nR$ 480.000,00",
+        "SIMULAÇÃO — PLANO COPARTICIPADO (L200 TRITON, 24X)\nVALOR DE VENDA\nR$ 200.000,00\nENTRADA\nR$ 120.000,00\nENTRADA (%)\n60,0%\nENTRADA MÍNIMA\n60,0%\nFINANCIADO\nR$ 80.000,00\nPARCELA (24X)\nR$ 3.747,96\nREBATE TOTAL\nR$ 4.000,00\nREBATE HPE\nR$ 2.000,00\nREBATE BRABUS\nR$ 2.000,00\nVALOR FINAL DE VENDA\nR$ 198.000,00",
+        "TAXAS SUBSIDIADAS — NOVOS\n🥇 1º\n24x — taxa 0,49%\nParcela: R$ 1.920,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00\n🥈 2º\n36x — taxa 0,99%\nParcela: R$ 1.530,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00",
+        "CÁLCULO — TAXA IMPLÍCITA (DESCOBRIDOR DE TAXA)\nVALOR FINANCIADO INFORMADO\nR$ 100.000,00\nPARCELA (36X)\nR$ 4.485,75\nTAXA NET AO MÊS (RESULTADO PRINCIPAL)\n2,6%\nTAXA CET AO MÊS (SOBRE O VALOR INFORMADO, SEM AJUSTE)\n2,9%\nTOTAL PAGO (NOMINAL)\nR$ 161.487,00\nJUROS TOTAIS APROXIMADOS\nR$ 61.487,00\nTAXA NET EFETIVA ANUAL (DERIVADA, CÁLCULO ADICIONAL)\n35,7%",
+        "SIMULAÇÃO — ANTECIPAÇÃO / LIQUIDAÇÃO ANTECIPADA\nPRAZO ORIGINAL\n36\nPARCELA MENSAL DO CONTRATO\nR$ 1.800,00\nPRIMEIRA PARCELA CONSIDERADA (PREMISSA: HOJE + 30 DIAS)\n01/10/2026\nDATA DA ANTECIPAÇÃO/QUITAÇÃO\n01/03/2027\nANTECIPAÇÃO DO CONTRATO TODO\n30\nVALOR BRUTO (NOMINAL RESTANTE)\nR$ 54.000,00\nDESCONTO TOTAL\nR$ 5.346,00\nVALOR PARA QUITAÇÃO\nR$ 48.654,00",
+        "SIMULAÇÃO — CASH CONVERSION\nCAPITAL INICIAL\nR$ 50.000,00\nPARCELA OFERTADA (12X)\nR$ 1.500,00\nTAXA DE APLICAÇÃO (A.M.) — PREMISSA PADRÃO FIXA\n1,1%\nTOTAL NOMINAL DAS PARCELAS\nR$ 18.000,00\nCAPITAL FINAL PROJETADO\nR$ 57.149,80\nRENDIMENTO PROJETADO\nR$ 7.149,80\nDIFERENÇA PROJETADA\nR$ 39.149,80\nTAXA DE EQUILÍBRIO (A.M., CÁLCULO ADICIONAL)\n-8,2%"
+      ],
+      "screenshot": "10-test08-cash-conversion.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test09-cash-conversion-custom-rate",
+      "label": "Cash Conversion custom rate",
+      "prompt": "E se a taxa de aplicação fosse 2% ao mês em vez da taxa oficial?",
+      "responseText": "[UAT mock narration for simular_cash_conversion] {\"capital\":50000,\"monthly_payment\":1500,\"term_months\":12,\"application_rate\":0.0112,\"rate_is_fixed_policy\":true,\"rate_override_requested\":true,\"requested_rate\":0.02,\"final_financing_value\":18000,\"future_investment_value\":57149.8,\"investment_earnings\":7149.8,\"projected_difference\":39149.8,\"classification\":\"FINANCIAR\",\"break_even_rate\":-0.0816,\"calculation_source\":\"simulador_novos_cash_conversion\",\"constraints_applied\":[\"Cash Conversion: compara o total nominal das parcelas (parcela × prazo, sem desconto a valor presente) contra o capital mantido aplicado a juros compostos pela taxa de aplicação, pelo mesmo prazo. NÃO deduz as parcelas do capital aplicado (são dois cenários paralelos e independentes, não um fluxo de caixa único) — premissa do motor oficial, não uma simplificação desta tool. NÃO considera imposto de renda, IOF, come-cotas, inflação, risco/volatilidade nem CDI. Taxa de aplicação: premissa comercial padrão fixa da Brabus Intelligence, 1,12% ao mês — não configurável nesta fase, mesmo se o usuário pedir outro valor. break_even_rate é um cálculo adicional (não existe no Cash Conversion oficial do Portal): a rentabilidade mensal que faria os dois cenários terminarem equivalentes dentro destas mesmas premissas — nunca uma rentabilidade garantida ou recomendada.\"]}\n\n🔇 Áudio indisponível",
+      "blockCount": 9,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97",
+        "SIMULAÇÃO — FINANCIAMENTO BALÃO NOVOS (36X)\nVALOR DO VEÍCULO\nR$ 150.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n20,0%\nFINANCIADO\nR$ 120.000,00\nPARCELA MENSAL\nR$ 4.364,99\nBALÃO (MÊS 36)\nR$ 40.000,00\nTOTAL DEVIDO NO MÊS DO ÚLTIMO BALÃO (PARCELA + BALÃO)\nR$ 44.364,99\nTOTAL DE BALÕES MÁXIMO PERMITIDO NESSA ENTRADA\nR$ 480.000,00",
+        "SIMULAÇÃO — PLANO COPARTICIPADO (L200 TRITON, 24X)\nVALOR DE VENDA\nR$ 200.000,00\nENTRADA\nR$ 120.000,00\nENTRADA (%)\n60,0%\nENTRADA MÍNIMA\n60,0%\nFINANCIADO\nR$ 80.000,00\nPARCELA (24X)\nR$ 3.747,96\nREBATE TOTAL\nR$ 4.000,00\nREBATE HPE\nR$ 2.000,00\nREBATE BRABUS\nR$ 2.000,00\nVALOR FINAL DE VENDA\nR$ 198.000,00",
+        "TAXAS SUBSIDIADAS — NOVOS\n🥇 1º\n24x — taxa 0,49%\nParcela: R$ 1.920,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00\n🥈 2º\n36x — taxa 0,99%\nParcela: R$ 1.530,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00",
+        "CÁLCULO — TAXA IMPLÍCITA (DESCOBRIDOR DE TAXA)\nVALOR FINANCIADO INFORMADO\nR$ 100.000,00\nPARCELA (36X)\nR$ 4.485,75\nTAXA NET AO MÊS (RESULTADO PRINCIPAL)\n2,6%\nTAXA CET AO MÊS (SOBRE O VALOR INFORMADO, SEM AJUSTE)\n2,9%\nTOTAL PAGO (NOMINAL)\nR$ 161.487,00\nJUROS TOTAIS APROXIMADOS\nR$ 61.487,00\nTAXA NET EFETIVA ANUAL (DERIVADA, CÁLCULO ADICIONAL)\n35,7%",
+        "SIMULAÇÃO — ANTECIPAÇÃO / LIQUIDAÇÃO ANTECIPADA\nPRAZO ORIGINAL\n36\nPARCELA MENSAL DO CONTRATO\nR$ 1.800,00\nPRIMEIRA PARCELA CONSIDERADA (PREMISSA: HOJE + 30 DIAS)\n01/10/2026\nDATA DA ANTECIPAÇÃO/QUITAÇÃO\n01/03/2027\nANTECIPAÇÃO DO CONTRATO TODO\n30\nVALOR BRUTO (NOMINAL RESTANTE)\nR$ 54.000,00\nDESCONTO TOTAL\nR$ 5.346,00\nVALOR PARA QUITAÇÃO\nR$ 48.654,00",
+        "SIMULAÇÃO — CASH CONVERSION\nCAPITAL INICIAL\nR$ 50.000,00\nPARCELA OFERTADA (12X)\nR$ 1.500,00\nTAXA DE APLICAÇÃO (A.M.) — PREMISSA PADRÃO FIXA\n1,1%\nTOTAL NOMINAL DAS PARCELAS\nR$ 18.000,00\nCAPITAL FINAL PROJETADO\nR$ 57.149,80\nRENDIMENTO PROJETADO\nR$ 7.149,80\nDIFERENÇA PROJETADA\nR$ 39.149,80\nTAXA DE EQUILÍBRIO (A.M., CÁLCULO ADICIONAL)\n-8,2%",
+        "SIMULAÇÃO — CASH CONVERSION\nCAPITAL INICIAL\nR$ 50.000,00\nPARCELA OFERTADA (12X)\nR$ 1.500,00\nTAXA DE APLICAÇÃO (A.M.) — PREMISSA PADRÃO FIXA, NÃO A TAXA SUGERIDA\n1,1%\nTOTAL NOMINAL DAS PARCELAS\nR$ 18.000,00\nCAPITAL FINAL PROJETADO\nR$ 57.149,80\nRENDIMENTO PROJETADO\nR$ 7.149,80\nDIFERENÇA PROJETADA\nR$ 39.149,80\nTAXA DE EQUILÍBRIO (A.M., CÁLCULO ADICIONAL)\n-8,2%"
+      ],
+      "screenshot": "11-test09-cash-conversion-custom-rate.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test11-negative-truth",
+      "label": "Negative/ineligible scenario",
+      "prompt": "Simula uma Taxas Subsidiadas para um bem de R$ 50.000 com entrada de R$ 10.000",
+      "responseText": "[UAT mock narration for simular_financiamento] {\"mode\":\"payment\",\"department\":\"NOVOS\",\"valid\":false,\"vehicle_value\":50000,\"down_payment\":10000,\"min_sale_value\":null,\"message\":\"A entrada mínima permitida para esta modalidade é de 50%.\",\"calculation_source\":\"simulador_novos_taxas_subsidiadas\"}\n\n🔇 Áudio indisponível",
+      "blockCount": 9,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97",
+        "SIMULAÇÃO — FINANCIAMENTO BALÃO NOVOS (36X)\nVALOR DO VEÍCULO\nR$ 150.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n20,0%\nFINANCIADO\nR$ 120.000,00\nPARCELA MENSAL\nR$ 4.364,99\nBALÃO (MÊS 36)\nR$ 40.000,00\nTOTAL DEVIDO NO MÊS DO ÚLTIMO BALÃO (PARCELA + BALÃO)\nR$ 44.364,99\nTOTAL DE BALÕES MÁXIMO PERMITIDO NESSA ENTRADA\nR$ 480.000,00",
+        "SIMULAÇÃO — PLANO COPARTICIPADO (L200 TRITON, 24X)\nVALOR DE VENDA\nR$ 200.000,00\nENTRADA\nR$ 120.000,00\nENTRADA (%)\n60,0%\nENTRADA MÍNIMA\n60,0%\nFINANCIADO\nR$ 80.000,00\nPARCELA (24X)\nR$ 3.747,96\nREBATE TOTAL\nR$ 4.000,00\nREBATE HPE\nR$ 2.000,00\nREBATE BRABUS\nR$ 2.000,00\nVALOR FINAL DE VENDA\nR$ 198.000,00",
+        "TAXAS SUBSIDIADAS — NOVOS\n🥇 1º\n24x — taxa 0,49%\nParcela: R$ 1.920,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00\n🥈 2º\n36x — taxa 0,99%\nParcela: R$ 1.530,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00",
+        "CÁLCULO — TAXA IMPLÍCITA (DESCOBRIDOR DE TAXA)\nVALOR FINANCIADO INFORMADO\nR$ 100.000,00\nPARCELA (36X)\nR$ 4.485,75\nTAXA NET AO MÊS (RESULTADO PRINCIPAL)\n2,6%\nTAXA CET AO MÊS (SOBRE O VALOR INFORMADO, SEM AJUSTE)\n2,9%\nTOTAL PAGO (NOMINAL)\nR$ 161.487,00\nJUROS TOTAIS APROXIMADOS\nR$ 61.487,00\nTAXA NET EFETIVA ANUAL (DERIVADA, CÁLCULO ADICIONAL)\n35,7%",
+        "SIMULAÇÃO — ANTECIPAÇÃO / LIQUIDAÇÃO ANTECIPADA\nPRAZO ORIGINAL\n36\nPARCELA MENSAL DO CONTRATO\nR$ 1.800,00\nPRIMEIRA PARCELA CONSIDERADA (PREMISSA: HOJE + 30 DIAS)\n01/10/2026\nDATA DA ANTECIPAÇÃO/QUITAÇÃO\n01/03/2027\nANTECIPAÇÃO DO CONTRATO TODO\n30\nVALOR BRUTO (NOMINAL RESTANTE)\nR$ 54.000,00\nDESCONTO TOTAL\nR$ 5.346,00\nVALOR PARA QUITAÇÃO\nR$ 48.654,00",
+        "SIMULAÇÃO — CASH CONVERSION\nCAPITAL INICIAL\nR$ 50.000,00\nPARCELA OFERTADA (12X)\nR$ 1.500,00\nTAXA DE APLICAÇÃO (A.M.) — PREMISSA PADRÃO FIXA\n1,1%\nTOTAL NOMINAL DAS PARCELAS\nR$ 18.000,00\nCAPITAL FINAL PROJETADO\nR$ 57.149,80\nRENDIMENTO PROJETADO\nR$ 7.149,80\nDIFERENÇA PROJETADA\nR$ 39.149,80\nTAXA DE EQUILÍBRIO (A.M., CÁLCULO ADICIONAL)\n-8,2%",
+        "SIMULAÇÃO — CASH CONVERSION\nCAPITAL INICIAL\nR$ 50.000,00\nPARCELA OFERTADA (12X)\nR$ 1.500,00\nTAXA DE APLICAÇÃO (A.M.) — PREMISSA PADRÃO FIXA, NÃO A TAXA SUGERIDA\n1,1%\nTOTAL NOMINAL DAS PARCELAS\nR$ 18.000,00\nCAPITAL FINAL PROJETADO\nR$ 57.149,80\nRENDIMENTO PROJETADO\nR$ 7.149,80\nDIFERENÇA PROJETADA\nR$ 39.149,80\nTAXA DE EQUILÍBRIO (A.M., CÁLCULO ADICIONAL)\n-8,2%"
+      ],
+      "screenshot": "12-test11-negative-truth.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test13-error-handling",
+      "label": "Error handling (simulated upstream failure)",
+      "prompt": "__UAT_TRIGGER_UPSTREAM_ERROR__",
+      "errorBubbleText": "Não foi possível concluir a análise agora. Tente novamente.",
+      "screenshot": "13-test13-error-handling.png",
+      "pass": true,
+      "otherConsoleErrorsDuring": []
+    },
+    {
+      "id": "test10-multiturn",
+      "label": "Multi-turn follow-up (48 meses)",
+      "prompt": "E se fosse 48 meses em vez de 36?",
+      "responseText": "[UAT mock narration for simular_financiamento] {\"mode\":\"payment\",\"department\":\"NOVOS\",\"vehicle_value\":120000,\"down_payment\":30000,\"down_payment_percent\":25,\"financed_amount\":90000,\"vehicle_year\":null,\"results\":[{\"term_months\":48,\"payment\":3600.67}],\"calculation_source\":\"simulador_novos_financiamento_linear\",\"constraints_applied\":[\"Financiamento Linear Novos: sem entrada mínima (faixas de taxa em 0%/20%/30%/40%/50%).\"]}\n\n🔇 Áudio indisponível",
+      "blockCount": 10,
+      "blocks": [
+        "GRUPO — MÊS ANTERIOR\nVENDAS\n13\nFINANCIAMENTOS\n10\nSHARE\n76,9%\nPRODUÇÃO\nR$ 100.500,00\nRETORNO\nR$ 68.600,00\nRETORNO MÉDIO\n81,3%\nSPF\nR$ 14.400,00\nSPF LÍQUIDO / RECEITA SPF\nR$ 13.150,00\nRENTABILIDADE / RECEITA TOTAL\nR$ 84.200,00",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 36X\nR$ 4.010,97",
+        "SIMULAÇÃO — FINANCIAMENTO BALÃO NOVOS (36X)\nVALOR DO VEÍCULO\nR$ 150.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n20,0%\nFINANCIADO\nR$ 120.000,00\nPARCELA MENSAL\nR$ 4.364,99\nBALÃO (MÊS 36)\nR$ 40.000,00\nTOTAL DEVIDO NO MÊS DO ÚLTIMO BALÃO (PARCELA + BALÃO)\nR$ 44.364,99\nTOTAL DE BALÕES MÁXIMO PERMITIDO NESSA ENTRADA\nR$ 480.000,00",
+        "SIMULAÇÃO — PLANO COPARTICIPADO (L200 TRITON, 24X)\nVALOR DE VENDA\nR$ 200.000,00\nENTRADA\nR$ 120.000,00\nENTRADA (%)\n60,0%\nENTRADA MÍNIMA\n60,0%\nFINANCIADO\nR$ 80.000,00\nPARCELA (24X)\nR$ 3.747,96\nREBATE TOTAL\nR$ 4.000,00\nREBATE HPE\nR$ 2.000,00\nREBATE BRABUS\nR$ 2.000,00\nVALOR FINAL DE VENDA\nR$ 198.000,00",
+        "TAXAS SUBSIDIADAS — NOVOS\n🥇 1º\n24x — taxa 0,49%\nParcela: R$ 1.920,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00\n🥈 2º\n36x — taxa 0,99%\nParcela: R$ 1.530,00\nEntrada: R$ 50.000,00\nFinanciado: R$ 40.000,00",
+        "CÁLCULO — TAXA IMPLÍCITA (DESCOBRIDOR DE TAXA)\nVALOR FINANCIADO INFORMADO\nR$ 100.000,00\nPARCELA (36X)\nR$ 4.485,75\nTAXA NET AO MÊS (RESULTADO PRINCIPAL)\n2,6%\nTAXA CET AO MÊS (SOBRE O VALOR INFORMADO, SEM AJUSTE)\n2,9%\nTOTAL PAGO (NOMINAL)\nR$ 161.487,00\nJUROS TOTAIS APROXIMADOS\nR$ 61.487,00\nTAXA NET EFETIVA ANUAL (DERIVADA, CÁLCULO ADICIONAL)\n35,7%",
+        "SIMULAÇÃO — ANTECIPAÇÃO / LIQUIDAÇÃO ANTECIPADA\nPRAZO ORIGINAL\n36\nPARCELA MENSAL DO CONTRATO\nR$ 1.800,00\nPRIMEIRA PARCELA CONSIDERADA (PREMISSA: HOJE + 30 DIAS)\n01/10/2026\nDATA DA ANTECIPAÇÃO/QUITAÇÃO\n01/03/2027\nANTECIPAÇÃO DO CONTRATO TODO\n30\nVALOR BRUTO (NOMINAL RESTANTE)\nR$ 54.000,00\nDESCONTO TOTAL\nR$ 5.346,00\nVALOR PARA QUITAÇÃO\nR$ 48.654,00",
+        "SIMULAÇÃO — CASH CONVERSION\nCAPITAL INICIAL\nR$ 50.000,00\nPARCELA OFERTADA (12X)\nR$ 1.500,00\nTAXA DE APLICAÇÃO (A.M.) — PREMISSA PADRÃO FIXA\n1,1%\nTOTAL NOMINAL DAS PARCELAS\nR$ 18.000,00\nCAPITAL FINAL PROJETADO\nR$ 57.149,80\nRENDIMENTO PROJETADO\nR$ 7.149,80\nDIFERENÇA PROJETADA\nR$ 39.149,80\nTAXA DE EQUILÍBRIO (A.M., CÁLCULO ADICIONAL)\n-8,2%",
+        "SIMULAÇÃO — CASH CONVERSION\nCAPITAL INICIAL\nR$ 50.000,00\nPARCELA OFERTADA (12X)\nR$ 1.500,00\nTAXA DE APLICAÇÃO (A.M.) — PREMISSA PADRÃO FIXA, NÃO A TAXA SUGERIDA\n1,1%\nTOTAL NOMINAL DAS PARCELAS\nR$ 18.000,00\nCAPITAL FINAL PROJETADO\nR$ 57.149,80\nRENDIMENTO PROJETADO\nR$ 7.149,80\nDIFERENÇA PROJETADA\nR$ 39.149,80\nTAXA DE EQUILÍBRIO (A.M., CÁLCULO ADICIONAL)\n-8,2%",
+        "SIMULAÇÃO — FINANCIAMENTO LINEAR NOVOS\nVALOR DO VEÍCULO\nR$ 120.000,00\nENTRADA\nR$ 30.000,00\nENTRADA (%)\n25,0%\nFINANCIADO\nR$ 90.000,00\nPARCELA 48X\nR$ 3.600,67"
+      ],
+      "screenshot": "14-test10-multiturn.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test12-novo-cliente",
+      "label": "Novo Cliente reset trigger",
+      "prompt": "Beleza, agora é outro cliente, esquece esse",
+      "responseText": "Prontinho, começamos do zero — pode me contar sobre o novo cliente.\n\n🔇 Áudio indisponível",
+      "blockCount": 0,
+      "blocks": [],
+      "screenshot": "15-test12-novo-cliente.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    },
+    {
+      "id": "test12b-post-reset-check",
+      "label": "Post-reset: ask for the old vehicle value",
+      "prompt": "Qual era o valor do veículo que a gente tinha calculado?",
+      "responseText": "Não tenho um cenário de teste roteirizado para essa pergunta neste mock local — isso não indica uma falha do candidato, apenas que o script de UAT não cobriu esta frase.\n\n🔇 Áudio indisponível",
+      "blockCount": 0,
+      "blocks": [],
+      "screenshot": "16-test12b-post-reset-check.png",
+      "audioCspErrorsDuring": 1,
+      "otherConsoleErrorsDuring": [],
+      "pass": true
+    }
+  ],
+  "consoleErrors": [
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/854a7f6c-c131-4614-8873-201f4fde090b' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/e7f4c370-7d0d-4fc0-a616-7e721654a4ca' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/329d6204-321f-4e8e-a646-f7be25cb89c5' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/aa384b0d-3cd8-48ae-8325-483a26da6a68' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/888342fb-2f7c-4ed2-b4a1-5f7eb4fd718a' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/746827c3-64af-4ce8-bdad-4dc1a5100801' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/144e4cc7-640d-416e-8b36-1aba8016d754' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/c662ce44-3eb9-448c-8188-a03ca1241e5c' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/f22c82a8-d2ec-42c0-8cb4-7adae223db8e' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/38b97d13-0ff4-43c4-93d2-3e5198bf3e27' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/5e3dc190-53c2-41e6-88bb-d2e2073f0dca' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/909007ee-798c-4679-a696-33d30ace0e02' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "Loading media from  'blob:http://127.0.0.1:8080/9d6023f9-d82e-4f58-8f79-af1d1ad7d39c' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "text": "[mobile] Loading media from  'blob:http://127.0.0.1:8080/244fa546-003c-44b4-88d1-109227ffd6e9' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'media-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+      "url": "http://127.0.0.1:8080/index.html"
+    }
+  ],
+  "networkErrors": [
+    {
+      "url": "http://127.0.0.1:8080/functions/v1/portal-ai-homolog",
+      "status": 502
+    }
+  ],
+  "mobile": {
+    "scrollWidth": 390,
+    "clientWidth": 390,
+    "horizontalOverflow": 0
+  },
+  "audioCspFindingCount": 13,
+  "multiTurn": {
+    "vehicleValueReused": true,
+    "note": "checked whether the R$ 120.000 vehicle value from the earlier Linear scenario reappears without being retyped"
+  },
+  "novoCliente": {
+    "resetConfirmedInReply": true,
+    "oldValueNotEchoedBack": true,
+    "followUpReply": "Não tenho um cenário de teste roteirizado para essa pergunta neste mock local — isso não indica uma falha do candidato, apenas que o script de UAT não cobriu esta frase.\n\n🔇 Áudio indisponível"
+  }
+}
