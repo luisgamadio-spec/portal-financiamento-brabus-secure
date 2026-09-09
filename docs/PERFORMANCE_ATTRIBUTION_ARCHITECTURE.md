@@ -1,11 +1,56 @@
 # PERFORMANCE — Individual Analyst Attribution Architecture
 
 **Status:** design only. Nothing here is implemented, applied, or registered.
-**Wave:** PERF-3. **Classification:** `PERFORMANCE_ANALYST_ATTRIBUTION_ARCHITECTURE_READY_FOR_PRODUCT_DECISION`.
+**Waves:** PERF-3, PERF-3.1.
+**Classification:** `PERFORMANCE_ANALYST_ATTRIBUTION_ARCHITECTURE_READY_FOR_PRODUCT_DECISION`.
 
 This document records forensic evidence that is expensive to re-derive — it required
 reading the original Base 01/02/03 source workbooks, which live outside this
 repository and are not versioned anywhere. Read this before re-auditing.
+
+---
+
+## 0. Closed hypothesis — "Salários & Comissões already knows the analyst"
+
+**Investigated in PERF-3.1 at the Human's direction. Answer: it does not.**
+
+Acompanhamento de Salários does display a per-analyst commission row, which makes it
+look like the system knows who handled each lançamento. It does not. The analyst is a
+**label attached to a store total**, chosen by name order.
+
+Both code paths agree, and both were read live:
+
+- **Server (live path,** `authMode: "secure"`**)** —
+  `operational_analyst_commission_metrics` builds `window_store_totals` grouped by
+  `(window_id, store)` only, then `official_rows` picks the name with
+  `select u.nome from usuarios where ativo and perfil='ANALISTA' and loja = st.store
+  order by u.nome limit 1`. `_v2` is a thin wrapper that only appends the caller's own
+  coverage windows — it adds no attribution.
+- **Client (legacy path)** — `getAnalystRowsForStore()` takes `analystsInStore[0]` and
+  assigns `sumRowsWithItems(allRows)`, i.e. the entire store, to that one analyst.
+
+Supporting evidence, all measured live and read-only:
+
+| Check | Result |
+| --- | --- |
+| Analyst column on any financial fact table | none |
+| `operational_salary_details` mentions analyst | **no** — it is per-seller (`p_seller_id`) |
+| `snapshot_comissoes` ANALISTA rows with empty CPF | **227 of 235 (96.6%)** — 8 distinct CPFs total |
+| Barra Funda snapshot rows | 48 rows, **47 with empty CPF**, 3 name strings but **1 distinct CPF** |
+| Active Barra Funda analysts matched by CPF in its snapshot rows | **0 of 2** |
+| Analyst rows with department NOVOS or SEMINOVOS | **0** |
+| SPF **quantity** column in `snapshot_comissoes` | none — only `spf_extra` and `spf_liquido`, both monetary |
+| `snapshot_comissoes.detalhes` keys | commission totals only (`comissao_principal`, `comissao_spf`, `comissao_total`, `tipo`, `transferencia`, `ausencia`, `observacao`) — no operation, chassis or proposal |
+| `snapshot_operational_detail` rows | **0** (foundation built, never populated; and it has no analyst column) |
+
+The extra analyst rows seen in some closings are department/coverage/placeholder rows —
+in the largest Barra Funda closing all three rows carry a NULL department, an empty CPF
+and zero production. They are not two analysts splitting real operations.
+
+**Consequence:** the commission subsystem cannot separate the two active Barra Funda
+analysts, so it cannot serve PERFORMANCE. Classification:
+`PERFORMANCE_SALARIOS_ONLY_STORE_DERIVED`. The claim architecture in section 5 below is
+therefore **NOT superseded** — it remains the primary path.
 
 ---
 
