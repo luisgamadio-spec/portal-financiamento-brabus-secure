@@ -285,13 +285,16 @@ end $imp$;`;
   /* ---------- 10. G4 estrito ---------- */
   h('10. G4 -- RESOLVEDOR ESTRITO NO MOTOR');
   const g4 = await one(`select
+      -- tolerante a alias: o que importa e a comparacao <= com a data da
+      -- operacao, nao o nome da CTE (PERF-5D.1A renomeou fin -> fin_res).
       (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
         where n.nspname='public' and p.proname='performance_calcular_periodo'
-          and pg_get_functiondef(p.oid) like '%sa.sale_date <= fin.d%') estrito,
+          and pg_get_functiondef(p.oid) ~ 'sa\.sale_date <= [a-z_]+\.d'
+          and pg_get_functiondef(p.oid) !~ 'sa\.sale_date >' ) estrito,
       (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
         where n.nspname='public' and p.proname='performance_calcular_periodo'
           and pg_get_functiondef(p.oid) like '%performance_normalizar_loja%') usa_norm;`);
-  ok('10.1 motor usa venda ATE a data do financiamento', Number(g4.estrito) === 1);
+  ok('10.1 motor usa venda ATE a data do financiamento (STRICT_DATE_BOUNDED)', Number(g4.estrito) === 1);
   ok('10.2 motor consome a normalizacao de loja', Number(g4.usa_norm) === 1);
 
   /* ---------- 11. Sem CPF / identidade UUID ---------- */
