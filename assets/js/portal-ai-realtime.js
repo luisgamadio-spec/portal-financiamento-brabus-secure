@@ -56,6 +56,35 @@
   var turnTimer = null;
   window.baiLatencyLog = [];
 
+  // IA-3H, Section 40 -- IA-3G's own lesson: console-only diagnostics
+  // are operationally impractical for Human UAT (nobody is asked to
+  // open DevTools, by this engagement's own standing convention, so a
+  // console.log-only signal is never actually retrievable in practice).
+  // Persists a SANITIZED summary to localStorage (this origin/browser
+  // only, never sent anywhere) after every turn and on session end/
+  // error -- retrievable without DevTools by loading a tiny diagnostic
+  // view, or simply read back via a one-line prompt() a Human can be
+  // asked to run without any technical explanation. Contains ONLY:
+  // numbers (timings), state names, tool booleans/categories, and the
+  // error TYPE string if any -- never audio, never transcript, never a
+  // prompt/reply, never a token/credential.
+  var DIAG_KEY = 'baiVoiceDiag';
+  var DIAG_MAX_TURNS = 10;
+  function persistDiagnostics(extra) {
+    try {
+      var snapshot = {
+        updated_at: new Date().toISOString(),
+        state: currentState,
+        recent_turns: window.baiLatencyLog.slice(-DIAG_MAX_TURNS)
+      };
+      if (extra) for (var k in extra) snapshot[k] = extra[k];
+      localStorage.setItem(DIAG_KEY, JSON.stringify(snapshot));
+    } catch (e) { /* storage unavailable/full -- diagnostics are best-effort, never block the real session */ }
+  }
+  window.baiVoiceDiagnostics = function () {
+    try { return JSON.parse(localStorage.getItem(DIAG_KEY) || 'null'); } catch (e) { return null; }
+  };
+
   function ltStart() {
     // window.baiNextTurnCategory: rótulo opcional definido pelo chamador
     // (harness de teste) ANTES do turno começar, só para segmentar o
@@ -82,6 +111,7 @@
     };
     window.baiLatencyLog.push(rec);
     console.log('[VOICE-03 latency]', JSON.stringify(rec));
+    persistDiagnostics();
     turnTimer = null;
   }
 
@@ -388,6 +418,12 @@
       });
     }).catch(function (err) {
       console.error('[VOICE-02] falha ao iniciar conversa por voz:', err);
+      // err.message here is always one of a small set of internal
+      // markers ('no-session', 'mint-failed-<status>', 'sdp-failed-
+      // <status>') or a standard DOM exception name from
+      // getUserMedia (e.g. NotAllowedError/NotFoundError) -- never
+      // request/response content.
+      persistDiagnostics({ last_error: err && err.message ? String(err.message).slice(0, 200) : 'unknown_error' });
       endInternally(STATE.ERROR);
       var status = document.getElementById('brabusAiVoiceStatus');
       if (status) {
@@ -414,6 +450,7 @@
     aiSilenced = false;
     setState(finalState || STATE.ENDED);
     showBar(false);
+    persistDiagnostics({ ended_state: finalState || STATE.ENDED });
     // Transcrição permanece visível — AI_CONVERSATION nunca é tocada aqui.
   }
 
