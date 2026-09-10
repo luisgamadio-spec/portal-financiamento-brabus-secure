@@ -7,6 +7,19 @@
 // ia_texto_habilitada was ever read -- ia_voz_habilitada was fetched in
 // the same config RPC result but never consulted).
 //
+// IA-3H.1C.4 (D14) -- D13's own fix (textEnabled || voiceEnabled) was
+// itself incomplete: it could not tell an UNLABELED caller (the real
+// shape of a Text-composer request) apart from the trusted internal
+// Voice bridge, so Text=false/Voice=true also silently let an unlabeled
+// request through -- the exact surface-authority gap D14 closes. This
+// file's own `textCall()` helper (no surface header, modeling the real
+// Text composer's request shape) now asserts the NEW, correct
+// behavior: unlabeled stays gated on ia_texto_habilitada alone; only an
+// explicit `x-nx-intelligence-surface: voice` header (voiceCall()) is
+// gated on ia_voz_habilitada. This is a narrowing of what D13 accepted,
+// not a reopening of it -- D13's own "shared core reachable when either
+// flag is on" claim still holds, just per-surface now.
+//
 // Self-contained, same proven pattern as realtime-security-matrix-test.mjs:
 // one inline mock (Supabase Auth/REST + OpenAI) in this same process,
 // one spawned Deno child running the REAL, unmodified (now fixed)
@@ -136,10 +149,26 @@ function waitForReady(url, timeoutMs = 15000) {
   });
 }
 
+// Models the real V2 Text composer's request exactly -- no
+// x-nx-intelligence-surface header at all (the real Text adapter call
+// site never sends one; see brabus-intelligence.adapter.js's
+// sendRealText, 4-arg callers).
 async function textCall(auth) {
   const resp = await fetch(TEXT_BASE + "/", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: auth, apikey: "uat-anon-key" },
+    body: JSON.stringify({ message: "Qual foi o resultado do mês passado?", conversation: [] })
+  });
+  return { status: resp.status, body: await resp.json().catch(() => null) };
+}
+
+// Models the real Voice bridge's request exactly -- the one declared
+// surface header intelligence-voice.js's bridgeToPortalIntelligence()
+// sends (the ONLY 5-arg sendRealText call site in the V2 codebase).
+async function voiceCall(auth) {
+  const resp = await fetch(TEXT_BASE + "/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: auth, apikey: "uat-anon-key", "x-nx-intelligence-surface": "voice" },
     body: JSON.stringify({ message: "Qual foi o resultado do mês passado?", conversation: [] })
   });
   return { status: resp.status, body: await resp.json().catch(() => null) };
@@ -173,39 +202,59 @@ async function main() {
 
     const MASTER_AUTH = "Bearer " + MASTER_TOKEN;
 
-    // ---------- Case A: both off -> DENY ----------
+    // ================= MATRIX A: Text=false / Voice=false =================
     textEnabled = false; voiceEnabled = false;
-    const bothOff = await textCall(MASTER_AUTH);
-    check("SHARED CORE: Text=false + Voice=false -> 503 (fail closed)", bothOff.status === 503, bothOff);
+    const aText = await textCall(MASTER_AUTH);
+    check("MATRIX A (false/false): Text surface blocked (503)", aText.status === 503, aText);
+    const aVoice = await voiceCall(MASTER_AUTH);
+    check("MATRIX A (false/false): Voice surface blocked (503)", aVoice.status === 503, aVoice);
 
-    // ---------- Case B: text only -> ALLOW ----------
+    // ================= MATRIX B: Text=true / Voice=false =================
     textEnabled = true; voiceEnabled = false;
-    const textOnly = await textCall(MASTER_AUTH);
-    check("SHARED CORE: Text=true + Voice=false -> 200 (allowed via Text)", textOnly.status === 200, textOnly);
-    check("SHARED CORE: Text-only request reaches real dispatch (reply present)", typeof textOnly.body?.reply === "string", textOnly.body);
+    const bText = await textCall(MASTER_AUTH);
+    check("MATRIX B (true/false): Text surface allowed (200)", bText.status === 200, bText);
+    check("MATRIX B (true/false): Text reaches real dispatch (reply present)", typeof bText.body?.reply === "string", bText.body);
+    const bVoice = await voiceCall(MASTER_AUTH);
+    check("MATRIX B (true/false): Voice surface still blocked (503) -- Text=true must NOT implicitly authorize Voice", bVoice.status === 503, bVoice);
 
-    // ---------- Case C: voice only -> ALLOW (the load-bearing regression, closes D13) ----------
+    // ================= MATRIX C: Text=false / Voice=true =================
+    // The load-bearing D13 + D14 regression: D13 proved the shared core
+    // unlocks for Voice; D14 proves an UNLABELED (Text-shaped) caller
+    // must NOT ride along on that unlock merely because Voice is on.
     textEnabled = false; voiceEnabled = true;
-    const voiceOnly = await textCall(MASTER_AUTH);
-    check("SHARED CORE (D13): Text=false + Voice=true -> 200, NOT the Intelligence-disabled 503 (the real Human UAT defect)", voiceOnly.status === 200, voiceOnly);
-    check("SHARED CORE (D13): Voice-only request reaches real dispatch (reply present)", typeof voiceOnly.body?.reply === "string", voiceOnly.body);
+    const cText = await textCall(MASTER_AUTH);
+    check("MATRIX C (false/true), D14: unlabeled/Text-shaped request now correctly BLOCKED (503), not silently allowed via Voice's flag", cText.status === 503, cText);
+    const cVoice = await voiceCall(MASTER_AUTH);
+    check("MATRIX C (false/true), D13: Voice-declared request ALLOWED (200) -- the governed bridge still works", cVoice.status === 200, cVoice);
+    check("MATRIX C (false/true), D13: Voice-declared request reaches real dispatch (reply present)", typeof cVoice.body?.reply === "string", cVoice.body);
 
-    // ---------- Case D: both on -> ALLOW, single well-formed response ----------
+    // ================= MATRIX D: Text=true / Voice=true =================
     textEnabled = true; voiceEnabled = true;
-    const bothOn = await textCall(MASTER_AUTH);
-    check("SHARED CORE: Text=true + Voice=true -> 200 (allowed, no duplicate/ambiguous routing)", bothOn.status === 200, bothOn);
+    const dText = await textCall(MASTER_AUTH);
+    check("MATRIX D (true/true): Text surface allowed (200)", dText.status === 200, dText);
+    const dVoice = await voiceCall(MASTER_AUTH);
+    check("MATRIX D (true/true): Voice surface allowed (200)", dVoice.status === 200, dVoice);
 
     // ---------- Fail-closed parsing preserved for BOTH flags independently ----------
     textEnabled = false; voiceEnabled = false;
     const missingBoth = await textCall(MASTER_AUTH);
     check("SHARED CORE: both flags false (not merely absent) -> still 503", missingBoth.status === 503, missingBoth);
 
+    // ---------- A forged/garbage surface value falls back to Text semantics (fail closed toward the stricter check when ambiguous) ----------
+    textEnabled = false; voiceEnabled = true;
+    const forgedSurfaceResp = await fetch(TEXT_BASE + "/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: MASTER_AUTH, apikey: "uat-anon-key", "x-nx-intelligence-surface": "not-a-real-surface" },
+      body: JSON.stringify({ message: "teste", conversation: [] })
+    });
+    check("SURFACE PARSING: garbage x-nx-intelligence-surface value -> treated as Text (503 when Text is off), never silently treated as voice", forgedSurfaceResp.status === 503, forgedSurfaceResp.status);
+
     // ---------- MASTER gate still runs before the shared-core check ----------
     textEnabled = true; voiceEnabled = true;
     const nonMaster = await textCall("Bearer " + NON_MASTER_TOKEN);
     check("MASTER GATE: non-MASTER rejected (403) even with both flags on", nonMaster.status === 403, nonMaster);
 
-    console.log(`\n=== Shared Core Gating Test (IA-3H.1C.1): ${pass}/${pass + fail} ===`);
+    console.log(`\n=== Shared Core Gating Test (IA-3H.1C.1 + IA-3H.1C.4 surface matrix): ${pass}/${pass + fail} ===`);
     console.log(fail === 0 ? "RESULT: PASS" : "RESULT: FAIL");
     cleanup();
     process.exit(fail === 0 ? 0 : 1);

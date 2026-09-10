@@ -49,7 +49,13 @@ function corsHeaders(origin: string | null) {
     // client-generated, non-identity id (crypto.randomUUID(), never a
     // user/session identifier), echoed back in logs only to correlate
     // a frontend request with its own Edge Function log lines.
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-nx-correlation-id",
+    // IA-3H.1C.4 -- x-nx-intelligence-surface allow-listed for the same
+    // reason x-nx-correlation-id already is: an unlisted custom header
+    // is silently stripped by CORS preflight. Declares which of the two
+    // real product surfaces (Text UI, Voice's internal governed bridge)
+    // this specific request came from -- see the surface-authority check
+    // below, near intelligenceEnabled.
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-nx-correlation-id, x-nx-intelligence-surface",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin"
   };
@@ -6656,7 +6662,31 @@ serve(async (req) => {
       // surface(s) can unlock the shared core they both call into.
       const textEnabled = findFlag("ia_texto_habilitada");
       const voiceEnabled = findFlag("ia_voz_habilitada");
-      intelligenceEnabled = textEnabled || voiceEnabled;
+      // IA-3H.1C.4 — D14: the OR-gate above correctly decides whether
+      // the shared core exists at all for EITHER surface, but by itself
+      // never enforced which specific surface a given caller is. A real
+      // Human check found the live effect: with Text=false/Voice=true,
+      // the V2 Text composer's own request (identical body shape to
+      // Voice's internal bridge call — {message, conversation}, no
+      // surface identifier) was ALSO silently allowed through, since
+      // this endpoint could not tell them apart.
+      //
+      // x-nx-intelligence-surface (declared by the caller, allow-listed
+      // above) narrows this: an explicit "voice" declaration — sent only
+      // by intelligence-voice.js's trusted internal governed-tool bridge
+      // (assets/js/intelligence/intelligence-voice.js in the V2 repo) —
+      // is gated on ia_voz_habilitada alone; anything else (absent,
+      // "text", or any other value) is gated on ia_texto_habilitada
+      // alone, matching what the V2 Text composer itself now also
+      // checks proactively before ever sending (client-side gate, same
+      // Wave). This is a narrowing, never a widening, of what the OLD
+      // OR-only check accepted: previously ANY caller succeeded whenever
+      // EITHER flag was on; now an undeclared/"text" caller specifically
+      // needs ia_texto_habilitada. Not a new authorization subsystem —
+      // no new RPC, no new table, no new credential — only this existing
+      // request's own header and the two flags already read above.
+      const declaredSurface = (req.headers.get("x-nx-intelligence-surface") || "text").trim().toLowerCase();
+      intelligenceEnabled = declaredSurface === "voice" ? voiceEnabled : textEnabled;
     }
     if (scopeResult.status === "fulfilled" && !scopeResult.value.error) {
       authorityEnvelope = toAuthorityEnvelope(scopeResult.value.data);
