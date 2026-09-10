@@ -172,12 +172,14 @@ function runSql(token, query) {
   check('6.1 fechamentos preservados (nenhuma competência fechada aqui)', Number(p.fechamentos) === 24);
   check('6.2 ausências/coberturas preservadas', Number(p.ausencias) === 26);
   check('6.3 roster de usuários ativos preservado', Number(p.usuarios_ativos) === 100);
-  // RH-ANALYST-4 aposentou a seleção alfabética. Esta asserção era
-  // correta enquanto a RPC ainda não tinha sido trocada; agora ela
-  // guarda o estado oposto -- a autoridade governada é que deve estar
-  // em uso, e a regra alfabética não pode voltar.
-  check('6.4 seleção alfabética RETIRADA da RPC de comissão', p.regra_alfabetica_ainda_live === false);
-  check('6.5 RPC de comissão consome a autoridade governada', p.consome_autoridade === true);
+  // RH-ANALYST-4A: a decisão do Humano é que o SALÁRIO mantém o seu
+  // comportamento próprio -- inclusive a seleção alfabética, que é
+  // reconhecidamente imperfeita mas pertence ao domínio do Salário.
+  // A autoridade governada é do RANKING e o Salário NÃO deve consumi-la;
+  // foi exatamente esse acoplamento que apagou as linhas de cobertura
+  // de férias nos períodos anteriores a 2026-08-21.
+  check('6.4 RPC de comissão mantém o comportamento próprio do Salário', p.regra_alfabetica_ainda_live === true);
+  check('6.5 RPC de comissão NÃO consome a autoridade do Ranking', p.consome_autoridade === false);
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
