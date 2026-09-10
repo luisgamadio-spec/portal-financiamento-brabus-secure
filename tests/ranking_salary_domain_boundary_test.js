@@ -174,21 +174,28 @@ console.log('\n[1] STATIC -- a migration corretiva restaura o corpo autentico');
   // -------------------------------------------------------------
   console.log('\n[4] Fundacao do Ranking permanece intacta');
   // -------------------------------------------------------------
+  // PERF-5 aplicou autoridade historica de responsabilidade do Ranking
+  // (16 intervalos fechados, jan-ago/2026, com procedencia explicita).
+  // As asseroes abaixo passaram a medir o INVARIANTE durável, nao a forma
+  // congelada de 9 linhas prospectivas que existia antes.
   const r = await one(`select
-      (select count(*) from public.analista_responsavel_loja where status='ACTIVE') as vigencias,
+      (select count(*) from public.analista_responsavel_loja
+         where status='ACTIVE' and valid_to is null) as vigencias,
       (select count(distinct upper(trim(coalesce(loja,'')))) from public.usuarios
          where ativo and upper(trim(coalesce(perfil,'')))='ANALISTA') as lojas,
-      (select count(*) from public.analista_responsavel_loja where valid_from < date '2026-08-21') as retroativas,
+      (select count(*) from public.analista_responsavel_loja
+         where valid_from < date '2026-08-21' and procedencia = 'DIRECT_AUTHORITY') as retroativas_direct,
       (select count(*) from public.analista_responsavel_loja a join public.analista_responsavel_loja b
          on b.id<>a.id and b.loja_normalizada=a.loja_normalizada and a.status='ACTIVE' and b.status='ACTIVE'
         and daterange(a.valid_from,a.valid_to,'[)') && daterange(b.valid_from,b.valid_to,'[)')) as overlaps,
       (select count(*) from public.analista_responsavel_loja r2 join public.usuarios u on u.id=r2.analista_usuario_id
-        where r2.loja_normalizada='BARRA FUNDA' and r2.status='ACTIVE' and upper(btrim(u.nome)) like '%GIOVANNA%') as bf_ok,
+        where r2.loja_normalizada='BARRA FUNDA' and r2.status='ACTIVE' and r2.valid_to is null
+          and upper(btrim(u.nome)) like '%GIOVANNA%') as bf_ok,
       (select count(*) from public.usuarios where ativo and upper(trim(coalesce(perfil,'')))='ANALISTA'
          and upper(trim(coalesce(loja,'')))='BARRA FUNDA') as bf_analistas,
       (select count(*) from public.analista_responsavel_loja_auditoria) as auditoria;`);
-  check('4.1 uma vigencia ACTIVE por loja com analista', Number(r.vigencias) === Number(r.lojas) && Number(r.vigencias) > 0);
-  check('4.2 nenhuma responsabilidade retroativa', Number(r.retroativas) === 0);
+  check('4.1 uma vigencia ABERTA por loja com analista', Number(r.vigencias) === Number(r.lojas) && Number(r.vigencias) > 0);
+  check('4.2 nenhuma responsabilidade retroativa se declara DIRECT_AUTHORITY', Number(r.retroativas_direct) === 0);
   check('4.3 zero sobreposicoes', Number(r.overlaps) === 0);
   check('4.4 BARRA FUNDA continua com a responsavel decidida pelo Humano', Number(r.bf_ok) === 1);
   check('4.5 os dois analistas de BARRA FUNDA continuam ativos', Number(r.bf_analistas) === 2);

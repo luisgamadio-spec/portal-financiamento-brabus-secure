@@ -89,15 +89,21 @@ function runSql(token, query) {
   check('1.6 RLS habilitada', Number(o.rls) === 1);
   check('1.7 anon/authenticated NÃO têm grant de tabela', Number(o.grants_indevidos) === 0);
 
+  // PERF-5 acrescentou intervalos HISTÓRICOS fechados (jan-ago/2026) com
+  // procedência explícita. As asserções abaixo passaram a escopar o
+  // BOOTSTRAP do RH-ANALYST-3 -- as vigências ABERTAS, de procedência
+  // DIRECT_AUTHORITY -- que continuam exatamente como foram autorizadas.
   console.log('\n[2] Cobertura das lojas com analista ativo');
   const c = await one(`select
     (select count(distinct upper(trim(coalesce(loja,'')))) from public.usuarios
        where ativo and upper(trim(coalesce(perfil,'')))='ANALISTA') as lojas_com_analista,
+    (select count(*) from public.analista_responsavel_loja
+       where status='ACTIVE' and valid_to is null) as vigencias_abertas,
     (select count(*) from public.analista_responsavel_loja where status='ACTIVE') as vigencias_ativas,
     (select count(*) from public.analista_responsavel_loja) as vigencias_totais;`);
-  check('2.1 uma vigência ACTIVE por loja com analista ativo',
-    Number(c.lojas_com_analista) === Number(c.vigencias_ativas) && Number(c.vigencias_ativas) > 0);
-  check('2.2 nenhuma vigência extra fora das ACTIVE', Number(c.vigencias_totais) === Number(c.vigencias_ativas));
+  check('2.1 uma vigência ABERTA por loja com analista ativo',
+    Number(c.lojas_com_analista) === Number(c.vigencias_abertas) && Number(c.vigencias_abertas) > 0);
+  check('2.2 nenhuma vigência arquivada/inativa', Number(c.vigencias_totais) === Number(c.vigencias_ativas));
 
   const gaps = await one(`select count(*) as sem_responsavel from (
       select upper(trim(coalesce(loja,''))) as loja from public.usuarios
@@ -121,21 +127,29 @@ function runSql(token, query) {
   check('3.1 zero sobreposições de responsabilidade', Number(ov.sobrepostos) === 0);
 
   const dates = await one(`select
-      count(*) filter (where valid_from < date '${START_DATE}') as retroativas,
-      count(*) filter (where valid_from = date '${START_DATE}') as na_data_autorizada,
-      count(*) as total from public.analista_responsavel_loja;`);
-  check('3.2 NENHUMA autoridade retroativa (nada antes de 2026-08-21)', Number(dates.retroativas) === 0);
-  check('3.3 todas as vigências iniciais na data autorizada', Number(dates.na_data_autorizada) === Number(dates.total));
+      count(*) filter (where valid_from < date '${START_DATE}'
+                         and procedencia = 'DIRECT_AUTHORITY') as retroativas_direct,
+      count(*) filter (where valid_to is null and valid_from = date '${START_DATE}') as bootstrap_na_data,
+      count(*) filter (where valid_to is null) as bootstrap_total
+    from public.analista_responsavel_loja;`);
+  check('3.2 NENHUMA autoridade DIRECT retroativa (bootstrap nunca recua)',
+    Number(dates.retroativas_direct) === 0);
+  check('3.3 todas as vigências abertas começam na data autorizada',
+    Number(dates.bootstrap_na_data) === Number(dates.bootstrap_total));
 
-  const before = await one(`select count(*) as resolvem_antes from (
+  // Antes do bootstrap, quem responde é a autoridade HISTÓRICA do PERF-5 --
+  // nunca DIRECT_AUTHORITY. É isso que precisa continuar verdadeiro.
+  const before = await one(`select count(*) as direct_antes from (
       select upper(trim(coalesce(loja,''))) as loja from public.usuarios
        where ativo and upper(trim(coalesce(perfil,'')))='ANALISTA' group by 1) l
-    where public.resolve_analista_responsavel(l.loja, date '2026-08-20') is not null;`);
-  check('3.4 fail-closed antes da vigência: nada resolve em 2026-08-20', Number(before.resolvem_antes) === 0);
+    where (select r.procedencia from public.resolve_analista_responsavel_procedencia(
+             l.loja, date '2026-08-20') r) = 'DIRECT_AUTHORITY';`);
+  check('3.4 em 2026-08-20 nada resolve como DIRECT_AUTHORITY', Number(before.direct_antes) === 0);
 
   console.log('\n[4] BARRA FUNDA -- decisão explícita do Humano');
   const bf = await one(`select
-      (select count(*) from public.analista_responsavel_loja where loja_normalizada='BARRA FUNDA' and status='ACTIVE') as vigencias,
+      (select count(*) from public.analista_responsavel_loja where loja_normalizada='BARRA FUNDA'
+         and status='ACTIVE' and valid_to is null) as vigencias,
       (select count(*) from public.analista_responsavel_loja r join public.usuarios u on u.id=r.analista_usuario_id
         where r.loja_normalizada='BARRA FUNDA' and upper(btrim(u.nome)) like '%GIOVANNA%'
           and r.valid_from = date '${START_DATE}' and r.valid_to is null and r.status='ACTIVE') as giovanna_ok,
@@ -143,7 +157,7 @@ function runSql(token, query) {
          and upper(trim(coalesce(loja,'')))='BARRA FUNDA') as analistas_ativos_bf,
       (select count(*) from public.usuarios where ativo and upper(trim(coalesce(perfil,'')))='ANALISTA'
          and upper(trim(coalesce(loja,'')))='BARRA FUNDA' and upper(btrim(nome)) not like '%GIOVANNA%') as segundo_analista;`);
-  check('4.1 BARRA FUNDA tem exatamente UMA vigência', Number(bf.vigencias) === 1);
+  check('4.1 BARRA FUNDA tem exatamente UMA vigência ABERTA', Number(bf.vigencias) === 1);
   check('4.2 resolve para a analista escolhida pelo Humano, aberta, desde 2026-08-21', Number(bf.giovanna_ok) === 1);
   check('4.3 BARRA FUNDA mantém DOIS analistas ativos (roster != responsabilidade)', Number(bf.analistas_ativos_bf) === 2);
   check('4.4 o segundo analista continua ativo e intocado', Number(bf.segundo_analista) === 1);
@@ -153,12 +167,15 @@ function runSql(token, query) {
       (select count(*) from public.analista_responsavel_loja_auditoria) as eventos,
       (select count(*) from public.analista_responsavel_loja) as vigencias,
       (select count(*) from public.analista_responsavel_loja_auditoria where acao='CREATED') as criados,
+      (select count(*) from public.analista_responsavel_loja_auditoria where acao='BACKFILL_HISTORICO') as backfill,
       (select count(*) from public.analista_responsavel_loja_auditoria where analista_novo is null) as sem_analista,
-      (select count(*) from public.analista_responsavel_loja_auditoria where valid_from <> date '${START_DATE}') as data_divergente;`);
+      (select count(*) from public.analista_responsavel_loja_auditoria
+         where acao='CREATED' and valid_from <> date '${START_DATE}') as data_divergente;`);
   check('5.1 um evento de auditoria por vigência', Number(au.eventos) === Number(au.vigencias));
-  check('5.2 todos os eventos são CREATED', Number(au.criados) === Number(au.eventos));
+  check('5.2 todo evento é CREATED (bootstrap) ou BACKFILL_HISTORICO (PERF-5)',
+    Number(au.criados) + Number(au.backfill) === Number(au.eventos));
   check('5.3 todo evento nomeia o analista', Number(au.sem_analista) === 0);
-  check('5.4 toda auditoria registra a data de vigência autorizada', Number(au.data_divergente) === 0);
+  check('5.4 toda auditoria de bootstrap registra a data autorizada', Number(au.data_divergente) === 0);
 
   console.log('\n[6] Nada de folha foi tocado');
   const p = await one(`select

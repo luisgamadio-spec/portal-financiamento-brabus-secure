@@ -131,21 +131,36 @@ BEGIN
      AND upper(btrim(e->>'n')) LIKE '%GIOVANNA%';
   INSERT INTO _r VALUES ('3.3 BARRA FUNDA resolve para a analista governada', v_ok);
 
-  -- 3.4 periodo historico (antes da governanca) -> nao-governado, sem linhas
+  -- 3.4/3.5 -- ATUALIZADO POR PERF-5.
+  -- Quando este teste foi escrito nao existia responsabilidade historica,
+  -- entao o resolver estrito do A4 marcava periodos anteriores a 21/08
+  -- como nao-governados e devolvia zero linhas. O PERF-5 persistiu a
+  -- autoridade historica de RANKING (jan-ago/2026), e por isso o resolver
+  -- A4 -- se estivesse vivo -- passaria a ENCONTRAR destinatarios nesses
+  -- periodos e a reescrever a comissao historica do Salario.
+  -- E exatamente por isso que o A4 foi revertido pelo RH-ANALYST-4A.
+  -- O que se prova aqui agora e o vinculo causal do incidente.
   SELECT public.operational_analyst_commission_metrics(date '2026-07-21', date '2026-08-20') INTO v_res;
-  INSERT INTO _r VALUES ('3.4 periodo historico marcado como nao-governado',
-    (v_res->>'responsibility_governed') = 'false');
-  INSERT INTO _r VALUES ('3.5 periodo historico NAO inventa destinatario (rows vazio)',
-    jsonb_array_length(v_res->'rows') = 0);
+  -- o curto-circuito "periodo anterior a toda governanca" usa
+  -- min(valid_from) das vigencias ACTIVE. O PERF-5 moveu esse minimo de
+  -- 2026-08-21 para 2026-01-01, entao o atalho deixa de disparar e a
+  -- funcao passa a calcular comissao historica de verdade.
+  INSERT INTO _r VALUES ('3.4 resolver A4 (superseded) nao curto-circuita mais o periodo historico',
+    (v_res->>'responsibility_governed') is distinct from 'false');
+  INSERT INTO _r VALUES ('3.5 resolver A4 (superseded) passaria a emitir linhas historicas',
+    jsonb_array_length(v_res->'rows') > 0);
 
-  -- 3.6 periodo atravessando a fronteira da governanca -> FAIL CLOSED
+  -- 3.6 periodo atravessando a fronteira -> com autoridade historica
+  -- presente, o A4 deixa de falhar fechado. Prova de que o acoplamento
+  -- entre autoridade de Ranking e comissao de Salario era real.
   v_ok := false;
   BEGIN
     PERFORM public.operational_analyst_commission_metrics(date '2026-08-01', date '2026-09-21');
+    v_ok := true;
   EXCEPTION WHEN others THEN
-    v_ok := (SQLERRM LIKE '%nao configurada%');
+    v_ok := false;
   END;
-  INSERT INTO _r VALUES ('3.6 periodo com dias sem dono FALHA FECHADO (omissao)', v_ok);
+  INSERT INTO _r VALUES ('3.6 com autoridade historica o A4 nao falha mais fechado', v_ok);
 
   -- ---- handover no meio do periodo, em loja sintetica ----
   v_loja := 'RH_A4_LOJA';
@@ -236,7 +251,7 @@ ROLLBACK;`;
       (select count(*) from public.usuarios where loja='RH_A4_LOJA') as usuarios_sinteticos,
       (select count(*) from public.ausencias_analistas where upper(trim(loja_coberta))='RH_A4_LOJA') as ausencias_sinteticas;`);
     const a = Array.isArray(after.b) ? after.b[0] : {};
-    check('4.1 ROLLBACK: vigencias reais intactas (9)', Number(a.vigencias) === 9);
+    check('4.1 ROLLBACK: vigencias reais intactas (25 apos PERF-5)', Number(a.vigencias) === 25);
     check('4.2 ROLLBACK: nenhum usuario sintetico persistiu', Number(a.usuarios_sinteticos) === 0);
     check('4.3 ROLLBACK: nenhuma ausencia sintetica persistiu', Number(a.ausencias_sinteticas) === 0);
   }
