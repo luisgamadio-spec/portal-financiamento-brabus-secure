@@ -166,11 +166,18 @@ function runSql(token, query) {
       (select count(*) from public.ausencias_analistas) as ausencias,
       (select count(*) from public.usuarios where ativo) as usuarios_ativos,
       (select (pg_get_functiondef(pr.oid) ~ 'order by u.nome') from pg_proc pr join pg_namespace n on n.oid=pr.pronamespace
-        where n.nspname='public' and pr.prokind='f' and pr.proname='operational_analyst_commission_metrics') as regra_alfabetica_ainda_live;`);
+        where n.nspname='public' and pr.prokind='f' and pr.proname='operational_analyst_commission_metrics') as regra_alfabetica_ainda_live,
+      (select (pg_get_functiondef(pr.oid) like '%analista_responsavel_loja%') from pg_proc pr join pg_namespace n on n.oid=pr.pronamespace
+        where n.nspname='public' and pr.prokind='f' and pr.proname='operational_analyst_commission_metrics') as consome_autoridade;`);
   check('6.1 fechamentos preservados (nenhuma competência fechada aqui)', Number(p.fechamentos) === 24);
   check('6.2 ausências/coberturas preservadas', Number(p.ausencias) === 26);
   check('6.3 roster de usuários ativos preservado', Number(p.usuarios_ativos) === 100);
-  check('6.4 RPC de comissão NÃO foi trocada (fallback alfabético ainda vigente)', p.regra_alfabetica_ainda_live === true);
+  // RH-ANALYST-4 aposentou a seleção alfabética. Esta asserção era
+  // correta enquanto a RPC ainda não tinha sido trocada; agora ela
+  // guarda o estado oposto -- a autoridade governada é que deve estar
+  // em uso, e a regra alfabética não pode voltar.
+  check('6.4 seleção alfabética RETIRADA da RPC de comissão', p.regra_alfabetica_ainda_live === false);
+  check('6.5 RPC de comissão consome a autoridade governada', p.consome_autoridade === true);
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
