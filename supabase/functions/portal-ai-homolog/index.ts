@@ -6634,8 +6634,29 @@ serve(async (req) => {
     timings.config_scope_ms = Date.now() - t_configScopeStart;
     if (cfgResult.status === "fulfilled" && !cfgResult.value.error) {
       const rows = cfgResult.value.data?.rows ?? [];
-      const row = Array.isArray(rows) ? rows.find((r: any) => r?.chave === "ia_texto_habilitada") : null;
-      intelligenceEnabled = String(row?.valor ?? "").trim().toLowerCase() === "true";
+      const findFlag = (chave: string) => {
+        const row = Array.isArray(rows) ? rows.find((r: any) => r?.chave === chave) : null;
+        return String(row?.valor ?? "").trim().toLowerCase() === "true";
+      };
+      // IA-3H.1C.1 — this shared business core is the ONE INTELLIGENCE
+      // CORE behind BOTH surfaces (Text and Voice); it must be reachable
+      // whenever EITHER surface's own kill switch is on, not only Text's.
+      // Found live: with the already-correct Text=false/Voice=true
+      // configuration, a real Human Voice session reached this exact
+      // check and was rejected with 503 before ever calling OpenAI or
+      // dispatching any tool, because only ia_texto_habilitada was ever
+      // consulted here — ia_voz_habilitada (already present in the same
+      // `rows` result) was fetched but never read. Each flag is parsed
+      // with the same fail-closed rule as before (missing row, RPC
+      // error, or anything other than exactly "true" -> that flag counts
+      // as off); only the combination is new. This does not touch either
+      // surface's own independent gate (Text UI still requires
+      // ia_texto_habilitada; portal-realtime-homolog's own Voice gate
+      // still requires ia_voz_habilitada only) -- it only fixes which
+      // surface(s) can unlock the shared core they both call into.
+      const textEnabled = findFlag("ia_texto_habilitada");
+      const voiceEnabled = findFlag("ia_voz_habilitada");
+      intelligenceEnabled = textEnabled || voiceEnabled;
     }
     if (scopeResult.status === "fulfilled" && !scopeResult.value.error) {
       authorityEnvelope = toAuthorityEnvelope(scopeResult.value.data);
