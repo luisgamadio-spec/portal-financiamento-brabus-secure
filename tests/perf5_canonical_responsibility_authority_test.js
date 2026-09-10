@@ -122,28 +122,32 @@ function label(id) {
         where a.status='ACTIVE' and b.status='ACTIVE'
           and daterange(a.valid_from,a.valid_to,'[)') && daterange(b.valid_from,b.valid_to,'[)')) sobreposicoes,
       (select count(*) from public.analista_responsavel_loja where valid_from < date '2026-01-01') antes_de_2026;`);
-  ok('2.1 25 intervalos de responsabilidade', Number(st.total) === 25, 'total=' + st.total);
-  ok('2.2 16 intervalos históricos fechados', Number(st.historicas) === 16, 'hist=' + st.historicas);
+  ok('2.1 27 intervalos de responsabilidade (25 + 2 de H5/H6)', Number(st.total) === 27, 'total=' + st.total);
+  ok('2.2 18 intervalos históricos fechados', Number(st.historicas) === 18, 'hist=' + st.historicas);
   ok('2.3 9 vigências abertas preservadas', Number(st.abertas) === 9, 'abertas=' + st.abertas);
-  ok('2.4 auditoria completa (1 por efeito)', Number(st.audit) === 25, 'audit=' + st.audit);
-  ok('2.5 16 eventos BACKFILL_HISTORICO', Number(st.audit_backfill) === 16);
+  ok('2.4 auditoria completa (1 por efeito)', Number(st.audit) === 31, 'audit=' + st.audit);
+  ok('2.5 18 eventos BACKFILL_HISTORICO', Number(st.audit_backfill) === 18);
   ok('2.6 ZERO sobreposições temporais', Number(st.sobreposicoes) === 0);
   ok('2.7 nenhum intervalo anterior a 2026-01-01', Number(st.antes_de_2026) === 0);
 
-  const proc = await all(`select procedencia, count(*) n from public.analista_responsavel_loja group by 1 order by 1;`);
+  const proc = await all(`select procedencia, count(*) n from public.analista_responsavel_loja
+    where status='ACTIVE' group by 1 order by 1;`);
   console.log('  Distribuição de procedência:');
   proc.forEach(p => console.log('    ' + pad(p.procedencia, 44) + padL(p.n, 3)));
   const pm = {}; proc.forEach(p => pm[p.procedencia] = Number(p.n));
   ok('2.8 DIRECT_AUTHORITY apenas nas 9 vigências governadas', pm['DIRECT_AUTHORITY'] === 9);
-  ok('2.9 CORROBORATED_AUTHORITY presente', pm['CORROBORATED_AUTHORITY'] === 8);
-  ok('2.10 HUMAN_APPROVED_RECONSTRUCTION presente', pm['HUMAN_APPROVED_RECONSTRUCTION'] === 6);
-  ok('2.11 HUMAN_APPROVED_2026_STORE_RESPONSIBILITY presente (H3+H4)', pm['HUMAN_APPROVED_2026_STORE_RESPONSIBILITY'] === 2);
+  ok('2.9 CORROBORATED_AUTHORITY presente (8 - 2 substituidas)', pm['CORROBORATED_AUTHORITY'] === 6);
+  ok('2.10 HUMAN_APPROVED_RECONSTRUCTION presente (6 - 2 substituidas)',
+    pm['HUMAN_APPROVED_RECONSTRUCTION'] === 4);
+  ok('2.11 HUMAN_APPROVED_2026_STORE_RESPONSIBILITY presente (H3+H4+H5+H6)',
+    pm['HUMAN_APPROVED_2026_STORE_RESPONSIBILITY'] === 4);
 
   /* ---------- 3. Linha do tempo ---------- */
   h('3. LINHA DO TEMPO CANÔNICA PERSISTIDA');
   const tl = await all(`select r.loja_normalizada loja, r.valid_from, r.valid_to, r.procedencia,
       r.analista_usuario_id ident
     from public.analista_responsavel_loja r
+    where r.status='ACTIVE'
     order by r.loja_normalizada, r.valid_from;`);
   console.log('  ' + pad('Loja', 16) + pad('Início', 13) + pad('Fim', 13) + pad('Analista', 12) + 'Procedência');
   console.log('  ' + '-'.repeat(78));
@@ -153,14 +157,14 @@ function label(id) {
   /* ---------- 4. Resolvedor ---------- */
   h('4. RESOLVEDOR TEMPORAL CANÔNICO');
   const probes = [
-    ['ABC', '2026-01-15', 'HUMAN_APPROVED_RECONSTRUCTION'],
-    ['ABC', '2026-06-15', 'CORROBORATED_AUTHORITY'],
+    ['ABC', '2026-01-15', 'HUMAN_APPROVED_2026_STORE_RESPONSIBILITY'],
+    ['ABC', '2026-06-15', 'HUMAN_APPROVED_2026_STORE_RESPONSIBILITY'],
     ['ABC', '2026-09-01', 'DIRECT_AUTHORITY'],
     ['ANALIA FRANCO', '2026-02-10', 'HUMAN_APPROVED_2026_STORE_RESPONSIBILITY'],
     ['BANDEIRANTES', '2026-03-10', 'HUMAN_APPROVED_2026_STORE_RESPONSIBILITY'],
     ['GASTAO', '2026-06-01', 'CORROBORATED_AUTHORITY'],
     ['GASTAO', '2026-07-01', 'CORROBORATED_AUTHORITY'],
-    ['BARRA FUNDA', '2026-07-01', 'CORROBORATED_AUTHORITY'],
+    ['BARRA FUNDA', '2026-07-01', 'HUMAN_APPROVED_2026_STORE_RESPONSIBILITY'],
     ['BARRA FUNDA', '2026-08-01', 'CORROBORATED_AUTHORITY'],
   ];
   for (const [loja, d, esperado] of probes) {

@@ -17,9 +17,10 @@
  * ZERO PII: apenas Denise Rodrigues e Willian Inacio aparecem, porque o
  * proprio Humano os nomeou nas decisoes H3/H4. Ninguem mais e nomeado.
  *
- * ESTADO EM 2026-09-10 (PERF-5A.1): dois casos concorrentes existem e
- * AGUARDAM AUTORIDADE HUMANA -- nenhum deles e um defeito de dados, e
- * nenhum foi corrigido por adivinhacao. Ver RECONHECIDOS abaixo.
+ * ESTADO EM 2026-09-10 (PERF-5A.2): ZERO casos concorrentes. Os dois que
+ * existiam -- G18-A (ABC) e G18-B (BARRA FUNDA) -- foram resolvidos por
+ * autoridade humana explicita (H5/H6). A lista RECONHECIDOS esta vazia de
+ * proposito: qualquer posse concorrente que reaparecer FALHA aqui.
  */
 const fs = require('fs');
 const path = require('path');
@@ -34,10 +35,7 @@ const SALARY_MD5_EXPECTED = '3b7f632a7b4826bc44da641e0e294100';
  * decisao. Enquanto estiverem aqui, a guarda passa mas IMPRIME o caso.
  * Um caso NOVO, fora desta lista, FALHA -- e essa e a proteccao real.
  */
-const RECONHECIDOS = [
-  { pessoa: 'DENISE',  lojas: ['ABC', 'ANALIA FRANCO'],        gap: 'G18-A' },
-  { pessoa: 'WILLIAN', lojas: ['BANDEIRANTES', 'BARRA FUNDA'], gap: 'G18-B' },
-];
+const RECONHECIDOS = [];
 
 let passed = 0, failed = 0;
 function ok(name, cond, extra) {
@@ -98,16 +96,20 @@ function nome(quem, hash) {
   ok('1.2 tamanho inalterado', Number(md5.b) === 16301, md5.b + ' bytes');
 
   /* ---------- 2. Escopo de H3/H4 ---------- */
-  h('2. ESCOPO DAS DECISOES HUMANAS H3 / H4');
+  h('2. ESCOPO DAS DECISOES HUMANAS (somente vigencias ACTIVE)');
   const escopo = await all(`select procedencia,
       string_agg(distinct loja_normalizada, ' | ' order by loja_normalizada) lojas, count(*) n
-    from public.analista_responsavel_loja group by 1 order by 1;`);
+    from public.analista_responsavel_loja where status='ACTIVE' group by 1 order by 1;`);
   escopo.forEach(e => console.log('  ' + pad(e.procedencia, 44) + padL(e.n, 3) + '  ' + e.lojas));
-  const h3h4 = escopo.find(e => e.procedencia === 'HUMAN_APPROVED_2026_STORE_RESPONSIBILITY');
-  ok('2.1 H3/H4 afetam SOMENTE Analia Franco e Bandeirantes',
-    h3h4 && h3h4.lojas === 'ANALIA FRANCO | BANDEIRANTES', h3h4 && h3h4.lojas);
-  ok('2.2 H3 nao criou autoridade em ABC', h3h4 && !h3h4.lojas.includes('ABC'));
-  ok('2.3 H4 nao criou autoridade em BARRA FUNDA', h3h4 && !h3h4.lojas.includes('BARRA FUNDA'));
+  const hum = escopo.find(e => e.procedencia === 'HUMAN_APPROVED_2026_STORE_RESPONSIBILITY');
+  ok('2.1 autoridade humana de 2026 cobre exatamente as 4 lojas decididas (H3/H4/H5/H6)',
+    hum && hum.lojas === 'ABC | ANALIA FRANCO | BANDEIRANTES | BARRA FUNDA', hum && hum.lojas);
+  ok('2.2 sao 4 intervalos de autoridade humana, um por decisao', hum && Number(hum.n) === 4,
+    hum && hum.n + ' intervalo(s)');
+  const reconstrucao = escopo.find(e => e.procedencia === 'HUMAN_APPROVED_RECONSTRUCTION');
+  ok('2.3 nenhuma reconstrucao H1 sobrevive em ABC ou BARRA FUNDA',
+    reconstrucao && !reconstrucao.lojas.includes('ABC') && !reconstrucao.lojas.includes('BARRA FUNDA'),
+    reconstrucao && reconstrucao.lojas);
 
   /* ---------- 3. Posse concorrente ---------- */
   h('3. POSSE CONCORRENTE DE LOJAS (nivel UUID, sem alias)');
@@ -150,7 +152,8 @@ function nome(quem, hash) {
   });
   ok('3.1 nenhuma posse concorrente NOVA e nao reconhecida', naoReconhecidos.length === 0,
     naoReconhecidos.length + ' nova(s)');
-  ok('3.2 os casos conhecidos continuam sendo exatamente 2', lista.length === 2, lista.length + ' caso(s)');
+  ok('3.2 ZERO posse concorrente -- G18-A e G18-B resolvidos por H5/H6',
+    lista.length === 0, lista.length + ' caso(s)');
 
   /* ---------- 4. Impacto em volume ---------- */
   h('4. IMPACTO EM VOLUME DE RANKING (jan-ago/2026)');
@@ -227,14 +230,19 @@ function nome(quem, hash) {
   h('6. INVARIANTE TEMPORAL PRESERVADO');
   const inv = await one(`select
       (select count(*) from public.analista_responsavel_loja) total,
+      (select count(*) from public.analista_responsavel_loja where status='ACTIVE') ativas,
+      (select count(*) from public.analista_responsavel_loja where status='SUPERSEDED') superseded,
       (select count(*) from public.analista_responsavel_loja_auditoria) audit,
       (select count(*) from public.analista_responsavel_loja a
         join public.analista_responsavel_loja b on b.loja_normalizada=a.loja_normalizada and b.id<>a.id
         where a.status='ACTIVE' and b.status='ACTIVE'
           and daterange(a.valid_from,a.valid_to,'[)') && daterange(b.valid_from,b.valid_to,'[)')) sobrepostos;`);
-  ok('6.1 25 intervalos, inalterados por esta Wave', Number(inv.total) === 25, 'total=' + inv.total);
-  ok('6.2 25 eventos de auditoria, inalterados', Number(inv.audit) === 25, 'audit=' + inv.audit);
+  ok('6.1 27 intervalos (23 ACTIVE + 4 SUPERSEDED apos H5/H6)', Number(inv.total) === 27, 'total=' + inv.total);
+  ok('6.2 31 eventos de auditoria (25 + 4 SUPERSEDED + 2 novos)', Number(inv.audit) === 31, 'audit=' + inv.audit);
   ok('6.3 ZERO sobreposicoes por loja-dia', Number(inv.sobrepostos) === 0);
+  ok('6.4 as 4 linhas substituidas continuam inspecionaveis (nao foram apagadas)',
+    Number(inv.superseded) === 4, 'superseded=' + inv.superseded);
+  ok('6.5 9 vigencias abertas preservadas', Number(inv.ativas) === 23, 'ativas=' + inv.ativas);
   console.log('  Posse concorrente de LOJAS DIFERENTES nao viola o invariante:');
   console.log('  o invariante e um dono por LOJA-DIA, nao uma loja por Analista.');
 

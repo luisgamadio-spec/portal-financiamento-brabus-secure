@@ -251,7 +251,7 @@ ROLLBACK;`;
       (select count(*) from public.usuarios where loja='RH_A4_LOJA') as usuarios_sinteticos,
       (select count(*) from public.ausencias_analistas where upper(trim(loja_coberta))='RH_A4_LOJA') as ausencias_sinteticas;`);
     const a = Array.isArray(after.b) ? after.b[0] : {};
-    check('4.1 ROLLBACK: vigencias reais intactas (25 apos PERF-5)', Number(a.vigencias) === 25);
+    check('4.1 ROLLBACK: vigencias reais intactas (27 apos PERF-5A.2)', Number(a.vigencias) === 27);
     check('4.2 ROLLBACK: nenhum usuario sintetico persistiu', Number(a.usuarios_sinteticos) === 0);
     check('4.3 ROLLBACK: nenhuma ausencia sintetica persistiu', Number(a.ausencias_sinteticas) === 0);
   }

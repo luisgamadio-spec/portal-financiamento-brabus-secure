@@ -103,7 +103,15 @@ function runSql(token, query) {
     (select count(*) from public.analista_responsavel_loja) as vigencias_totais;`);
   check('2.1 uma vigência ABERTA por loja com analista ativo',
     Number(c.lojas_com_analista) === Number(c.vigencias_abertas) && Number(c.vigencias_abertas) > 0);
-  check('2.2 nenhuma vigência arquivada/inativa', Number(c.vigencias_totais) === Number(c.vigencias_ativas));
+  // PERF-5A.2 substituiu 4 intervalos historicos por autoridade humana
+  // explicita (H5/H6). As linhas antigas viram SUPERSEDED em vez de serem
+  // apagadas -- o que importa e que toda linha SUPERSEDED tenha um evento
+  // de auditoria explicando a substituicao.
+  const sup = await one(`select
+      (select count(*) from public.analista_responsavel_loja where status='SUPERSEDED') linhas,
+      (select count(*) from public.analista_responsavel_loja_auditoria where acao='SUPERSEDED') eventos;`);
+  check('2.2 toda vigência SUPERSEDED tem evento de auditoria correspondente',
+    Number(sup.linhas) === Number(sup.eventos));
 
   const gaps = await one(`select count(*) as sem_responsavel from (
       select upper(trim(coalesce(loja,''))) as loja from public.usuarios
@@ -168,12 +176,15 @@ function runSql(token, query) {
       (select count(*) from public.analista_responsavel_loja) as vigencias,
       (select count(*) from public.analista_responsavel_loja_auditoria where acao='CREATED') as criados,
       (select count(*) from public.analista_responsavel_loja_auditoria where acao='BACKFILL_HISTORICO') as backfill,
+      (select count(*) from public.analista_responsavel_loja_auditoria where acao='SUPERSEDED') as superseded,
+      (select count(*) from public.analista_responsavel_loja r where not exists (
+         select 1 from public.analista_responsavel_loja_auditoria a where a.responsabilidade_id=r.id)) as sem_auditoria,
       (select count(*) from public.analista_responsavel_loja_auditoria where analista_novo is null) as sem_analista,
       (select count(*) from public.analista_responsavel_loja_auditoria
          where acao='CREATED' and valid_from <> date '${START_DATE}') as data_divergente;`);
-  check('5.1 um evento de auditoria por vigência', Number(au.eventos) === Number(au.vigencias));
-  check('5.2 todo evento é CREATED (bootstrap) ou BACKFILL_HISTORICO (PERF-5)',
-    Number(au.criados) + Number(au.backfill) === Number(au.eventos));
+  check('5.1 toda vigência tem ao menos um evento de auditoria', Number(au.sem_auditoria) === 0);
+  check('5.2 todo evento é CREATED, BACKFILL_HISTORICO ou SUPERSEDED',
+    Number(au.criados) + Number(au.backfill) + Number(au.superseded) === Number(au.eventos));
   check('5.3 todo evento nomeia o analista', Number(au.sem_analista) === 0);
   check('5.4 toda auditoria de bootstrap registra a data autorizada', Number(au.data_divergente) === 0);
 
