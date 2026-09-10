@@ -46,8 +46,12 @@ const PODIO = {
   '2026-05': ['DOUGLAS', 57, 'CAMILE'], '2026-06': ['CAMILE', 82, 'DOUGLAS'],
   '2026-07': ['DOUGLAS', 58, 'WILLIAN'], '2026-08': ['WILLIAN', 50, 'CAMILE'],
 };
-const RESIDUO = { '2026-01': 1, '2026-02': 0, '2026-03': 0, '2026-04': 1,
-  '2026-05': 1, '2026-06': 0, '2026-07': 0, '2026-08': 0 };
+/* PERF-5D.1B/H10 tirou REVENDA do universo elegivel, entao os 3 residuos
+   de jan/abr/mai deixaram de existir como residuo -- nao por atribuicao,
+   mas por saida de escopo. O que esta Wave prova continua valendo: as 5
+   recuperacoes SEM LOJA. */
+const RESIDUO = { '2026-01': 0, '2026-02': 0, '2026-03': 0, '2026-04': 0,
+  '2026-05': 0, '2026-06': 0, '2026-07': 0, '2026-08': 0 };
 
 let passed = 0, failed = 0;
 function ok(name, cond, extra) {
@@ -256,7 +260,8 @@ fin as (
   Object.keys(RESIDUO).forEach(m =>
     ok('6.res ' + m + ' residuo = ' + RESIDUO[m], Number(R['res_' + m]) === RESIDUO[m], R['res_' + m]));
   const totalRes = Object.keys(RESIDUO).reduce((s, m) => s + Number(R['res_' + m] || 0), 0);
-  ok('6.total residuo 8 -> 3', totalRes === 3, 'total=' + totalRes);
+  ok('6.total residuo elegivel = 0 (5 recuperadas aqui + 3 REVENDA fora de escopo por H10)',
+    totalRes === 0, 'total=' + totalRes);
 
   h('6.1 JUNHO -- EMPATE 28/28 E FULL_POINTS_COMPETITION_RANKING');
   const jw = (R['m_2026-06_WILLIAN'] || '').split('|');

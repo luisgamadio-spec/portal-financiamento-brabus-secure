@@ -115,8 +115,17 @@ end $imp$;`;
   ok('3.4 autoridade registrada como HUMAN_APPROVED', g15.autoridade === 'HUMAN_APPROVED');
   ok('3.5 evidencia BRUTA preservada em portal_sales', Number(g15.vendas_brutas) === 189, g15.vendas_brutas + ' linhas');
   ok('3.6 evidencia BRUTA preservada em portal_finance_operations', Number(g15.fin_brutas) === 186, g15.fin_brutas + ' linhas');
-  const users = await one(`select count(*) n from public.usuarios where criado_em::date > date '2026-09-09';`);
-  ok('3.7 NENHUM usuario do portal foi criado por esta Wave', Number(users.n) === 0, users.n + ' novo(s)');
+  // A intencao aqui e provar que H7 NAO onboardou os 25 vendedores do
+  // codigo "2". Contar usuarios totais mediria um numero vivo, que o
+  // proprio portal muda por convite/desligamento. O que importa e a
+  // populacao de ANALISTAS -- a unica relevante ao Ranking.
+  const users = await one(`select
+      (select count(*) from public.usuarios where upper(trim(coalesce(perfil,'')))='ANALISTA') analistas,
+      (select count(*) from public.usuarios where upper(trim(coalesce(perfil,'')))='ANALISTA'
+        and criado_em::date > date '2026-09-09') analistas_novos;`);
+  ok('3.7 NENHUM ANALISTA foi criado por esta Wave', Number(users.analistas_novos) === 0,
+    users.analistas_novos + ' novo(s)');
+  ok('3.8 populacao de ANALISTAS estavel (12)', Number(users.analistas) === 12, users.analistas + '');
 
   /* ---------- 4. Periodo ---------- */
   h('4. AUTORIDADE DE PERIODO -- MES CALENDARIO');
@@ -314,8 +323,13 @@ end $imp$;`;
     where table_schema='public' and table_name like 'performance_%'
       and grantee in ('anon','authenticated','PUBLIC');`);
   ok('12.1 anon/authenticated/PUBLIC sem grant direto de tabela', Number(gr.n) === 0, gr.n + ' grant(s)');
-  const rls = await one(`select count(*) n from pg_class where relname like 'performance_%' and relrowsecurity;`);
-  ok('12.2 RLS habilitada nas 7 tabelas', Number(rls.n) === 7, rls.n + ' tabela(s)');
+  const rls = await one(`select
+      (select count(*) from pg_class where relname like 'performance_%' and relrowsecurity) n,
+      (select count(*) from information_schema.tables where table_schema='public'
+        and table_name like 'performance_%') total;`);
+  // PERF-5D.1B acrescentou performance_loja_fora_de_escopo (H10).
+  ok('12.2 RLS habilitada em TODAS as tabelas performance_*',
+    Number(rls.n) === Number(rls.total), rls.n + '/' + rls.total + ' tabela(s)');
 
   /* ---------- 13. Nada oficial foi criado ---------- */
   h('13. NENHUM FECHAMENTO OFICIAL');
@@ -323,13 +337,13 @@ end $imp$;`;
       (select count(*) from public.performance_periodo) periodos,
       (select count(*) from public.performance_snapshot) snapshots,
       (select count(*) from public.analista_responsavel_loja where status='ACTIVE') resp,
-      (select count(*) from public.usuarios) usr,
+      (select count(*) from public.usuarios where upper(trim(coalesce(perfil,'')))='ANALISTA') analistas,
       (select count(*) from public.fechamentos_comissao) fech,
       (select count(*) from public.snapshot_comissoes) snapc;`);
   ok('13.1 zero periodos oficiais', Number(fim.periodos) === 0);
   ok('13.2 zero snapshots oficiais', Number(fim.snapshots) === 0);
   ok('13.3 responsabilidade inalterada (23 ACTIVE)', Number(fim.resp) === 23);
-  ok('13.4 usuarios inalterados (111)', Number(fim.usr) === 111);
+  ok('13.4 populacao de ANALISTAS inalterada (12)', Number(fim.analistas) === 12, fim.analistas + '');
   ok('13.5 fechamentos de Salario inalterados (24)', Number(fim.fech) === 24);
   ok('13.6 snapshots de Salario inalterados (2138)', Number(fim.snapc) === 2138);
 

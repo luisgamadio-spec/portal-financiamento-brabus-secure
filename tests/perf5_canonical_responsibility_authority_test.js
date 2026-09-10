@@ -318,12 +318,14 @@ function label(id) {
   /* ---------- 10. Estado de negócio inalterado ---------- */
   h('10. CONSERVAÇÃO DE DADOS DE NEGÓCIO NÃO-RANKING');
   const biz = await one(`select
-      (select count(*) from public.usuarios) usr,
+      (select count(*) from public.usuarios where upper(trim(coalesce(perfil,'')))='ANALISTA') analistas,
       (select count(*) from public.ausencias_analistas) aus,
       (select count(*) from public.fechamentos_comissao) fech,
       (select count(*) from public.snapshot_comissoes) snapc,
       (select count(*) from public.periodos_comissao) per;`);
-  ok('10.1 usuários inalterados', Number(biz.usr) === 111, 'usr=' + biz.usr);
+  // total de usuarios e contador vivo (convites/desligamentos do portal);
+  // o que o Ranking exige estavel e a populacao de ANALISTAS.
+  ok('10.1 população de ANALISTAS inalterada', Number(biz.analistas) === 12, 'analistas=' + biz.analistas);
   ok('10.2 ausências inalteradas', Number(biz.aus) === 26, 'aus=' + biz.aus);
   ok('10.3 fechamentos de Salário inalterados', Number(biz.fech) === 24, 'fech=' + biz.fech);
   ok('10.4 snapshots de Salário inalterados', Number(biz.snapc) === 2138, 'snap=' + biz.snapc);

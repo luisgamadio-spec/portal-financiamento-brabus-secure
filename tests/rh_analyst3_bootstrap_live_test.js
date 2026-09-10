@@ -192,14 +192,18 @@ function runSql(token, query) {
   const p = await one(`select
       (select count(*) from public.fechamentos_comissao) as fechamentos,
       (select count(*) from public.ausencias_analistas) as ausencias,
-      (select count(*) from public.usuarios where ativo) as usuarios_ativos,
+      (select count(*) from public.usuarios where ativo and upper(trim(coalesce(perfil,'')))='ANALISTA') as analistas_ativos,
       (select (pg_get_functiondef(pr.oid) ~ 'order by u.nome') from pg_proc pr join pg_namespace n on n.oid=pr.pronamespace
         where n.nspname='public' and pr.prokind='f' and pr.proname='operational_analyst_commission_metrics') as regra_alfabetica_ainda_live,
       (select (pg_get_functiondef(pr.oid) like '%analista_responsavel_loja%') from pg_proc pr join pg_namespace n on n.oid=pr.pronamespace
         where n.nspname='public' and pr.prokind='f' and pr.proname='operational_analyst_commission_metrics') as consome_autoridade;`);
   check('6.1 fechamentos preservados (nenhuma competência fechada aqui)', Number(p.fechamentos) === 24);
   check('6.2 ausências/coberturas preservadas', Number(p.ausencias) === 26);
-  check('6.3 roster de usuários ativos preservado', Number(p.usuarios_ativos) === 100);
+  // O total de usuarios e um contador VIVO -- convites e desligamentos
+  // legitimos no portal o mudam a qualquer momento e nada disso e do
+  // dominio do Ranking. O que precisa ficar estavel e a populacao de
+  // ANALISTAS, que e quem participa do Ranking.
+  check('6.3 roster de ANALISTAS ativos preservado', Number(p.analistas_ativos) === 10);
   // RH-ANALYST-4A: a decisão do Humano é que o SALÁRIO mantém o seu
   // comportamento próprio -- inclusive a seleção alfabética, que é
   // reconhecidamente imperfeita mas pertence ao domínio do Salário.
