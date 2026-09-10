@@ -84,6 +84,66 @@ That is the substance of PERF-4.
 
 ---
 
+## 0-TER. HUMAN BUSINESS DECISIONS H1 AND H2 (PERF-4C)
+
+Two decisions taken by the Human close the historical gap described above. They are
+**business authority**, not derived facts, and their provenance must survive every
+future audit. Executable form: `tests/perf4c_ranking_responsibility_contract_test.js`.
+
+### H1 — historical titularity backfill
+
+Question put to the Human: were the Analysts normally responsible for the stores in
+the period evidenced from **21/05/2026** already, in essence, the same normal
+store-responsible Analysts since January 2026?
+
+> **Human answer: "Sim, eram os mesmos."**
+
+Approved interpretation: the titular relationship evidenced at the 21/05/2026
+boundary extends backward to **01/01/2026**, *unless direct contradictory evidence
+exists for a specific store/interval*.
+
+`HUMAN_APPROVED_HISTORICAL_RESPONSIBILITY_BACKFILL_RULE`
+
+**Limits.** H1 does **not** authorise copying the 21/08 governed rows backward. The
+reconstruction uses the identities established by PERF-4B *around the 21/05
+boundary*. Alphabetical order, current roster, current store metadata and current
+seller state remain forbidden. Intervals derived from H1 are labelled
+`HUMAN_APPROVED_RECONSTRUCTION` and **never** `DIRECT_AUTHORITY`.
+
+### H2 — vacation / absence attribution
+
+> **Human decision: "Mesmo ele estando de férias, os pontos serão dele, pois o
+> Ferista não pontua."**
+
+For Ranking, the official/titular Analyst keeps attribution during vacation or other
+temporary absence. The covering Analyst (*Ferista*) covers the store operationally
+and receives **no** Ranking attribution from that coverage.
+
+`HUMAN_APPROVED_RANKING_VACATION_ATTRIBUTION_RULE`
+`FERISTA_NON_SCORING_RULE_CONFIRMED`
+`TEMPORARY_COVERAGE_DOES_NOT_TRANSFER_RANKING_OWNERSHIP`
+
+Consequences: vacation never splits Ranking responsibility, never produces an
+unowned store-day, and never creates a second owner. A **permanent** handover is a
+different thing entirely — it *does* move ownership, at its effective date
+(`PERMANENT_HANDOVER_CHANGES_RANKING_OWNERSHIP`).
+
+### Domain boundary — critical
+
+H2 governs **Ranking only**. It changes nothing in Salary: vacation rules, coverage
+rules, substitute commission and `operational_analyst_commission_metrics` all stay
+exactly as restored by RH-ANALYST-4A.
+
+> "Ferista não pontua" means **the Ferista earns no Ranking points**.
+> It does **not** mean the Ferista earns no salary commission.
+
+Salary continues to pay coverage as it always has — that is why
+`operational_analyst_coverage_details` exists. Ranking must never consume Salary
+commission logic as runtime authority; forensic reading of Salary evidence is
+permitted, runtime coupling is not.
+
+---
+
 ## 0. Closed hypothesis — "Salários & Comissões already knows the analyst"
 
 **Investigated in PERF-3.1 at the Human's direction. Answer: it does not.**
