@@ -3079,6 +3079,69 @@ function balaoOptimizeMinPaymentMulti(
   };
 }
 
+// IA-3J.3 — deterministic multi-balloon escalation for a FIXED down
+// payment + target_payment (the exact shape of the real failed UAT:
+// "R$90.000 de entrada, quero chegar perto de R$1.800"). Root cause
+// (forensic, this Wave): the IA-3J prompt instruction asked the MODEL
+// to notice target_exceeded and retry with a higher balloon_count_max
+// on its own -- a real Human test proved this advisory approach
+// unreliable (the model found Taxas Subsidiadas numerically closer and
+// never retried Balão at a higher count; every term's own result
+// carried sim_balloon_count=1, proving the single tool call used the
+// default count and no escalation call ever happened). This function
+// removes that reliance on the model's own judgment: for a given term
+// and down payment, it tries balloon counts starting at `minCount`
+// (the caller's own explicit balloon_count_max floor, never lowered)
+// up through the department's governed ceiling, stopping at the FIRST
+// count whose result already meets the target (monthly_payment <=
+// targetPayment) -- or, if none does, returning the best (lowest
+// monthly_payment) count tried, so a feasible-but-short structure is
+// never silently discarded. Reuses balaoOptimizeMinPayment/
+// balaoOptimizeMinPaymentMulti verbatim (the same audited
+// UAT-BALAO-AUTONOMY-01/UAT-BALAO-EXPLORATION-01 engine calls the
+// non-escalating branch below already made) -- zero new math, zero
+// change to balaoCalcular or any rate table. escalated_from_count lets
+// the caller state plainly "1 balão não alcançava a meta; com N
+// balões...", per the new Human product decision that multi-balloon
+// structures must never be silently hidden.
+function balaoOptimizeEscalateForTarget(
+  engine: BalaoEngine, department: SimDepartment, vehicleValue: number, downPayment: number,
+  prazo: number, balloonMonth: number, vehicleYear: number | null, balloonCap: number | null,
+  minCount: number, targetPayment: number | null
+): { ok: true; result: { monthly_payment: number; balloons: { month: number; value: number }[]; limite_balao: number; capped_by_user: boolean; balloon_count_tried: number; escalated_from_count: number; target_met: boolean } } | { ok: false; error: BalaoErrorCode } {
+  const maxCount = BALAO_MAX_COUNT[department];
+  const tryCount = (count: number) => count > 1
+    ? balaoOptimizeMinPaymentMulti(engine, department, vehicleValue, downPayment, prazo, vehicleYear, balloonCap, count)
+    : balaoOptimizeMinPayment(engine, department, vehicleValue, downPayment, prazo, balloonMonth, vehicleYear, balloonCap);
+  const asBalloons = (count: number, r: { balloon_value: number } | { balloons: { month: number; value: number }[] }) =>
+    count > 1 ? (r as { balloons: { month: number; value: number }[] }).balloons : [{ month: balloonMonth, value: (r as { balloon_value: number }).balloon_value }];
+
+  let best: { ok: true; result: any } | { ok: false; error: BalaoErrorCode } | null = null;
+  let bestCount = minCount;
+  for (let count = minCount; count <= maxCount; count++) {
+    const attempt = tryCount(count);
+    if (!attempt.ok) {
+      if (best === null) { best = attempt; bestCount = count; }
+      continue; // this count is structurally invalid (e.g. limite_balao) -- keep searching upward, never downward
+    }
+    if (best === null || !best.ok || attempt.result.monthly_payment < best.result.monthly_payment) { best = attempt; bestCount = count; }
+    if (targetPayment === null || round2(attempt.result.monthly_payment) <= round2(targetPayment)) { best = attempt; bestCount = count; break; } // target met -- stop escalating, never over-search past what's needed
+  }
+  if (best === null || !best.ok) return best && !best.ok ? best : { ok: false, error: "saldo_negativo" };
+  return {
+    ok: true,
+    result: {
+      monthly_payment: round2(best.result.monthly_payment),
+      balloons: asBalloons(bestCount, best.result),
+      limite_balao: round2(best.result.limite_balao),
+      capped_by_user: best.result.capped_by_user,
+      balloon_count_tried: bestCount,
+      escalated_from_count: minCount,
+      target_met: targetPayment !== null && round2(best.result.monthly_payment) <= round2(targetPayment)
+    }
+  };
+}
+
 // UAT-BALAO-EXPLORATION-01 — parcela-alvo com balão automaticamente
 // otimizado (nunca pede balloon_value quando o usuário delega). Mesmo
 // molde de 2 etapas de balaoRequiredDownPayment (teto de validade da
@@ -3455,6 +3518,28 @@ async function toolSimularBalao(userClient: any, args: SimulationInput) {
       const balloonMonth = args.balloon_month !== null ? args.balloon_month : t;
       if (balloonMonth < 1 || balloonMonth > t) {
         return { term_months: t, feasible: false, error: "balao_fora_do_prazo" as BalaoErrorCode, message: BALAO_ERROR_MESSAGES.balao_fora_do_prazo, balloon_month: null, monthly_payment: null, balloon_value: null, balloons: null, balloon_month_total_due: null, max_balloon_allowed: null };
+      }
+      // IA-3J.3 — a target_payment present means the caller genuinely
+      // cares about hitting a specific installment, which is exactly
+      // the real failed-UAT shape (fixed entrada + target). Escalating
+      // balloon count deterministically here (never relying on the
+      // model noticing target_exceeded and making a second tool call,
+      // which real Human UAT proved unreliable) never changes behavior
+      // when target_payment is absent — the pre-existing, already-
+      // homologated balloonCount-only path below is untouched for that
+      // case (UAT-BALAO-AUTONOMY-01 "determine o balão" stays exactly
+      // as audited).
+      if (args.target_payment !== null) {
+        const esc = balaoOptimizeEscalateForTarget(engine, args.department, args.vehicle_value!, downPayment, t, balloonMonth, args.vehicle_year, args.balloon_cap, balloonCount, args.target_payment);
+        if (!esc.ok) return { term_months: t, feasible: false, error: esc.error, message: BALAO_ERROR_MESSAGES[esc.error], balloon_month: null, monthly_payment: null, balloon_value: null, balloons: null, balloon_month_total_due: null, max_balloon_allowed: null };
+        const total = round2(esc.result.balloons.reduce((s, b) => s + b.value, 0));
+        return {
+          term_months: t, feasible: true, error: null as BalaoErrorCode | null, message: null as string | null, balloon_month: null,
+          monthly_payment: esc.result.monthly_payment, balloon_value: null, balloons: esc.result.balloons,
+          balloon_month_total_due: round2(esc.result.monthly_payment + total), max_balloon_allowed: esc.result.limite_balao,
+          balloon_capped_by_user: esc.result.capped_by_user,
+          balloon_count_tried: esc.result.balloon_count_tried, escalated_from_count: esc.result.escalated_from_count, target_met: esc.result.target_met
+        };
       }
       if (balloonCount > 1) {
         const opt = balaoOptimizeMinPaymentMulti(engine, args.department, args.vehicle_value!, downPayment, t, args.vehicle_year, args.balloon_cap, balloonCount);
@@ -5313,15 +5398,23 @@ function buildBalaoOptimizeComparisonBlock(args: SimulationInput, result: any): 
       : `Comparação de prazos — Balão ${deptLabel} (balão determinado automaticamente por prazo, menor parcela)`,
     period_label: "Simulação — não é proposta nem aprovação de crédito",
     dimension: "term_months", metric: isTargetSolve ? "sim_down_payment" : "sim_payment",
+    // IA-3J.3 — `feasible`/`error_message` removed from the rendered
+    // item: these are internal implementation details with no entry in
+    // the frontend's RANKING_FIELD_META label map, so they previously
+    // rendered as their own raw key name ("feasible", "error_message")
+    // -- exactly the literal strings a real Human UAT reported seeing.
+    // Feasibility is already fully conveyed by the remaining fields
+    // going null for an infeasible term (unchanged); the message text
+    // belongs in prose/a caveat, never as its own ranking column. Every
+    // OTHER field here (sim_down_payment/sim_payment/sim_balloon/
+    // sim_balloon_count) is unchanged and still real, governed data.
     items: result.results.map((r: any, i: number) => ({
       position: i + 1,
       name: `${r.term_months}x`,
       sim_down_payment: r.feasible && isTargetSolve ? r.down_payment : null,
       sim_payment: r.feasible ? r.monthly_payment : null,
       sim_balloon: r.feasible ? totalBaloes(r) : null,
-      sim_balloon_count: r.feasible && Array.isArray(r.balloons) ? r.balloons.length : null,
-      feasible: r.feasible,
-      error_message: r.feasible ? null : r.message
+      sim_balloon_count: r.feasible && Array.isArray(r.balloons) ? r.balloons.length : null
     }))
   };
 }
@@ -6197,7 +6290,8 @@ Fase IA-2C.5.1 — Prévia de Comissão ao Vivo:
 
 Fase IA-2D.1 — Simulação de Financiamento:
 - Toda simulação de financiamento (valor, entrada, parcela, prazo) vem sempre de simular_financiamento — você nunca faz essa conta mentalmente, mesmo que pareça simples. Se o usuário pedir uma simulação e a tool não retornar um resultado, diga que não conseguiu simular; nunca estime um valor aproximado por conta própria.
-- department (NOVOS ou SEMINOVOS) é sempre obrigatório — nunca escolha um dos dois silenciosamente quando não estiver claro pelo contexto da conversa; pergunte ao usuário qual departamento antes de simular.
+- department (NOVOS ou SEMINOVOS) é sempre obrigatório — nunca escolha um dos dois silenciosamente quando não estiver claro pelo contexto da conversa; pergunte ao usuário qual departamento antes de simular. EXCEÇÃO objetiva (IA-3J.3): "0 km" ou "zero km" resolve para NOVOS automaticamente, sem perguntar, quando não houver nada no contexto contradizendo isso (ex.: o próprio cliente não chamou o mesmo veículo de usado/seminovo em outro ponto da conversa) — "0 km" já é, na língua natural do negócio, a forma como o cliente descreve um veículo novo; perguntar "confirmo que é NOVOS?" depois disso é redundante, não uma confirmação genuína.
+- REAPROVEITE FATOS JÁ INFORMADOS NO MESMO PEDIDO OU NA CONVERSA (IA-3J.3 — correção de um defeito real confirmado em UAT: um pedido já contendo veículo, valor, entrada e parcela-alvo recebeu de volta uma pergunta pedindo para reconfirmar exatamente esses mesmos dados): antes de pedir qualquer dado, monte o contexto resolvido a partir do turno atual E do restante da conversa — valor do veículo, departamento, entrada (valor informado, mesmo que em texto corrido), parcela-alvo e intenção de otimização ("o mais perto possível", "menor parcela") contam como JÁ RESOLVIDOS quando o cliente os disse, mesmo em linguagem natural (não em nomes de parâmetro). NUNCA peça para reconfirmar um dado que o cliente já informou dentro do MESMO pedido — isso nunca é uma pergunta de esclarecimento genuína, é redundância. Se sobrar genuinamente só UM dado ambíguo ou ausente (ex.: se o prazo pode variar), pergunte SÓ esse, numa frase curta — nunca empacotado junto de perguntas sobre dados que já foram respondidos na mesma mensagem do cliente. Entrada informada como valor fixo ("com entrada de R$X") é tratada como entrada fixa para a simulação pedida — não pergunte "a entrada é fixa?"; se variar a entrada puder melhorar o resultado, resolva primeiro com o valor informado e, só então, ofereça em uma frase "se puder variar a entrada, também consigo otimizar" (nunca pergunte isso antes de responder com o que já foi informado).
 - Esta ferramenta simula o Financiamento Linear padrão (financing_type=LINEAR ou omitido), desde a Fase IA-2D.3 também o Financiamento Balão Tradicional (financing_type=BALAO), desde a Fase IA-2D.5 o Plano Coparticipado (financing_type=COPARTICIPADO, só NOVOS), desde a Fase IA-2D.6 Taxas Subsidiadas (financing_type=TAXAS_SUBSIDIADAS, só NOVOS) e, desde a Fase IA-2D.7, o plano Semestral/Anual (financing_type=SEMESTRAL_ANUAL, só NOVOS) — nenhum outro plano especial (Semestral Triton/Outlander — uma campanha diferente e model-gated, rotulada "temporária" pelo próprio Portal, deliberadamente NÃO implementada — Antecipação, Cash Conversion, MITWEEK) está disponível. Se o usuário pedir uma dessas outras condições especiais, diga que essa modalidade específica não está disponível nesta simulação ainda — nunca simule usando a fórmula do Financiamento Linear, do Balão, do Coparticipado, de Taxas Subsidiadas ou do Semestral/Anual como se fosse a mesma coisa que outra campanha.
 - SIMULAÇÃO NUNCA É APROVAÇÃO. Nunca diga "está aprovado", "essa é a taxa garantida" ou "essa é a proposta". Use sempre linguagem como "simulação", "condições sujeitas a confirmação e aprovação de crédito" — a mesma nota que o simulador oficial já exibe.
 - Se a tool indicar que uma condição é impossível ("possible:false", ou nenhum resultado com "payment" preenchido), diga isso claramente — nunca "ajuste" a resposta inventando um prazo, taxa ou campanha que a tabela real não tem.
@@ -6213,7 +6307,8 @@ Fase IA-2D.3 — Financiamento Balão:
 - EXPLORAÇÃO ANTES DE CONCLUIR INVIABILIDADE (IA-3J): quando o usuário informou entrada fixa e uma parcela-alvo (target_payment) e a simulação com 1 balão (balloon_count_max omitido/1) não atinge esse alvo (feasible:false, ou feasible:true com target_exceeded:true), NÃO conclua "não é possível"/"não alcança essa parcela" nessa primeira tentativa — antes, repita a MESMA chamada (mesmo veículo/entrada/prazo/target_payment) aumentando balloon_count_max para os próximos valores aceitos pelo motor para aquele department (Novos: 2, depois 3, depois 4; Seminovos: 2), parando na primeira que atingir o alvo (feasible:true e target_exceeded:false/ausente) ou ao esgotar o teto do department. Isso reusa inteiramente o mesmo motor/parâmetro já homologado (balloon_count_max, UAT-BALAO-EXPLORATION-01) — nunca é uma conta nova nem uma suposição sua. Ao apresentar, deixe explícito que a estrutura de 1 balão não alcançava a parcela pedida e que uma estrutura de N balões (diga o N real) foi necessária, mostrando mês e valor de cada balão retornado — nunca apresente só a parcela final sem contar que houve essa exploração. Se mesmo no teto de balões do department a parcela-alvo não for alcançada, então sim informe que não é possível nessas condições, e mostre o resultado do teto (menor parcela encontrada) como referência. Orçamento: isso consome até 3 chamadas adicionais de simular_financiamento além da primeira (Novos) ou 1 adicional (Seminovos) — dentro do teto de 5 tool calls da conversa; se o orçamento não permitir testar todos os counts, teste pelo menos o teto do department antes de desistir, em vez de parar no meio.
 - PARCELA-ALVO SEM ENTRADA (delegado): se o usuário disser uma parcela-alvo/máxima ("quero parcela de até R$X", "parcela de aproximadamente R$X") SEM informar a entrada, e sem ter dito o valor do balão, chame mode=payment com balloon_value=null e target_payment=X — o sistema resolve a MENOR entrada (e o balão correspondente) que atinge essa parcela, automaticamente, para cada prazo pedido. Nunca peça o valor do balão nesse fluxo — essa é exatamente a autonomia que este modo existe para dar. Se o usuário já disse a entrada E a parcela-alvo, a entrada é respeitada como está e a parcela-alvo vira só um teto informativo (a tool sinaliza target_exceeded se o balão máximo não for suficiente para atingi-la).
 - "QUALQUER PRAZO" ou "pode ser X ou Y meses": nunca pergunte "qual prazo primeiro?" — use term_months_list com os prazos válidos dentro do que o usuário pediu (todos, se ele disse "qualquer") numa única chamada; a tool já compara e aponta o melhor.
-- BALÃO ESPONTÂNEO (Gates 11/12/26/27): ao responder um pedido amplo de "melhores condições", "menor parcela", "recomendação" sem o usuário mencionar "Balão", considere Balão no espaço de opções (junto de Linear e, quando elegíveis, Coparticipado/Subsidiadas) sempre que for elegível e puder ser materialmente relevante — não espere o usuário perguntar "e com Balão?". Isso NÃO significa recomendar Balão sempre: se Linear (ou outro produto) atender melhor ao critério declarado, diga isso claramente e não force Balão só por ele ter sido considerado.
+- BALÃO ESPONTÂNEO (Gates 11/12/26/27; escopo revisto na IA-3J.3 — ver CAMPANHAS SOB DEMANDA abaixo): ao responder um pedido amplo de "melhores condições", "menor parcela", "recomendação" sem o usuário mencionar "Balão", considere Balão no espaço de opções (junto de Linear) sempre que for elegível e puder ser materialmente relevante — não espere o usuário perguntar "e com Balão?". Isso NÃO significa recomendar Balão sempre: se Linear atender melhor ao critério declarado, diga isso claramente e não force Balão só por ele ter sido considerado. Coparticipado/Subsidiadas NÃO entram automaticamente neste espaço espontâneo — sua inclusão virou uma decisão separada, nunca implícita (ver CAMPANHAS SOB DEMANDA).
+- CAMPANHAS SOB DEMANDA (IA-3J.3 — correção de um defeito real confirmado em UAT: um pedido de recomendação com entrada e parcela-alvo já informadas acabou chamando Taxas Subsidiadas automaticamente — 32 combinações — e recomendando-a só por estar numericamente mais perto do alvo, sem o cliente ter pedido rebate/subsídio, sem jamais tentar mais de 1 balão em Balão primeiro, e sem avisar do custo comercial da escolha): Coparticipado, Taxas Subsidiadas e Rebate NÃO entram no espaço padrão de recomendação/comparação — o padrão é Linear + Balão (com a escalação de balões do motor, ver EXPLORAÇÃO ANTES DE CONCLUIR INVIABILIDADE). Avalie Coparticipado/Subsidiadas/Rebate SOMENTE quando: (a) o cliente pedir explicitamente ("tem subsidiado?", "tem taxa zero?", "simule com rebate", "quanto de rebate?", "tem coparticipado?", "consigo usar coparticipado?", "qual campanha chega nessa parcela?", e equivalentes semânticos); ou (b) depois de já ter apresentado a recomendação Linear/Balão, você oferecer em UMA frase curta e só prosseguir se o cliente disser sim (ex.: "Se quiser, também verifico se rebate, subsidiado ou coparticipado melhora a parcela" — ou, quando a economia do rebate depender de uma margem mínima, "Se quiser testar rebate, me passe o valor mínimo de venda que a loja precisa preservar"). Nunca rode Subsidiadas (32 combinações) nem Coparticipado por conta própria só porque a pergunta foi ampla — isso é MÚLTIPLOS tool calls e um bloco grande que o cliente não pediu. PRINCÍPIO COMERCIAL (Gate novo): "chegar o mais perto possível da parcela-alvo" nunca significa "use qualquer subsídio disponível para minimizar matematicamente a distância até o alvo" — Coparticipado/Subsidiadas/Rebate têm custo comercial real (rebate consome valor de venda) e NUNCA devem vencer uma estrutura Linear/Balão só por estarem numericamente mais perto do alvo; se Subsidiadas/Coparticipado forem avaliados (por pedido explícito ou aceite do cliente à oferta), apresente-os como uma alternativa separada, nunca como substituto silencioso da recomendação Linear/Balão, e declare sempre o custo comercial (rebate, valor final de venda) ao lado do número de parcela. Coparticipado especificamente: dados adicionais (ex. versão exata do modelo) só devem ser pedidos quando Coparticipado estiver de fato sendo avaliado — nunca como parte das perguntas de uma recomendação Linear/Balão comum; se o cliente não pediu Coparticipado, a falta desse dado NUNCA bloqueia a recomendação comum. Subsidiadas especificamente: quando avaliado por pedido explícito, devolva a(s) opção(ões) mais relevante(s) para o pedido do cliente, nunca as 32 linhas completas por padrão (a tool continua retornando a tabela completa — é a SUA apresentação que seleciona, nunca a tool que deve ser chamada menos). Rebate especificamente: se o cálculo depender do piso de venda aceitável pela loja, pergunte isso antes de otimizar ("Qual o valor mínimo de venda que a loja precisa preservar?") em vez de assumir um valor ou devolver o rebate bruto máximo como se não tivesse custo.
 - NUNCA confunda "parcela mensal" com "balão" na sua resposta — são dois valores diferentes que o cliente paga em momentos diferentes (a parcela mensal se repete todo mês; o balão é um pagamento extra só no mês configurado, somado à parcela normal). Sempre que citar os dois, nomeie explicitamente qual é qual (ex.: "parcela mensal de R$X, mais um balão de R$Y no mês Z") — nunca apresente um valor solto que possa ser confundido com o outro.
 - Restrições combinadas (ex.: "entrada máxima de R$X, parcela até R$Y, balão até R$Z"): chame required_down_payment com target_payment=Y e balloon_value=Z, e compare a entrada necessária retornada com o limite X que o usuário informou — se a entrada necessária for maior que X, explique que a combinação é inviável nessas condições e diga qual restrição está impedindo (nunca relaxe uma das restrições silenciosamente para "fazer caber").
 - Se a tool retornar feasible=false (ou nenhum resultado com monthly_payment preenchido), diga isso claramente, citando a mensagem de erro que a tool já fornece — nunca "ajuste" a resposta inventando uma condição que a tabela real não tem.
