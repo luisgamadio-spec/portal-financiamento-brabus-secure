@@ -171,8 +171,14 @@ for (const key of UNRELATED_DOMAIN_KEYS) {
   check("the tool-calling loop never reassigns input[0] (only ever pushes new items)", !/input\[0\]\s*=/.test(loopBody));
   check("the tool-calling loop never rebuilds systemPromptWithDate or re-reads effectiveSystemPrompt mid-loop", !/effectiveSystemPrompt/.test(loopBody) && !/systemPromptWithDate\s*=/.test(loopBody));
 
-  const callSites = [...source.matchAll(/await callOpenAI\(openaiKey, input, effectiveTools\)/g)];
-  check("callOpenAI is called from exactly one site, always with the same effectiveTools, every pass of the loop", callSites.length === 1, callSites.length);
+  // IA-3J.4K.1 -- callOpenAI's 3rd argument is now `passTools`, a
+  // per-pass selection deterministically derived from effectiveTools
+  // (see pass2-tool-elision.test.mjs for the full proof) -- this
+  // prompt/profile test only needs to confirm the prompt-carrying
+  // `input` itself is still never touched by that per-pass selection.
+  const callSites = [...source.matchAll(/await callOpenAI\(openaiKey, input, passTools\)/g)];
+  check("callOpenAI is called from exactly one site, always with the same `input`, every pass of the loop", callSites.length === 1, callSites.length);
+  check("the tool-calling loop's passTools selection never reassigns or narrows `input` itself (only tools vary per pass, never the prompt-carrying input)", !/input\s*=\s*passTools/.test(loopBody) && !/input\.length\s*=/.test(loopBody));
 }
 
 // ---------- E. routing decisions for real messages ----------

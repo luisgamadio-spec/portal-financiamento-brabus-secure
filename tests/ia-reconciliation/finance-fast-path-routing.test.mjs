@@ -179,11 +179,32 @@ const { classifyFinanceFastPath } = mod;
     classifyCallSites.length
   );
 
-  const handlerCallSites = [...source.matchAll(/await callOpenAI\(openaiKey, input, effectiveTools\)/g)];
+  // IA-3J.4K.1 -- callOpenAI's 3rd argument is now `passTools`, a
+  // per-pass selection derived deterministically from effectiveTools
+  // (never a fresh call-site-specific tool list, never effectiveTools
+  // itself re-inlined at the call site).
+  const handlerCallSites = [...source.matchAll(/await callOpenAI\(openaiKey, input, passTools\)/g)];
   check(
-    "callOpenAI is invoked from exactly one call site inside the request handler, always with effectiveTools",
+    "callOpenAI is invoked from exactly one call site inside the request handler, always with passTools",
     handlerCallSites.length === 1,
     handlerCallSites.length
+  );
+  check(
+    "no call site still passes the pre-IA-3J.4K.1 bare effectiveTools directly to callOpenAI",
+    [...source.matchAll(/await callOpenAI\(openaiKey, input, effectiveTools\)/g)].length === 0
+  );
+
+  // IA-3J.4K.1 -- passTools itself must be a pure, deterministic
+  // derivation of isFinanceFastPath/effectiveTools/passIndex only --
+  // never a second classifier, never a heuristic, never LLM content.
+  const passToolsIdx = source.indexOf("const passTools = (isFinanceFastPath && passIndex > 0) ? [] : effectiveTools;");
+  check(
+    "passTools is declared as exactly (isFinanceFastPath && passIndex > 0) ? [] : effectiveTools -- no second classifier, no heuristic",
+    passToolsIdx !== -1
+  );
+  check(
+    "exactly one passTools declaration exists in the whole file (never duplicated/diverged)",
+    [...source.matchAll(/const passTools = /g)].length === 1
   );
 
   // IA-3J.4I -- the classification itself moved into a shared
@@ -196,6 +217,23 @@ const { classifyFinanceFastPath } = mod;
     "isFinanceFastPath/effectiveTools are computed before the tool-calling while(true) loop begins",
     isFppIdx !== -1 && effIdx !== -1 && loopIdx !== -1 && isFppIdx < effIdx && effIdx < loopIdx,
     { isFppIdx, effIdx, loopIdx }
+  );
+  // IA-3J.4K.1 -- passIndex itself must be declared before the loop
+  // (starts at 0) and incremented exactly once, inside the loop body,
+  // never derived from toolCallCount/array lengths/model content.
+  const passIndexDeclIdx = source.indexOf("let passIndex = 0;");
+  check(
+    "passIndex is declared (= 0) before the while(true) loop begins",
+    passIndexDeclIdx !== -1 && passIndexDeclIdx < loopIdx,
+    { passIndexDeclIdx, loopIdx }
+  );
+  check(
+    "passIndex is incremented by exactly one plain `passIndex++` statement in the whole file",
+    [...source.matchAll(/passIndex\+\+/g)].length === 1
+  );
+  check(
+    "passIndex is never assigned from toolCallCount, openai_pass_ms.length, or calls.length",
+    !/passIndex\s*=\s*(toolCallCount|.*openai_pass_ms\.length|.*calls\.length)/.test(source)
   );
 }
 

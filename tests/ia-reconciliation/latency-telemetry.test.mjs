@@ -53,12 +53,14 @@ function check(label, cond, detail) {
 
   const topLevelFields = [...decl.matchAll(/^\s{4}(\w+):/gm)].map((m) => m[1]);
   check(
-    "timings declares exactly the 6 known-safe fields, nothing else (IA-3J.4F added tools_sent_count)",
-    topLevelFields.length === 6 &&
-      ["auth_ms", "master_gate_ms", "config_scope_ms", "openai_pass_ms", "tool_dispatch_ms", "tools_sent_count"].every((f) => topLevelFields.includes(f)),
+    "timings declares exactly the 8 known-safe fields, nothing else (IA-3J.4F added tools_sent_count; IA-3J.4K.1 added tools_sent_count_per_pass/input_item_count_per_pass)",
+    topLevelFields.length === 8 &&
+      ["auth_ms", "master_gate_ms", "config_scope_ms", "openai_pass_ms", "tool_dispatch_ms", "tools_sent_count", "tools_sent_count_per_pass", "input_item_count_per_pass"].every((f) => topLevelFields.includes(f)),
     `got: ${topLevelFields.join(", ")}`
   );
   check("timings declares tools_sent_count: number | null", /tools_sent_count:\s*number\s*\|\s*null/.test(decl));
+  check("timings declares tools_sent_count_per_pass: number[] (plain counts, never content)", /tools_sent_count_per_pass:\s*number\[\]/.test(decl));
+  check("timings declares input_item_count_per_pass: number[] (plain counts, never content)", /input_item_count_per_pass:\s*number\[\]/.test(decl));
 }
 
 // ---------- 2. tool_dispatch_ms push site carries only {name, ms} ----------

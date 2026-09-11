@@ -6857,9 +6857,23 @@ serve(async (req) => {
     // this request (2 = finance fast-path fired, 12 = full/fallback
     // tool set) -- a plain count, set once effectiveTools is computed
     // below, safe by the same rule as every other field here (number
-    // only, never content).
+    // only, never content). Kept exactly as-is (request-level, set
+    // once) for backward compatibility -- IA-3J.4K.1 below.
     tools_sent_count: number | null;
-  } = { auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [], tools_sent_count: null };
+    // IA-3J.4K.1 -- per-pass sibling of tools_sent_count, one entry
+    // pushed per OpenAI call actually made this request (same safety
+    // class: plain counts only, never schema/content). Lets a real
+    // sample prove the new per-pass tool elision (below) actually
+    // happened, instead of only the request-level count that can't
+    // distinguish "2 tools on every pass" from "2 tools on pass 1
+    // only".
+    tools_sent_count_per_pass: number[];
+    // IA-3J.4K.1 -- input.length at the moment of each call (plain
+    // item count, never content) -- corroborates the resent/
+    // incremental accounting from IA-3J.4K's own forensic without
+    // exposing anything new.
+    input_item_count_per_pass: number[];
+  } = { auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [], tools_sent_count: null, tools_sent_count_per_pass: [], input_item_count_per_pass: [] };
 
   if (req.method === "OPTIONS") {
     // IA-3G.5A -- the ONE branch every real browser request hits first
@@ -7153,10 +7167,11 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
     ];
 
     // IA-3J.4F -- computed ONCE per request, from the raw current
-    // message only, BEFORE the first OpenAI call -- the SAME tool set
-    // is then used for every pass of this request's own while(true)
-    // loop below (never re-classified mid-request), so a later pass
-    // can never need a tool an earlier pass didn't have.
+    // message only, BEFORE the first OpenAI call -- effectiveTools
+    // itself never changes mid-request. IA-3J.4K.1 below additionally
+    // narrows WHICH of this request's later passes actually receive
+    // effectiveTools (see passTools) -- a per-pass selection, never a
+    // second classification of the request itself.
     let toolCallCount = 0;
     let finalText: string | null = null;
     let lastModel = OPENAI_MODEL;
@@ -7167,14 +7182,38 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
     const blocks: any[] = [];
     const homologCalls: any[] = []; // portal-ai-homolog ONLY — never cherry-picked to canonical
     const deadline = startedAt + OVERALL_TIMEOUT_MS;
+    // IA-3J.4K.1 -- explicit, auditable pass counter: 0 for the first
+    // OpenAI call this request makes, 1 for the second, etc. Never
+    // derived from toolCallCount/openai_pass_ms.length/calls.length --
+    // a plain counter incremented once per completed loop iteration,
+    // at the bottom of the loop body below.
+    let passIndex = 0;
 
     while (true) {
       if (Date.now() > deadline) {
         throw new ToolError("A consulta demorou demais e foi interrompida.");
       }
 
+      // IA-3J.4K.1 -- ONE variable this Wave: which tools THIS pass
+      // receives. Finance fast-path keeps its normal effectiveTools on
+      // Pass 1 (passIndex===0, byte-identical to before this Wave) and
+      // gets an explicit empty array on every later pass -- proven
+      // safe for the fast-path domain by IA-3J.4K's own exhaustive
+      // tool-chain catalog (no currently-governed fast-path scenario
+      // needs a tool call past Pass 1; every genuinely sequential
+      // finance chain -- Antecipação, Cash Conversion, Calculadora de
+      // Taxa -- lives exclusively in the full profile via
+      // classifyFinanceFastPath's own deny-list, untouched here).
+      // Full-profile requests are unaffected: isFinanceFastPath is
+      // false, so the condition never fires and passTools===
+      // effectiveTools on every pass, exactly as before this Wave --
+      // preserving every full-profile sequential tool chain.
+      const passTools = (isFinanceFastPath && passIndex > 0) ? [] : effectiveTools;
+      timings.tools_sent_count_per_pass.push(passTools.length);
+      timings.input_item_count_per_pass.push(input.length);
+
       const t_openaiStart = Date.now();
-      const response = await callOpenAI(openaiKey, input, effectiveTools);
+      const response = await callOpenAI(openaiKey, input, passTools);
       timings.openai_pass_ms.push(Date.now() - t_openaiStart);
       totalInputTokens += response?.usage?.input_tokens ?? 0;
       totalOutputTokens += response?.usage?.output_tokens ?? 0;
@@ -7252,6 +7291,7 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
         homologCalls.push({ name: call.name, args: parsedArgs, result: output }); // portal-ai-homolog ONLY
         input.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(output) });
       }
+      passIndex++; // IA-3J.4K.1 -- explicit, auditable: one more pass is about to happen
     }
 
     const latencyMs = Date.now() - startedAt;
