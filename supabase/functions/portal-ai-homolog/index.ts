@@ -3302,7 +3302,16 @@ async function toolSimularFinanciamento(userClient: any, args: SimulationInput) 
       vehicle_value: round2(args.vehicle_value), down_payment: round2(downPayment),
       down_payment_percent: round2((downPayment / args.vehicle_value) * 100),
       financed_amount: round2(Math.max(0, args.vehicle_value - downPayment)),
-      vehicle_year: args.vehicle_year, results, calculation_source: calculationSource, constraints_applied: constraintsApplied
+      vehicle_year: args.vehicle_year, results,
+      // IA-3J.4C — LINEAR's own payment mode has no target concept for
+      // SELECTION (confirmed in IA-3J.4A -- target_payment is never
+      // used to pick a term here, and that remains true). This is a
+      // pure, additive, read-only echo of the caller's own input,
+      // added only so the presentation layer can show a "distância da
+      // meta" fact next to Linear's compacted "melhor parcela" — never
+      // consumed by any selection/calculation logic in this function.
+      target_payment: args.target_payment !== null ? round2(args.target_payment) : null,
+      calculation_source: calculationSource, constraints_applied: constraintsApplied
     };
   }
 
@@ -5308,13 +5317,36 @@ function buildSimulationMetricsBlock(args: SimulationInput, result: any): any | 
     // target exists to measure distance against) -- for a fixed
     // financed amount this is always the longest term, matching the
     // brief's own worked example ("Melhor Linear: 60x").
+    let financingCard: any = null;
     if (feasibleTerms.length > 1 && args?.show_term_comparison !== true) {
       const best = feasibleTerms.reduce((b: any, r: any) => (r.payment < b.payment ? r : b));
       items.push({ label: `Melhor parcela (${best.term_months}x)`, value: best.payment, format: "currency" });
+      // IA-3J.4C — real UAT ("continua confuso... precisamos separar em
+      // cards") traced to compactMetricsHtml (V2) rendering a metrics
+      // block's title as screen-reader-only, leaving the Human with no
+      // visible label distinguishing a Balão card from a Linear card.
+      // This metadata gives the frontend a robust, non-title-parsing
+      // way to identify and label a financing recommendation card —
+      // presentation-only, consumed by no calculation anywhere.
+      financingCard = {
+        kind: "LINEAR", term_months: best.term_months, monthly_payment: best.payment,
+        down_payment: result.down_payment, financed_amount: result.financed_amount,
+        target_payment: result.target_payment ?? null,
+        target_distance: result.target_payment !== null && result.target_payment !== undefined ? round2(Math.abs(best.payment - result.target_payment)) : null
+      };
+    } else if (feasibleTerms.length === 1) {
+      const only = feasibleTerms[0];
+      items.push({ label: `Parcela (${only.term_months}x)`, value: only.payment, format: "currency" });
+      financingCard = {
+        kind: "LINEAR", term_months: only.term_months, monthly_payment: only.payment,
+        down_payment: result.down_payment, financed_amount: result.financed_amount,
+        target_payment: result.target_payment ?? null,
+        target_distance: result.target_payment !== null && result.target_payment !== undefined ? round2(Math.abs(only.payment - result.target_payment)) : null
+      };
     } else {
       for (const r of feasibleTerms) items.push({ label: `Parcela ${r.term_months}x`, value: r.payment, format: "currency" });
     }
-    return { type: "metrics", title: `Simulação — Financiamento Linear ${deptLabel}`, period_label: "Simulação — não é proposta nem aprovação de crédito", items };
+    return { type: "metrics", title: `Simulação — Financiamento Linear ${deptLabel}`, period_label: "Simulação — não é proposta nem aprovação de crédito", items, financing_card: financingCard };
   }
   if (result.mode === "required_down_payment") {
     const items: any[] = [{ label: "Valor do Veículo", value: result.vehicle_value, format: "currency" }, { label: "Parcela Desejada", value: result.target_payment, format: "currency" }];
@@ -5404,7 +5436,18 @@ function buildBalaoMetricsBlock(args: SimulationInput, result: any): any | null 
             ? " — prazo e balão determinados automaticamente (mais próximo da parcela-alvo)"
             : " — balão determinado automaticamente (menor parcela)")
       : "";
-    return { type: "metrics", title: `Simulação — Financiamento Balão ${deptLabel} (${result.term_months}x)${optimizedSuffix}`, period_label: "Simulação — não é proposta nem aprovação de crédito", items };
+    // IA-3J.4C — see the matching comment in buildSimulationMetricsBlock
+    // (LINEAR): presentation-only metadata, consumed by no calculation.
+    const financingCard = {
+      kind: "BALAO", term_months: result.term_months, monthly_payment: result.monthly_payment,
+      down_payment: result.down_payment, financed_amount: result.financed_amount,
+      balloons: baloes.length > 0 ? baloes : null,
+      target_payment: result.target_payment ?? null,
+      target_distance: result.target_payment !== undefined && result.target_payment !== null
+        ? round2(Math.abs(result.monthly_payment - result.target_payment))
+        : null
+    };
+    return { type: "metrics", title: `Simulação — Financiamento Balão ${deptLabel} (${result.term_months}x)${optimizedSuffix}`, period_label: "Simulação — não é proposta nem aprovação de crédito", items, financing_card: financingCard };
   }
   if (result.mode === "required_down_payment") {
     if (!result.feasible) return null;

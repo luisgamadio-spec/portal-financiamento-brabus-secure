@@ -183,7 +183,7 @@ function syntheticBalaoOutput() {
         { term_months: 12, payment: 8120.50 }, { term_months: 18, payment: 5720.10 },
         { term_months: 24, payment: 4510.90 }, { term_months: 30, payment: 3820.44 },
         { term_months: 36, payment: 3380.15 }, { term_months: 42, payment: 3080.60 },
-        { term_months: 48, payment: 2865.33 }, { term_months: 60, payment: 2984.38 },
+        { term_months: 48, payment: 3160.10 }, { term_months: 60, payment: 2984.38 },
       ],
       calculation_source: "test-fixture", constraints_applied: [],
     };
@@ -217,6 +217,58 @@ function syntheticBalaoOutput() {
     "the prompt states Linear's own 'best' (no target concept) is the lowest payment / longest term",
     /em Linear, "melhor" sem parcela-alvo é a menor parcela entre os prazos avaliados/.test(prompt)
   );
+}
+
+// ========================================================================
+// PART 6 (IA-3J.4C) — financing_card metadata (plan-card identity for the frontend)
+// ========================================================================
+{
+  // Balão block: reuse the exact real Human scenario numbers (IA-3J.4A/4B).
+  const balaoResult = {
+    mode: "payment", feasible: true, balloon_optimized: true, optimization_objective: "min_distance_to_target",
+    department: "NOVOS", vehicle_value: 180000, down_payment: 90000, down_payment_percent: 50,
+    financed_amount: 90000, term_months: 30, vehicle_year: null,
+    target_payment: 1800, target_exceeded: false, monthly_payment: 1766.94,
+    balloon_value: null, balloon_month: null, balloon_count: 2,
+    balloons: [{ month: 15, value: 45000 }, { month: 30, value: 45000 }],
+    balloon_month_total_due: 46766.94, max_balloon_allowed: 90000, balloon_cap_applied: null,
+    results: [], calculation_source: "test-fixture", constraints_applied: [],
+  };
+  const balaoBlock = mod.buildBalaoMetricsBlock({}, balaoResult);
+  check("Balão block carries financing_card metadata", balaoBlock && balaoBlock.financing_card != null);
+  if (balaoBlock && balaoBlock.financing_card) {
+    const fc = balaoBlock.financing_card;
+    check("financing_card.kind === 'BALAO'", fc.kind === "BALAO");
+    check("financing_card.term_months matches the real selected term (30)", fc.term_months === 30);
+    check("financing_card.monthly_payment matches exactly (R$1.766,94)", fc.monthly_payment === 1766.94);
+    check("financing_card.balloons carries both real balloons (months 15 and 30)", fc.balloons && fc.balloons.length === 2 && fc.balloons[0].month === 15 && fc.balloons[1].month === 30);
+    check("financing_card.target_distance computed correctly (R$33,06)", fc.target_distance === 33.06);
+  }
+
+  // Linear block: reuse the exact real Human scenario secondary fact (60x/R$2.984,38).
+  const linearResult = {
+    mode: "payment", department: "NOVOS", vehicle_value: 180000, down_payment: 90000,
+    down_payment_percent: 50, financed_amount: 90000, vehicle_year: null, target_payment: 1800,
+    results: [
+      { term_months: 12, payment: 8120.50 }, { term_months: 18, payment: 5720.10 },
+      { term_months: 24, payment: 4510.90 }, { term_months: 30, payment: 3820.44 },
+      { term_months: 36, payment: 3380.15 }, { term_months: 42, payment: 3080.60 },
+      { term_months: 48, payment: 3160.10 }, { term_months: 60, payment: 2984.38 },
+    ],
+    calculation_source: "test-fixture", constraints_applied: [],
+  };
+  const linearBlock = mod.buildSimulationMetricsBlock({ show_term_comparison: null }, linearResult);
+  check("LINEAR block carries financing_card metadata", linearBlock && linearBlock.financing_card != null);
+  if (linearBlock && linearBlock.financing_card) {
+    const fc = linearBlock.financing_card;
+    check("financing_card.kind === 'LINEAR'", fc.kind === "LINEAR");
+    check("financing_card.term_months matches the real lowest-payment term (60x, R$2.984,38 -- the cheapest of all 8 fixture terms)", fc.term_months === 60);
+    check("financing_card.target_distance is computed from the real target_payment echo (IA-3J.4C addition)", typeof fc.target_distance === "number" && fc.target_distance > 0);
+  }
+
+  // A block with no financing intent (e.g. a required_down_payment result) must not carry the metadata.
+  const nonFinancingBalao = mod.buildBalaoMetricsBlock({}, { mode: "required_down_payment", feasible: true, department: "NOVOS", vehicle_value: 1, target_payment: 1, balloon_value: 1, balloon_month: 1, down_payment: 1, down_payment_percent: 1, monthly_payment: 1 });
+  check("a non-'payment'-mode Balão block does not carry financing_card (metadata is scoped to the recommendation case only)", !nonFinancingBalao || nonFinancingBalao.financing_card === undefined);
 }
 
 console.log(`\n=== Recommendation Presentation Tests (IA-3J.3A): ${pass}/${pass + fail} ===`);
