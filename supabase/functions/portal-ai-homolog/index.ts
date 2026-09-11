@@ -6094,6 +6094,52 @@ const TOOLS = [
   }
 ];
 
+// IA-3J.4F -- deterministic, fail-closed finance-fast-path tool
+// routing. Measured evidence (IA-3J.4E/IA-3J.4E.1, real Human Test 1):
+// ~90% of edge_internal_ms was spent inside OpenAI itself, across 2
+// sequential passes that both resend the FULL 12-tool schema (~44.9K
+// chars) unchanged on every pass -- even though a pure "simule/compare
+// Balão e Linear" question can never legitimately need Score,
+// Comissões, Ranking, Operações Especiais, Antecipação, Cash
+// Conversion, Calculadora de Taxa, or histórico de financiamento
+// tools. This narrows ONLY which tool SCHEMAS are sent to OpenAI,
+// computed once per request from the raw user message before the
+// first OpenAI call of that request -- SYSTEM_PROMPT is never
+// touched, so every governance/campaign-gating/presentation rule
+// applies exactly as before regardless of which path fires.
+// simular_financiamento itself (the one finance tool this path keeps)
+// is completely unchanged -- it still handles every plan type it
+// always has; only OTHER, unrelated tool schemas are omitted from
+// THIS request's own OpenAI call.
+//
+// Fail-closed by construction (Section 18): requires an explicit,
+// unambiguous finance-simulation signal AND the complete absence of
+// any other domain's own keyword -- including Coparticipado/
+// Subsidiado/Semestral-Anual, financing products this SAME tool also
+// serves but whose own prompt guidance (Fases IA-2D.5/2D.6/2D.7) is
+// not part of this narrower routing decision (it lives in
+// SYSTEM_PROMPT, untouched, always present). Any ambiguity -- an
+// unrecognized message, a short context-dependent follow-up like "e
+// em 48 meses?", or any denylist keyword present -- falls back to the
+// full, unrestricted TOOLS array, never a partial/best-guess one.
+const FINANCE_FAST_PATH_TOOL_NAMES = new Set(["simular_financiamento", "iniciar_novo_cliente"]);
+const FINANCE_FAST_PATH_TOOLS = TOOLS.filter((t) => FINANCE_FAST_PATH_TOOL_NAMES.has(t.name));
+
+// Deliberately broad/over-inclusive on the deny side -- a false
+// positive there only costs the optimization (falls back to the full
+// tool list, always safe); a false positive on the allow side would
+// risk offering a narrowed tool set to a request that actually needed
+// a tool outside it, which this design treats as unacceptable.
+const FINANCE_FAST_PATH_ALLOW_RE = /bal[ãa]o|financiament|financiar|parcela/i;
+const FINANCE_FAST_PATH_DENY_RE = /score|coparticipad|subsidiad|semestral|anual|comiss|sal[aá]rio|salario|ranking|opera[cç]|antecipa|quita|cash conversion|taxa impl|calcular taxa|hist[oó]ric|resultado/i;
+
+function classifyFinanceFastPath(message: string): boolean {
+  if (typeof message !== "string" || !message.trim()) return false;
+  if (!FINANCE_FAST_PATH_ALLOW_RE.test(message)) return false;
+  if (FINANCE_FAST_PATH_DENY_RE.test(message)) return false;
+  return true;
+}
+
 // Fase IA-2D.2 — o enum de period desta tool aceita "full_history" além
 // dos valores já usados pelas outras 7 (PERIOD_ENUM não é alterado, para
 // não afetar nenhuma tool existente).
@@ -6605,7 +6651,7 @@ Fase IA-UAT-VOICE-NOVOCLIENTE-01 — Reset determinístico de cenário entre cli
 // Cliente OpenAI (Responses API) — timeout + 1 retry em falha transitória
 // (Partes 47-48).
 // =========================================================
-async function callOpenAI(apiKey: string, input: any[], attempt = 0): Promise<any> {
+async function callOpenAI(apiKey: string, input: any[], tools: any[], attempt = 0): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), OPENAI_CALL_TIMEOUT_MS);
   try {
@@ -6618,7 +6664,7 @@ async function callOpenAI(apiKey: string, input: any[], attempt = 0): Promise<an
       body: JSON.stringify({
         model: OPENAI_MODEL,
         input,
-        tools: TOOLS
+        tools
       }),
       signal: controller.signal
     });
@@ -6627,7 +6673,7 @@ async function callOpenAI(apiKey: string, input: any[], attempt = 0): Promise<an
       const transient = resp.status === 429 || resp.status >= 500;
       if (transient && attempt < OPENAI_MAX_RETRIES) {
         await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-        return callOpenAI(apiKey, input, attempt + 1);
+        return callOpenAI(apiKey, input, tools, attempt + 1);
       }
       const bodyText = await resp.text().catch(() => "");
       throw new Error(`OpenAI respondeu ${resp.status}: ${bodyText.slice(0, 300)}`);
@@ -6756,7 +6802,13 @@ serve(async (req) => {
     config_scope_ms: number | null;
     openai_pass_ms: number[];
     tool_dispatch_ms: Array<{ name: string; ms: number }>;
-  } = { auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [] };
+    // IA-3J.4F -- how many tool schemas were actually sent to OpenAI
+    // this request (2 = finance fast-path fired, 12 = full/fallback
+    // tool set) -- a plain count, set once effectiveTools is computed
+    // below, safe by the same rule as every other field here (number
+    // only, never content).
+    tools_sent_count: number | null;
+  } = { auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [], tools_sent_count: null };
 
   if (req.method === "OPTIONS") {
     // IA-3G.5A -- the ONE branch every real browser request hits first
@@ -7035,6 +7087,14 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
       { role: "user", content: message }
     ];
 
+    // IA-3J.4F -- computed ONCE per request, from the raw current
+    // message only, BEFORE the first OpenAI call -- the SAME tool set
+    // is then used for every pass of this request's own while(true)
+    // loop below (never re-classified mid-request), so a later pass
+    // can never need a tool an earlier pass didn't have.
+    const effectiveTools = classifyFinanceFastPath(message) ? FINANCE_FAST_PATH_TOOLS : TOOLS;
+    timings.tools_sent_count = effectiveTools.length;
+
     let toolCallCount = 0;
     let finalText: string | null = null;
     let lastModel = OPENAI_MODEL;
@@ -7052,7 +7112,7 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
       }
 
       const t_openaiStart = Date.now();
-      const response = await callOpenAI(openaiKey, input);
+      const response = await callOpenAI(openaiKey, input, effectiveTools);
       timings.openai_pass_ms.push(Date.now() - t_openaiStart);
       totalInputTokens += response?.usage?.input_tokens ?? 0;
       totalOutputTokens += response?.usage?.output_tokens ?? 0;

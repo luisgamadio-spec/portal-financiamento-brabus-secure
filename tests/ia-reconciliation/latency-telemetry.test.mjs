@@ -53,11 +53,12 @@ function check(label, cond, detail) {
 
   const topLevelFields = [...decl.matchAll(/^\s{4}(\w+):/gm)].map((m) => m[1]);
   check(
-    "timings declares exactly the 5 known-safe fields, nothing else",
-    topLevelFields.length === 5 &&
-      ["auth_ms", "master_gate_ms", "config_scope_ms", "openai_pass_ms", "tool_dispatch_ms"].every((f) => topLevelFields.includes(f)),
+    "timings declares exactly the 6 known-safe fields, nothing else (IA-3J.4F added tools_sent_count)",
+    topLevelFields.length === 6 &&
+      ["auth_ms", "master_gate_ms", "config_scope_ms", "openai_pass_ms", "tool_dispatch_ms", "tools_sent_count"].every((f) => topLevelFields.includes(f)),
     `got: ${topLevelFields.join(", ")}`
   );
+  check("timings declares tools_sent_count: number | null", /tools_sent_count:\s*number\s*\|\s*null/.test(decl));
 }
 
 // ---------- 2. tool_dispatch_ms push site carries only {name, ms} ----------
