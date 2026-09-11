@@ -103,6 +103,63 @@ export function extractConst(source, name) {
   return source.slice(start, i);
 }
 
+// IA-3J.4I -- extracts a `const NAME = \`...\`;` backtick template
+// literal of PROSE (not code -- generic brace/paren-depth extraction,
+// extractConst above, stops at the first semicolon that happens to
+// follow a locally-balanced parenthesis inside a sentence, which is
+// nearly every sentence in these prompt blocks). The prompt text has
+// no nested backticks or `${}` interpolation of its own (confirmed by
+// inspection, re-verified after the IA-3J.4I prompt-modularization
+// split), so a plain backtick-to-backtick scan is the correct,
+// simpler extractor for any of the `PROMPT_*` canonical blocks.
+export function extractTemplateLiteralConst(source, name) {
+  const marker = `const ${name} = \``;
+  const start = source.indexOf(marker);
+  if (start === -1) throw new Error(`extractTemplateLiteralConst: marker for "${name}" not found`);
+  const bodyStart = start + marker.length;
+  const end = source.indexOf("`;", bodyStart);
+  if (end === -1) throw new Error(`extractTemplateLiteralConst: no closing backtick for "${name}"`);
+  return source.slice(bodyStart, end);
+}
+
+// Extracts a `const NAME = "...";` plain double-quoted string const
+// (JSON.parse handles its escape sequences, e.g. "\r\n\r\n") -- used
+// for PROMPT_SEPARATOR, never for the PROMPT_* prose blocks.
+export function extractStringConst(source, name) {
+  const marker = `const ${name} = "`;
+  const start = source.indexOf(marker);
+  if (start === -1) throw new Error(`extractStringConst: marker for "${name}" not found`);
+  const bodyStart = start + marker.length - 1; // include opening quote for JSON.parse
+  let i = bodyStart + 1;
+  while (!(source[i] === '"' && source[i - 1] !== "\\")) i++;
+  return JSON.parse(source.slice(bodyStart, i + 1));
+}
+
+// IA-3J.4I -- reconstructs a composite prompt (FULL_SYSTEM_PROMPT or
+// FINANCE_PROMPT_PROFILE) EXACTLY the way the real source builds it:
+// parses the real `const NAME = [PROMPT_A, PROMPT_B, ...].join(SEP);`
+// expression to learn which canonical PROMPT_* blocks it joins, in
+// what order, and with what separator, then extracts and joins those
+// same blocks from source -- never a hand-typed list that could
+// silently drift from the real composition if a future Wave
+// adds/removes/reorders a block.
+export function extractComposedPrompt(source, compositeName) {
+  const marker = `const ${compositeName} = [`;
+  const start = source.indexOf(marker);
+  if (start === -1) throw new Error(`extractComposedPrompt: marker for "${compositeName}" not found`);
+  const arrayStart = start + marker.length - 1; // position of "["
+  const arrayEnd = source.indexOf("]", arrayStart);
+  if (arrayEnd === -1) throw new Error(`extractComposedPrompt: no closing "]" for "${compositeName}"`);
+  const arrayBody = source.slice(arrayStart + 1, arrayEnd);
+  const partNames = [...arrayBody.matchAll(/\b(PROMPT_[A-Z_]+)\b/g)].map((m) => m[1]);
+  if (partNames.length === 0) throw new Error(`extractComposedPrompt: no PROMPT_* parts found in "${compositeName}"`);
+
+  const joinMatch = /\]\.join\((\w+)\)/.exec(source.slice(arrayEnd, arrayEnd + 40));
+  const separator = joinMatch ? extractStringConst(source, joinMatch[1]) : "";
+
+  return partNames.map((n) => extractTemplateLiteralConst(source, n)).join(separator);
+}
+
 // Extracts an `interface Name { ... }` block (type-only, erased by
 // Node's TS stripping at import time, but needed so the sliced
 // fixture parses as valid TypeScript).

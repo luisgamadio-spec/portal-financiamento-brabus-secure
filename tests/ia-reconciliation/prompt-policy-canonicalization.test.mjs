@@ -32,7 +32,7 @@
 // Run: node tests/ia-reconciliation/prompt-policy-canonicalization.test.mjs
 
 import { join } from "node:path";
-import { readSource } from "./extract.mjs";
+import { readSource, extractComposedPrompt } from "./extract.mjs";
 
 const SRC_PATH = join(import.meta.dirname, "..", "..", "supabase", "functions", "portal-ai-homolog", "index.ts");
 const source = readSource(SRC_PATH);
@@ -44,11 +44,13 @@ function check(label, cond, detail) {
 }
 
 // ---------- extract SYSTEM_PROMPT body + section map, exactly as the source defines it ----------
-const spStart = source.indexOf("const SYSTEM_PROMPT = `");
-const backtickStart = source.indexOf("`", spStart);
-let i = backtickStart + 1;
-while (!(source[i] === "`" && source[i - 1] !== "\\")) i++;
-const promptBody = source.slice(backtickStart + 1, i);
+// IA-3J.4I -- SYSTEM_PROMPT was split into canonical PROMPT_* blocks,
+// reassembled as FULL_SYSTEM_PROMPT. extractComposedPrompt (extract.mjs)
+// rebuilds that exact text from the real source's own block list/
+// order/separator -- never a hand-copied duplicate. Byte-identical to
+// the pre-split monolithic prompt, so every marker-based check below
+// (written against that original shape) still applies unchanged.
+const promptBody = extractComposedPrompt(source, "FULL_SYSTEM_PROMPT");
 
 const markers = [...promptBody.matchAll(/\n(Fase IA-[A-Za-z0-9.\-]+) — ([^\n:]+)[:\n]/g)];
 function sectionSpan(name) {
@@ -140,7 +142,13 @@ function sectionSpan(name) {
 // ---------- 6. no formatting artifact left behind ----------
 {
   check("no triple-newline (double blank line) exists anywhere in SYSTEM_PROMPT", !/\r\n\r\n\r\n/.test(promptBody));
-  const boundary = source.slice(source.indexOf("Fase IA-2G.1 — Orquestração Financeira") - 90, source.indexOf("Fase IA-2G.1 — Orquestração Financeira"));
+  // IA-3J.4I -- checked against the reconstructed promptBody (the real
+  // FULL_SYSTEM_PROMPT text), not the raw source file: since the prompt
+  // modularization split, "Fase IA-2G.1" in the raw source sits right
+  // after a `const PROMPT_FINANCE_ORCHESTRATION = \`` declaration, not
+  // after inline prose -- promptBody is where the original blank-line
+  // boundary convention this check cares about actually lives.
+  const boundary = promptBody.slice(promptBody.indexOf("Fase IA-2G.1 — Orquestração Financeira") - 90, promptBody.indexOf("Fase IA-2G.1 — Orquestração Financeira"));
   check("exactly one blank line separates Fase IA-2D.2's last bullet from Fase IA-2G.1's header (matches every other section boundary)", /\r\n\r\n$/.test(boundary) && !/\r\n\r\n\r\n$/.test(boundary + "X"));
 }
 

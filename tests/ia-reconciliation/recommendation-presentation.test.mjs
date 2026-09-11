@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { readSource, extractFunction } from "./extract.mjs";
+import { readSource, extractFunction, extractComposedPrompt } from "./extract.mjs";
 
 const SRC_PATH = join(import.meta.dirname, "..", "..", "supabase", "functions", "portal-ai-homolog", "index.ts");
 const source = readSource(SRC_PATH);
@@ -25,14 +25,11 @@ function check(label, cond, detail) {
   else { fail++; console.log(`[FAIL] ${label}${detail ? " -- " + detail : ""}`); }
 }
 
-function extractTemplateLiteralConst(src, name) {
-  const marker = `const ${name} = \``;
-  const start = src.indexOf(marker);
-  const bodyStart = start + marker.length;
-  const end = src.indexOf("`;", bodyStart);
-  return src.slice(bodyStart, end);
-}
-const prompt = extractTemplateLiteralConst(source, "SYSTEM_PROMPT");
+// IA-3J.4I -- SYSTEM_PROMPT was split into canonical PROMPT_* blocks,
+// reassembled as FULL_SYSTEM_PROMPT; extractComposedPrompt (extract.mjs)
+// rebuilds that exact text from the real source, never a hand-copied
+// duplicate.
+const prompt = extractComposedPrompt(source, "FULL_SYSTEM_PROMPT");
 
 // ---------- assemble the real block-selection pipeline ----------
 const modText = [

@@ -186,9 +186,17 @@ const { classifyFinanceFastPath } = mod;
     handlerCallSites.length
   );
 
-  const effIdx = source.indexOf("const effectiveTools = classifyFinanceFastPath(message)");
+  // IA-3J.4I -- the classification itself moved into a shared
+  // `isFinanceFastPath` that now ALSO selects the prompt profile;
+  // `effectiveTools` is still derived from it, still before the loop.
+  const isFppIdx = source.indexOf("const isFinanceFastPath = classifyFinanceFastPath(message)");
+  const effIdx = source.indexOf("const effectiveTools = isFinanceFastPath ? FINANCE_FAST_PATH_TOOLS : TOOLS");
   const loopIdx = source.indexOf("while (true) {");
-  check("effectiveTools is computed before the tool-calling while(true) loop begins", effIdx !== -1 && loopIdx !== -1 && effIdx < loopIdx, { effIdx, loopIdx });
+  check(
+    "isFinanceFastPath/effectiveTools are computed before the tool-calling while(true) loop begins",
+    isFppIdx !== -1 && effIdx !== -1 && loopIdx !== -1 && isFppIdx < effIdx && effIdx < loopIdx,
+    { isFppIdx, effIdx, loopIdx }
+  );
 }
 
 // ---------- 6. callOpenAI sends the caller-provided tools, not the module-level TOOLS constant directly ----------
@@ -206,7 +214,15 @@ const { classifyFinanceFastPath } = mod;
 
 // ---------- 7. stage_ms telemetry reflects the real per-request choice ----------
 {
-  check("timings.tools_sent_count is set immediately after effectiveTools is computed", /const effectiveTools = classifyFinanceFastPath\(message\) \? FINANCE_FAST_PATH_TOOLS : TOOLS;\s*\r?\n\s*timings\.tools_sent_count = effectiveTools\.length;/.test(source));
+  // IA-3J.4I -- effectiveSystemPrompt now sits between effectiveTools
+  // and the tools_sent_count assignment (the same ONE resolved routing
+  // decision also selects the prompt profile) -- this check now proves
+  // the assignment follows the routing block as a whole, not literally
+  // the very next line.
+  check(
+    "timings.tools_sent_count is set as part of the same one-time routing block that computes effectiveTools/effectiveSystemPrompt",
+    /const effectiveTools = isFinanceFastPath \? FINANCE_FAST_PATH_TOOLS : TOOLS;\s*\r?\n\s*const effectiveSystemPrompt = isFinanceFastPath \? FINANCE_PROMPT_PROFILE : FULL_SYSTEM_PROMPT;\s*\r?\n\s*timings\.tools_sent_count = effectiveTools\.length;/.test(source)
+  );
 }
 
 console.log(`\n=== Finance Fast-Path Routing Tests (IA-3J.4F): ${pass}/${pass + fail} ===`);

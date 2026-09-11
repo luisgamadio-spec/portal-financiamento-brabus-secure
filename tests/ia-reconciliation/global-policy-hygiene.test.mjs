@@ -41,7 +41,7 @@
 // Run: node tests/ia-reconciliation/global-policy-hygiene.test.mjs
 
 import { join } from "node:path";
-import { readSource } from "./extract.mjs";
+import { readSource, extractComposedPrompt } from "./extract.mjs";
 
 const SRC_PATH = join(import.meta.dirname, "..", "..", "supabase", "functions", "portal-ai-homolog", "index.ts");
 const source = readSource(SRC_PATH);
@@ -52,11 +52,13 @@ function check(label, cond, detail) {
   else { fail++; console.log(`[FAIL] ${label}${detail ? " -- " + detail : ""}`); }
 }
 
-const spStart = source.indexOf("const SYSTEM_PROMPT = `");
-const backtickStart = source.indexOf("`", spStart);
-let i = backtickStart + 1;
-while (!(source[i] === "`" && source[i - 1] !== "\\")) i++;
-const promptBody = source.slice(backtickStart + 1, i);
+// IA-3J.4I -- SYSTEM_PROMPT was split into canonical PROMPT_* blocks,
+// reassembled as FULL_SYSTEM_PROMPT. extractComposedPrompt (extract.mjs)
+// rebuilds that exact text from the real source's own block list/
+// order/separator -- never a hand-copied duplicate. Byte-identical to
+// the pre-split monolithic prompt, so every marker-based check below
+// (written against that original shape) still applies unchanged.
+const promptBody = extractComposedPrompt(source, "FULL_SYSTEM_PROMPT");
 
 const markers = [...promptBody.matchAll(/\n(Fase IA-[A-Za-z0-9.\-]+) — ([^\n:]+)[:\n]/g)];
 function sectionSpan(name) {

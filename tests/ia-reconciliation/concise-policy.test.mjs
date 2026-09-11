@@ -10,29 +10,18 @@
 // Run: node tests/ia-reconciliation/concise-policy.test.mjs
 
 import { join } from "node:path";
-import { readSource, extractFunction } from "./extract.mjs";
+import { readSource, extractFunction, extractComposedPrompt } from "./extract.mjs";
 
 const SRC_PATH = join(import.meta.dirname, "..", "..", "supabase", "functions", "portal-ai-homolog", "index.ts");
 const source = readSource(SRC_PATH);
 
-// SYSTEM_PROMPT is a backtick template literal of Portuguese PROSE, not
-// code -- generic brace/paren-depth extraction (extractConst, built for
-// statement-shaped consts) stops at the first semicolon that happens to
-// follow a locally-balanced parenthesis inside a sentence, which is
-// nearly every sentence here. The prompt has no nested backticks or
-// `${}` interpolation of its own (confirmed by inspection), so a plain
-// backtick-to-backtick scan is the correct, simpler extractor for it.
-function extractTemplateLiteralConst(src, name) {
-  const marker = `const ${name} = \``;
-  const start = src.indexOf(marker);
-  if (start === -1) throw new Error(`extractTemplateLiteralConst: marker for "${name}" not found`);
-  const bodyStart = start + marker.length;
-  const end = src.indexOf("`;", bodyStart);
-  if (end === -1) throw new Error(`extractTemplateLiteralConst: no closing backtick for "${name}"`);
-  return src.slice(bodyStart, end);
-}
-
-const prompt = extractTemplateLiteralConst(source, "SYSTEM_PROMPT");
+// IA-3J.4I -- SYSTEM_PROMPT was split into canonical PROMPT_* blocks,
+// reassembled as FULL_SYSTEM_PROMPT (used for every request outside
+// the finance fast-path). extractComposedPrompt (extract.mjs) rebuilds
+// that exact text from the real source's own block list/order/
+// separator -- never a hand-copied duplicate, same discipline this
+// file already followed for its own local extractor before the split.
+const prompt = extractComposedPrompt(source, "FULL_SYSTEM_PROMPT");
 
 let pass = 0, fail = 0;
 function check(label, cond, detail) {
