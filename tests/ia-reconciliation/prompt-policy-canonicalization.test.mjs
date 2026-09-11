@@ -59,9 +59,17 @@ function sectionSpan(name) {
   return promptBody.slice(start, end);
 }
 
-// ---------- 1. total size unchanged (pure relocation, zero net content change) ----------
+// ---------- 1. total size: this IA-3J.4H move itself was a pure
+// relocation (0 net chars), but IA-3J.4H.2 (a later Wave, same file)
+// deliberately ADDED two new global policy bullets on top of it
+// (PII + tool-budget-grace canonicalization, +1,572 chars total,
+// explicitly sanctioned by that Wave's own brief: "This Wave is
+// expected to increase SYSTEM_PROMPT slightly. That is acceptable.")
+// -- so the baseline here reflects the current, combined state of
+// both Waves' work on this same file, not IA-3J.4H's own move in
+// isolation. ----------
 {
-  check("SYSTEM_PROMPT content is exactly 103,037 chars, byte-identical total size to before this Wave's move", promptBody.length === 103037, promptBody.length);
+  check("SYSTEM_PROMPT content is exactly 104,609 chars (103,037 after IA-3J.4H's pure move + 1,572 from IA-3J.4H.2's two new global policy bullets)", promptBody.length === 104609, promptBody.length);
 }
 
 // ---------- 2. canonical block exists exactly once ----------
