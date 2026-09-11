@@ -7166,7 +7166,17 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
         // client-fetch -> Edge-handler-entry gap and the Edge-response
         // -> browser-receive gap ITSELF, without needing any log
         // retrieval at all for a future controlled timing run.
-        _homolog_edge_timing: { handler_entry_epoch_ms: startedAt, response_ready_epoch_ms: Date.now(), instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, latency_ms: latencyMs }
+        //
+        // IA-3J.4E -- `timings` (declared above, IA-3G.4) was already
+        // computed every request and already proven safe (see its own
+        // comment: elapsed milliseconds, tool NAMES, and call counts
+        // only -- never prompt/response content, tool arguments/results,
+        // headers, or any financial row) but was previously ONLY sent to
+        // console.log, which this Wave proved is structurally
+        // unreachable here (no log retrieval path exists in this
+        // environment). Echoing the same already-safe object to the
+        // client closes that gap without adding any new data collection.
+        _homolog_edge_timing: { handler_entry_epoch_ms: startedAt, response_ready_epoch_ms: Date.now(), instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, latency_ms: latencyMs, stage_ms: timings }
       }),
       { status: 200, headers }
     );
