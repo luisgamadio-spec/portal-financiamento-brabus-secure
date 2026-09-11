@@ -3142,6 +3142,33 @@ function balaoOptimizeEscalateForTarget(
   };
 }
 
+// IA-3J.4A — the ONE selection authority for "qual prazo é o melhor
+// candidato" across a set of already-computed, per-term Balão results.
+// Extracted into its own named, pure, independently-testable function
+// specifically so BOTH the structured card (buildBalaoMetricsBlock,
+// which reads the top-level term_months/monthly_payment/balloons this
+// selection populates) and any future consumer share the exact same
+// selection -- never two different reduce()s that can silently diverge
+// again the way they did before this fix (real UAT: one call returned
+// term=48x/R$1.602,89 in the structured card while the model's own
+// prose, reading the same `results` array, correctly said 48x was NOT
+// the closest to the R$1.800 target and reported 30x/R$1.766,94
+// instead -- a genuine split-brain between two different notions of
+// "best", not a math error in either number). With a real
+// target_payment, "best" means minimum |monthly_payment - target| --
+// literally what "chegar o mais perto possível de RX" means -- never
+// simply the lowest payment. Without a target, behavior is completely
+// unchanged from the pre-existing, already-homologated UAT-BALAO-
+// AUTONOMY-01 rule (lowest payment among feasible terms).
+function balaoSelectBestCandidate(results: any[], targetPayment: number | null): any | null {
+  const feasible = results.filter((r) => r.feasible && r.monthly_payment !== null);
+  if (feasible.length === 0) return null;
+  if (targetPayment !== null) {
+    return feasible.reduce((b, r) => (Math.abs(r.monthly_payment - targetPayment) < Math.abs(b.monthly_payment - targetPayment) ? r : b));
+  }
+  return feasible.reduce((b, r) => (r.monthly_payment < b.monthly_payment ? r : b));
+}
+
 // UAT-BALAO-EXPLORATION-01 — parcela-alvo com balão automaticamente
 // otimizado (nunca pede balloon_value quando o usuário delega). Mesmo
 // molde de 2 etapas de balaoRequiredDownPayment (teto de validade da
@@ -3567,14 +3594,19 @@ async function toolSimularBalao(userClient: any, args: SimulationInput) {
       };
     });
 
-    // Se havia parcela-alvo e a entrada já era do usuário, trata como
-    // TETO (Gate 7): resultados acima do alvo ficam marcados, mas a
-    // melhor opção ainda é a de menor parcela (nunca inventa outra
-    // entrada, já que o usuário informou a dele).
-    const feasible = results.filter((r) => r.feasible && r.monthly_payment !== null);
-    const best = feasible.length > 0
-      ? feasible.reduce((b, r) => (r.monthly_payment! < b.monthly_payment! ? r : b))
-      : null;
+    // IA-3J.4A — real UAT (NOVOS, R$180.000, entrada R$90.000, meta
+    // R$1.800) proved the OLD rule here (Gate 7: always pick the lowest
+    // payment among feasible terms, treating target_payment as a mere
+    // ceiling) diverged from the model's own correct "closest to
+    // target" reasoning over the exact same `results` array -- the
+    // structured card showed 48x/R$1.602,89 while the prose correctly
+    // said 30x/R$1.766,94 was closer to the target. Both numbers were
+    // real and correctly computed; the bug was WHICH one got selected
+    // as "the" answer. Fixed by routing through the single selection
+    // authority (balaoSelectBestCandidate) instead of a local reduce()
+    // -- see its own comment for the full reasoning. Behavior without a
+    // target_payment is completely unchanged.
+    const best = balaoSelectBestCandidate(results, args.target_payment);
 
     if (!best) {
       const firstError = results[0];
@@ -3589,7 +3621,10 @@ async function toolSimularBalao(userClient: any, args: SimulationInput) {
 
     return {
       mode: "payment", department: args.department, feasible: true, balloon_optimized: true,
-      optimization_objective: "min_monthly_payment",
+      // IA-3J.4A — reflects the actual selection criterion used above:
+      // "min_distance_to_target" when a target existed (new), else the
+      // untouched "min_monthly_payment" (no target -> UAT-BALAO-AUTONOMY-01).
+      optimization_objective: args.target_payment !== null ? "min_distance_to_target" : "min_monthly_payment",
       target_payment: args.target_payment !== null ? round2(args.target_payment) : null,
       target_exceeded: args.target_payment !== null ? best.monthly_payment! > round2(args.target_payment) : null,
       vehicle_value: round2(args.vehicle_value), down_payment: round2(downPayment),
@@ -5260,7 +5295,25 @@ function buildSimulationMetricsBlock(args: SimulationInput, result: any): any | 
       { label: "Entrada (%)", value: result.down_payment_percent, format: "percent" },
       { label: "Financiado", value: result.financed_amount, format: "currency" }
     ];
-    for (const r of result.results) if (r.payment !== null) items.push({ label: `Parcela ${r.term_months}x`, value: r.payment, format: "currency" });
+    const feasibleTerms = result.results.filter((r: any) => r.payment !== null);
+    // IA-3J.4A — a real UAT reported this block listing all 8 Linear
+    // terms (12/18/24/30/36/42/48/60) unconditionally whenever
+    // term_months was omitted -- the same class of output pollution
+    // fixed for Balão in IA-3J.3A, reusing the same signal
+    // (show_term_comparison). LINEAR's own payment mode has no
+    // target_payment concept (confirmed by reading toolSimularFinanciamento
+    // -- target_payment is never read in this branch), so absent an
+    // explicit comparison request, the single most useful term to show
+    // is the lowest payment (same default used elsewhere when no
+    // target exists to measure distance against) -- for a fixed
+    // financed amount this is always the longest term, matching the
+    // brief's own worked example ("Melhor Linear: 60x").
+    if (feasibleTerms.length > 1 && args?.show_term_comparison !== true) {
+      const best = feasibleTerms.reduce((b: any, r: any) => (r.payment < b.payment ? r : b));
+      items.push({ label: `Melhor parcela (${best.term_months}x)`, value: best.payment, format: "currency" });
+    } else {
+      for (const r of feasibleTerms) items.push({ label: `Parcela ${r.term_months}x`, value: r.payment, format: "currency" });
+    }
     return { type: "metrics", title: `Simulação — Financiamento Linear ${deptLabel}`, period_label: "Simulação — não é proposta nem aprovação de crédito", items };
   }
   if (result.mode === "required_down_payment") {
@@ -5345,7 +5398,11 @@ function buildBalaoMetricsBlock(args: SimulationInput, result: any): any | null 
       items.push({ label: "Parcela-alvo informada", value: result.target_payment, format: "currency" });
     }
     const optimizedSuffix = result.balloon_optimized
-      ? (result.optimization_objective === "min_down_payment" ? " — entrada e balão determinados automaticamente (menor entrada dentro da parcela-alvo)" : " — balão determinado automaticamente (menor parcela)")
+      ? (result.optimization_objective === "min_down_payment"
+          ? " — entrada e balão determinados automaticamente (menor entrada dentro da parcela-alvo)"
+          : result.optimization_objective === "min_distance_to_target"
+            ? " — prazo e balão determinados automaticamente (mais próximo da parcela-alvo)"
+            : " — balão determinado automaticamente (menor parcela)")
       : "";
     return { type: "metrics", title: `Simulação — Financiamento Balão ${deptLabel} (${result.term_months}x)${optimizedSuffix}`, period_label: "Simulação — não é proposta nem aprovação de crédito", items };
   }
@@ -5869,10 +5926,10 @@ const TOOLS = [
           description: "Só para financing_type='BALAO', modo EXPLÍCITO com múltiplos balões (o usuário informou mês e valor de cada um) — até 4 em NOVOS, até 2 em SEMINOVOS (confirmado no simulador oficial; a tool rejeita além disso). Use isto em vez de balloon_value/balloon_month quando houver mais de um balão explícito; para um único balão explícito, balloon_value/balloon_month continuam válidos. Nunca use junto com balloon_value não-nulo."
         },
         balloon_count_max: { type: ["integer", "null"], description: "Só para financing_type='BALAO' com balloon_value=null e balloons=null (modo otimização): teto de QUANTIDADE de balões que o usuário aceita (ex.: 'no máximo dois balões' → 2). Omitir = 1 balão (comportamento padrão desde UAT-BALAO-AUTONOMY-01). Respeitado dentro do teto oficial (4 Novos, 2 Seminovos) — nunca invente uma quantidade acima do oficial." },
-        show_term_comparison: { type: ["boolean", "null"], description: "Só para financing_type='BALAO' em modo otimização (balloon_value=null) com mais de um prazo avaliado (term_months omitido, ou term_months_list com 2+ prazos): true SOMENTE quando o usuário pediu explicitamente para ver/comparar os prazos ('compare os prazos do balão', 'mostre todos os prazos', 'quais são todas as estruturas de balão', 'detalhe melhor as alternativas', 'quero ver os outros prazos' — e equivalentes). Omitir/false (padrão) quando o pedido for uma RECOMENDAÇÃO ('qual estrutura você recomenda?', 'qual o melhor balão?') — nesse caso a tool já escolhe e devolve a melhor estrutura (o motor continua avaliando todos os prazos internamente; só a apresentação muda), sem a tabela comparativa completa. Isto não limita o cálculo — apenas controla se a comparação completa aparece no bloco visual além da recomendação principal." },
+        show_term_comparison: { type: ["boolean", "null"], description: "Para financing_type='BALAO' em modo otimização (balloon_value=null) OU financing_type='LINEAR'/omitido em mode='payment', sempre que mais de um prazo for avaliado (term_months omitido, ou term_months_list com 2+ prazos): true SOMENTE quando o usuário pediu explicitamente para ver/comparar os prazos ('compare os prazos do balão', 'compare os prazos do linear', 'mostre todos os prazos', 'quais são todas as estruturas de balão', 'detalhe melhor as alternativas', 'quero ver os outros prazos' — e equivalentes). Omitir/false (padrão) quando o pedido for uma RECOMENDAÇÃO ('qual estrutura você recomenda?', 'qual o melhor balão?') — nesse caso a tool já escolhe e devolve a melhor estrutura/parcela (o motor continua avaliando todos os prazos internamente; só a apresentação muda), sem a tabela/lista comparativa completa. Isto não limita o cálculo — apenas controla se a comparação completa aparece no bloco visual além da recomendação principal." },
         priority: {
           type: ["string", "null"], enum: ["min_down_payment", "min_monthly_payment", null],
-          description: "Só para financing_type='BALAO' em modo otimização COM target_payment preenchido: 'min_down_payment' busca a menor entrada que atinge a parcela-alvo (balão sempre otimizado no processo) — use quando o usuário priorizar entrada baixa ou não declarar prioridade com parcela-alvo. 'min_monthly_payment' com target_payment é tratado como teto (nunca ultrapasse o alvo). Sem target_payment, a otimização já é sempre 'menor parcela possível' (min_monthly_payment implícito, comportamento herdado de UAT-BALAO-AUTONOMY-01) — priority é ignorado nesse caso."
+          description: "Só para financing_type='BALAO' em modo otimização COM target_payment preenchido: 'min_down_payment' busca a menor entrada que atinge a parcela-alvo (balão sempre otimizado no processo) — use quando o usuário priorizar entrada baixa ou não declarar prioridade com parcela-alvo. IA-3J.4A: quando a entrada já é do usuário (fixa) e há target_payment, o motor sempre escolhe o prazo/balão cuja parcela fica MAIS PRÓXIMA da parcela-alvo (pode ficar levemente acima OU abaixo do alvo, o que for mais próximo — nunca só 'nunca ultrapasse o alvo') — priority não é consultado nesse ramo hoje (aceito no schema, sem efeito ainda; não presuma que ele muda esse comportamento). Sem target_payment, a otimização continua sendo 'menor parcela possível' entre os prazos viáveis (comportamento herdado de UAT-BALAO-AUTONOMY-01, nunca alterado)."
         },
         model: { type: ["string", "null"], description: "Só para financing_type='COPARTICIPADO': modelo exato do veículo (ex.: 'TRITON HPE-S', 'ECLIPSE CROSS RUSH', 'OUTLANDER SIGNATURE'). Sempre obrigatório nesse caso — nunca escolha um modelo por conta própria; se o usuário não informar ou o nome for ambíguo/genérico ('Triton', 'Eclipse'), pergunte qual versão exata." },
         rate: { type: ["number", "null"], description: "Só para financing_type='TAXAS_SUBSIDIADAS': filtro opcional de taxa (valores válidos: 0, 0.0049, 0.0099, 0.0119 — ou seja 0%, 0,49%, 0,99%, 1,19%). Omitir = todas as taxas na mesma chamada." },
@@ -6324,9 +6381,9 @@ Fase IA-2D.3 — Financiamento Balão:
 - BALÃO DELEGADO (UAT-BALAO-AUTONOMY-01): quando o usuário DELEGAR a escolha do balão ao invés de informar um valor — "determine o balão", "a menor parcela possível", "você escolhe o balão", "qual o melhor balão", "veja a melhor condição" (quando o objetivo já é claramente parcela mínima) — NUNCA pergunte o valor do balão. Chame simular_financiamento com financing_type=BALAO, mode=payment e balloon_value=null: a tool otimiza deterministicamente dentro do motor oficial (nunca é o modelo "tentando" valores) e devolve o maior balão válido para aquele prazo, ou seja, a menor parcela mensal matematicamente possível — o resultado vem com balloon_optimized=true e results (comparação, se mais de um prazo). Isso é MENOR PARCELA MENSAL entre as condições válidas, nunca "menor custo total" nem "melhor negócio" — ao apresentar, diga que é a menor parcela mensal e sempre mostre o balão resultante (nunca esconda um balão material por brevidade). Se o usuário pediu um único prazo, informe term_months; se pediu uma faixa/comparação ("entre 36 e 48", "compare 36 e 48", "qual prazo dá a menor parcela"), resolva os prazos válidos dentro do pedido (prazos existentes: 12, 24, 30, 36, 40, 42, 48) e informe em term_months_list — nunca pergunte "36 ou 48?" quando o usuário já pediu para comparar ou já pediu "o prazo que der a menor parcela" (isso também é uma decisão delegada, não devolva ao usuário). Se o usuário impôs um teto ("balão máximo de R$X", "não quero balão acima de R$X"), informe esse valor em balloon_cap (não em balloon_value) — a otimização respeita esse teto.
 - MÚLTIPLOS BALÕES (UAT-BALAO-EXPLORATION-01): Novos aceita até 4 balões por simulação, Seminovos até 2 — confirmado no simulador oficial, nunca invente uma quantidade maior. Se o usuário descrever mais de um pagamento especial com mês e valor de cada um (ex.: "um balão de R$10 mil no mês 18 e outro de R$15 mil no mês 36"), use o parâmetro balloons (array de {month, value}) em vez de balloon_value/balloon_month. Se o usuário aceitar múltiplos balões mas delegar a escolha ("aceito até dois balões", "pode ser mais de um balão"), use balloon_count_max no modo otimização — o sistema distribui e maximiza automaticamente, nunca pergunte mês/valor de cada balão nesse caso. Nunca chame um balão de "balão final" quando a estrutura tiver mais de um — diga "dois balões", "três balões programados" etc., conforme a estrutura real devolvida.
 - EXPLORAÇÃO ANTES DE CONCLUIR INVIABILIDADE (IA-3J): quando o usuário informou entrada fixa e uma parcela-alvo (target_payment) e a simulação com 1 balão (balloon_count_max omitido/1) não atinge esse alvo (feasible:false, ou feasible:true com target_exceeded:true), NÃO conclua "não é possível"/"não alcança essa parcela" nessa primeira tentativa — antes, repita a MESMA chamada (mesmo veículo/entrada/prazo/target_payment) aumentando balloon_count_max para os próximos valores aceitos pelo motor para aquele department (Novos: 2, depois 3, depois 4; Seminovos: 2), parando na primeira que atingir o alvo (feasible:true e target_exceeded:false/ausente) ou ao esgotar o teto do department. Isso reusa inteiramente o mesmo motor/parâmetro já homologado (balloon_count_max, UAT-BALAO-EXPLORATION-01) — nunca é uma conta nova nem uma suposição sua. Ao apresentar, deixe explícito que a estrutura de 1 balão não alcançava a parcela pedida e que uma estrutura de N balões (diga o N real) foi necessária, mostrando mês e valor de cada balão retornado — nunca apresente só a parcela final sem contar que houve essa exploração. Se mesmo no teto de balões do department a parcela-alvo não for alcançada, então sim informe que não é possível nessas condições, e mostre o resultado do teto (menor parcela encontrada) como referência. Orçamento: isso consome até 3 chamadas adicionais de simular_financiamento além da primeira (Novos) ou 1 adicional (Seminovos) — dentro do teto de 5 tool calls da conversa; se o orçamento não permitir testar todos os counts, teste pelo menos o teto do department antes de desistir, em vez de parar no meio.
-- PARCELA-ALVO SEM ENTRADA (delegado): se o usuário disser uma parcela-alvo/máxima ("quero parcela de até R$X", "parcela de aproximadamente R$X") SEM informar a entrada, e sem ter dito o valor do balão, chame mode=payment com balloon_value=null e target_payment=X — o sistema resolve a MENOR entrada (e o balão correspondente) que atinge essa parcela, automaticamente, para cada prazo pedido. Nunca peça o valor do balão nesse fluxo — essa é exatamente a autonomia que este modo existe para dar. Se o usuário já disse a entrada E a parcela-alvo, a entrada é respeitada como está e a parcela-alvo vira só um teto informativo (a tool sinaliza target_exceeded se o balão máximo não for suficiente para atingi-la).
+- PARCELA-ALVO SEM ENTRADA (delegado): se o usuário disser uma parcela-alvo/máxima ("quero parcela de até R$X", "parcela de aproximadamente R$X") SEM informar a entrada, e sem ter dito o valor do balão, chame mode=payment com balloon_value=null e target_payment=X — o sistema resolve a MENOR entrada (e o balão correspondente) que atinge essa parcela, automaticamente, para cada prazo pedido. Nunca peça o valor do balão nesse fluxo — essa é exatamente a autonomia que este modo existe para dar. Se o usuário já disse a entrada E a parcela-alvo ("quero chegar o mais perto possível de R$X de parcela", "entrada de R$Y, meta de parcela R$X"): a entrada é respeitada como está, e o motor devolve o prazo/balão cuja parcela fica MAIS PRÓXIMA da parcela-alvo dentre os prazos avaliados (IA-3J.4A — corrigido a partir de uma inconsistência real confirmada em UAT: o motor chegava a escolher uma parcela bem mais barata que o alvo só por ser "a menor", divergindo do que o próprio texto da resposta calculava corretamente como "mais perto"). optimization_objective volta como "min_distance_to_target" nesse caso (era sempre "min_monthly_payment" antes) — use isso, e o target_payment/target_exceeded do resultado, para relatar com precisão: diga a parcela real obtida e quanto ela ficou acima ou abaixo do alvo, nunca afirme "essa é a mais próxima" sem checar results — ele sempre vem com a comparação completa entre os prazos avaliados.
 - "QUALQUER PRAZO" ou "pode ser X ou Y meses": nunca pergunte "qual prazo primeiro?" — use term_months_list com os prazos válidos dentro do que o usuário pediu (todos, se ele disse "qualquer") numa única chamada; a tool já compara e aponta o melhor.
-- RECOMENDAÇÃO vs. COMPARAÇÃO (show_term_comparison, IA-3J.3A — correção de um defeito real de poluição de resposta confirmado em UAT, onde uma recomendação simples veio com uma tabela de 7 prazos comparados, nunca pedida): quando o prazo pode variar (omitido, "qualquer prazo", term_months_list), o motor SEMPRE avalia todos os prazos internamente para achar a melhor estrutura — isso nunca muda. O que muda é show_term_comparison: deixe omitido/false quando o pedido for uma RECOMENDAÇÃO ("qual estrutura você recomenda?", "qual o melhor balão?", "quero chegar perto de R$X de parcela, que estrutura fecha isso?") — a tool devolve só a melhor estrutura encontrada, com balão/prazo/parcela completos, sem a tabela comparando os outros prazos. Use show_term_comparison=true SOMENTE quando o usuário pedir explicitamente para VER a comparação ("compare os prazos do balão", "mostre todos os prazos", "quais são todas as estruturas de balão", "detalhe melhor as alternativas", "quero ver os outros prazos" — e equivalentes), incluindo um follow-up depois de já ter recebido uma recomendação (ex.: cliente pede "detalhe melhor" depois da resposta inicial — chame de novo com os mesmos dados e show_term_comparison=true, reaproveitando os valores já estabelecidos na conversa, nunca repetindo perguntas já respondidas). Isto é só uma escolha de APRESENTAÇÃO — nunca de cálculo: o mesmo conjunto de prazos é avaliado internamente nos dois casos.
+- RECOMENDAÇÃO vs. COMPARAÇÃO (show_term_comparison, IA-3J.3A/IA-3J.4A — correção de um defeito real de poluição de resposta confirmado em UAT, onde uma recomendação simples veio com uma tabela de 7 prazos de Balão E uma lista de 8 prazos de Linear, nenhuma das duas pedida): quando o prazo pode variar (omitido, "qualquer prazo", term_months_list), o motor SEMPRE avalia todos os prazos internamente para achar a melhor estrutura/parcela — isso nunca muda, em BALAO e em LINEAR igualmente. O que muda é show_term_comparison: deixe omitido/false quando o pedido for uma RECOMENDAÇÃO ("qual estrutura você recomenda?", "qual o melhor balão?", "quero chegar perto de R$X de parcela, que estrutura fecha isso?") — a tool devolve só a melhor estrutura/parcela encontrada, sem a tabela/lista comparando os outros prazos (em Linear, "melhor" sem parcela-alvo é a menor parcela entre os prazos avaliados — sempre o prazo mais longo disponível, já que Linear não tem balão para encurtar essa relação). Use show_term_comparison=true SOMENTE quando o usuário pedir explicitamente para VER a comparação ("compare os prazos do balão", "compare os prazos do linear", "mostre todos os prazos", "quais são todas as estruturas de balão", "detalhe melhor as alternativas", "quero ver os outros prazos" — e equivalentes), incluindo um follow-up depois de já ter recebido uma recomendação (ex.: cliente pede "detalhe melhor" depois da resposta inicial — chame de novo com os mesmos dados e show_term_comparison=true, reaproveitando os valores já estabelecidos na conversa, nunca repetindo perguntas já respondidas). Isto é só uma escolha de APRESENTAÇÃO — nunca de cálculo: o mesmo conjunto de prazos é avaliado internamente nos dois casos. Ao comparar Balão (vencedor) com Linear no mesmo turno, use a parcela "Melhor parcela" do Linear como um FATO SECUNDÁRIO e conciso (ex.: "Linear, para comparação: R$X em Yx") — nunca liste a parcela de cada prazo do Linear ao lado da recomendação de Balão.
 - BALÃO ESPONTÂNEO (Gates 11/12/26/27; escopo revisto na IA-3J.3 — ver CAMPANHAS SOB DEMANDA abaixo): ao responder um pedido amplo de "melhores condições", "menor parcela", "recomendação" sem o usuário mencionar "Balão", considere Balão no espaço de opções (junto de Linear) sempre que for elegível e puder ser materialmente relevante — não espere o usuário perguntar "e com Balão?". Isso NÃO significa recomendar Balão sempre: se Linear atender melhor ao critério declarado, diga isso claramente e não force Balão só por ele ter sido considerado. Coparticipado/Subsidiadas NÃO entram automaticamente neste espaço espontâneo — sua inclusão virou uma decisão separada, nunca implícita (ver CAMPANHAS SOB DEMANDA).
 - CAMPANHAS SOB DEMANDA (IA-3J.3 — correção de um defeito real confirmado em UAT: um pedido de recomendação com entrada e parcela-alvo já informadas acabou chamando Taxas Subsidiadas automaticamente — 32 combinações — e recomendando-a só por estar numericamente mais perto do alvo, sem o cliente ter pedido rebate/subsídio, sem jamais tentar mais de 1 balão em Balão primeiro, e sem avisar do custo comercial da escolha): Coparticipado, Taxas Subsidiadas e Rebate NÃO entram no espaço padrão de recomendação/comparação — o padrão é Linear + Balão (com a escalação de balões do motor, ver EXPLORAÇÃO ANTES DE CONCLUIR INVIABILIDADE). Avalie Coparticipado/Subsidiadas/Rebate SOMENTE quando: (a) o cliente pedir explicitamente ("tem subsidiado?", "tem taxa zero?", "simule com rebate", "quanto de rebate?", "tem coparticipado?", "consigo usar coparticipado?", "qual campanha chega nessa parcela?", e equivalentes semânticos); ou (b) depois de já ter apresentado a recomendação Linear/Balão, você oferecer em UMA frase curta e só prosseguir se o cliente disser sim (ex.: "Se quiser, também verifico se rebate, subsidiado ou coparticipado melhora a parcela" — ou, quando a economia do rebate depender de uma margem mínima, "Se quiser testar rebate, me passe o valor mínimo de venda que a loja precisa preservar"). Nunca rode Subsidiadas (32 combinações) nem Coparticipado por conta própria só porque a pergunta foi ampla — isso é MÚLTIPLOS tool calls e um bloco grande que o cliente não pediu. PRINCÍPIO COMERCIAL (Gate novo): "chegar o mais perto possível da parcela-alvo" nunca significa "use qualquer subsídio disponível para minimizar matematicamente a distância até o alvo" — Coparticipado/Subsidiadas/Rebate têm custo comercial real (rebate consome valor de venda) e NUNCA devem vencer uma estrutura Linear/Balão só por estarem numericamente mais perto do alvo; se Subsidiadas/Coparticipado forem avaliados (por pedido explícito ou aceite do cliente à oferta), apresente-os como uma alternativa separada, nunca como substituto silencioso da recomendação Linear/Balão, e declare sempre o custo comercial (rebate, valor final de venda) ao lado do número de parcela. Coparticipado especificamente: dados adicionais (ex. versão exata do modelo) só devem ser pedidos quando Coparticipado estiver de fato sendo avaliado — nunca como parte das perguntas de uma recomendação Linear/Balão comum; se o cliente não pediu Coparticipado, a falta desse dado NUNCA bloqueia a recomendação comum. Subsidiadas especificamente: quando avaliado por pedido explícito, devolva a(s) opção(ões) mais relevante(s) para o pedido do cliente, nunca as 32 linhas completas por padrão (a tool continua retornando a tabela completa — é a SUA apresentação que seleciona, nunca a tool que deve ser chamada menos). Rebate especificamente: se o cálculo depender do piso de venda aceitável pela loja, pergunte isso antes de otimizar ("Qual o valor mínimo de venda que a loja precisa preservar?") em vez de assumir um valor ou devolver o rebate bruto máximo como se não tivesse custo.
 - NUNCA confunda "parcela mensal" com "balão" na sua resposta — são dois valores diferentes que o cliente paga em momentos diferentes (a parcela mensal se repete todo mês; o balão é um pagamento extra só no mês configurado, somado à parcela normal). Sempre que citar os dois, nomeie explicitamente qual é qual (ex.: "parcela mensal de R$X, mais um balão de R$Y no mês Z") — nunca apresente um valor solto que possa ser confundido com o outro.

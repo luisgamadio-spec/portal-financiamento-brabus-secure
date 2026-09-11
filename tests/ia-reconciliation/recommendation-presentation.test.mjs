@@ -41,6 +41,8 @@ const modText = [
   "export " + extractFunction(source, "buildBalaoRankingBlock"),
   "export " + extractFunction(source, "buildBalaoOptimizeComparisonBlock"),
   "export " + extractFunction(source, "buildBalaoMetricsBlock"),
+  "export " + extractFunction(source, "buildSimulationMetricsBlock"),
+  "export " + extractFunction(source, "buildSimulationRankingBlock"),
   "export " + extractFunction(source, "buildBlockFromToolResult"),
 ].join("\n\n");
 const tmpDir = mkdtempSync(join(tmpdir(), "ia-recon-presentation-"));
@@ -162,6 +164,58 @@ function syntheticBalaoOutput() {
   check(
     "show_term_comparison is present in the tool's required[] array (OpenAI strict-mode schema requirement)",
     /"balloon_count_max", "show_term_comparison", "priority"/.test(source)
+  );
+}
+
+// ========================================================================
+// PART 5 (IA-3J.4A) — LINEAR gets the same recommendation/comparison gate
+// ========================================================================
+{
+  // Synthetic LINEAR mode=payment output with all 8 real-UAT-reported
+  // terms (12/18/24/30/36/42/48/60) -- the exact shape Human saw dumped
+  // in full. financing_type is omitted/null here since that's how a
+  // default LINEAR call arrives (never "LINEAR" literally required).
+  function syntheticLinearOutput() {
+    return {
+      mode: "payment", department: "NOVOS", vehicle_value: 180000, down_payment: 90000,
+      down_payment_percent: 50, financed_amount: 90000, vehicle_year: null,
+      results: [
+        { term_months: 12, payment: 8120.50 }, { term_months: 18, payment: 5720.10 },
+        { term_months: 24, payment: 4510.90 }, { term_months: 30, payment: 3820.44 },
+        { term_months: 36, payment: 3380.15 }, { term_months: 42, payment: 3080.60 },
+        { term_months: 48, payment: 2865.33 }, { term_months: 60, payment: 2984.38 },
+      ],
+      calculation_source: "test-fixture", constraints_applied: [],
+    };
+  }
+
+  const argsRecommend = { financing_type: null, show_term_comparison: null };
+  const blockOmitted = mod.buildBlockFromToolResult("simular_financiamento", argsRecommend, syntheticLinearOutput());
+  check("LINEAR recommendation intent returns a single metrics block, not an array", blockOmitted && !Array.isArray(blockOmitted) && blockOmitted.type === "metrics");
+  check(
+    "LINEAR recommendation intent shows exactly one 'Melhor parcela' line, not one line per term",
+    blockOmitted && blockOmitted.items.filter((it) => it.label.startsWith("Parcela ") || it.label.startsWith("Melhor parcela")).length === 1
+  );
+  check(
+    "no 8-term Linear dump present -- individual 'Parcela 12x'/'Parcela 18x'/etc. labels are absent",
+    blockOmitted && !blockOmitted.items.some((it) => /^Parcela \d+x$/.test(it.label))
+  );
+
+  const argsCompare = { financing_type: null, show_term_comparison: true };
+  const blockCompare = mod.buildBlockFromToolResult("simular_financiamento", argsCompare, syntheticLinearOutput());
+  check(
+    "explicit LINEAR comparison intent still lists all 8 terms (capability preserved, never destroyed)",
+    blockCompare && blockCompare.type === "metrics" &&
+    blockCompare.items.filter((it) => /^Parcela \d+x$/.test(it.label)).length === 8
+  );
+
+  check(
+    "the prompt documents LINEAR comparison trigger phrasing ('compare os prazos do linear')",
+    /compare os prazos do linear/.test(prompt)
+  );
+  check(
+    "the prompt states Linear's own 'best' (no target concept) is the lowest payment / longest term",
+    /em Linear, "melhor" sem parcela-alvo é a menor parcela entre os prazos avaliados/.test(prompt)
   );
 }
 
