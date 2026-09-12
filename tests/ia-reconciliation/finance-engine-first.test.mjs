@@ -31,7 +31,7 @@
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { readSource, extractConst, extractFunction, extractInterface } from "./extract.mjs";
+import { readSource, extractConst, extractFunction, extractInterface, extractComposedPrompt, extractTemplateLiteralConst } from "./extract.mjs";
 
 const SRC_PATH = join(import.meta.dirname, "..", "..", "supabase", "functions", "portal-ai-homolog", "index.ts");
 const source = readSource(SRC_PATH);
@@ -329,6 +329,11 @@ const openaiModelConst = "export " + extractConst(source, "OPENAI_MODEL");
 const overallTimeoutConst = "export " + extractConst(source, "OVERALL_TIMEOUT_MS");
 const extractFunctionCallsFn = "export " + extractFunctionGenericAware(source, "extractFunctionCalls");
 const extractOutputTextFn = "export " + extractFunction(source, "extractOutputText");
+// IA-3J.6 -- the real FINANCE_SYNTHESIS_PROFILE, reconstructed from
+// its own real `[A, B, ...].join(SEP)` composition (never a hand-typed
+// copy) so the mocked execution below rebuilds input[0].content from
+// the SAME text production actually ships.
+const financeSynthesisProfileConst = "export const FINANCE_SYNTHESIS_PROFILE = " + JSON.stringify(extractComposedPrompt(source, "FINANCE_SYNTHESIS_PROFILE")) + ";";
 
 const harnessModText = `// AUTO-EXTRACTED at test time from supabase/functions/portal-ai-homolog/index.ts -- do not hand-edit.
 ${toolErrorClass}
@@ -343,9 +348,11 @@ ${extractFunctionCallsFn}
 
 ${extractOutputTextFn}
 
+${financeSynthesisProfileConst}
+
 export async function runRequestLoop(opts) {
   const {
-    isFinanceFastPath, message, effectiveTools,
+    isFinanceFastPath, message, effectiveTools, effectiveSystemPrompt, dynamicContextSuffix,
     extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
     callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult, dispatchTool,
     input,
@@ -362,6 +369,8 @@ export async function runRequestLoop(opts) {
     tools_sent_count_per_pass: [], input_item_count_per_pass: [],
     execution_path: null, openai_pass_count: null,
   };
+  let promptProfileLabel = isFinanceFastPath ? "finance" : "full";
+  let promptCharsActual = effectiveSystemPrompt.length;
 
   ${preDeclarations}
 
@@ -372,7 +381,7 @@ export async function runRequestLoop(opts) {
   ${blockB.text}
 
   timings.openai_pass_count = timings.openai_pass_ms.length;
-  return { finalText, timings, blocks, toolsUsed, toolCallCount, homologCalls, engineFirstRan };
+  return { finalText, timings, blocks, toolsUsed, toolCallCount, homologCalls, engineFirstRan, promptProfileLabel, promptCharsActual };
 }
 `;
 
@@ -408,10 +417,14 @@ function mkResponse({ calls = [], text = null }) {
   const evaluateToolPolicy = async () => ({ allowed: true });
   const buildBlockFromToolResult = (name) => ({ type: "metrics", title: name });
 
+  const mockEffectiveSystemPrompt = "X".repeat(44341); // stand-in for FINANCE_PROMPT_PROFILE's real runtime length -- never used by engine-first, only its .length matters as the PRE-override baseline
+  const mockDynamicContextSuffix = "\n\n=== CONTEXTO TEMPORAL (mock) ===";
   const result = await runRequestLoop({
     isFinanceFastPath: true,
     message: CANONICAL_TEST_1,
     effectiveTools: FINANCE_TOOLS,
+    effectiveSystemPrompt: mockEffectiveSystemPrompt,
+    dynamicContextSuffix: mockDynamicContextSuffix,
     extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
     callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult,
     input: [{ role: "developer", content: "mock finance prompt" }, { role: "user", content: CANONICAL_TEST_1 }],
@@ -430,6 +443,36 @@ function mkResponse({ calls = [], text = null }) {
   check("[E1] canonical flow: final text obtained", typeof result.finalText === "string" && result.finalText.length > 0);
   check("[E1] canonical flow: per-pass telemetry tools_sent_count_per_pass = [0]", JSON.stringify(result.timings.tools_sent_count_per_pass) === JSON.stringify([0]), result.timings.tools_sent_count_per_pass);
   check("[E1] canonical flow: request-level tools_sent_count still reflects the originally-selected fast-path count (2), untouched", result.timings.tools_sent_count === 2, result.timings.tools_sent_count);
+  check("[E1] canonical flow: prompt_profile overridden to finance_synthesis", result.promptProfileLabel === "finance_synthesis", result.promptProfileLabel);
+  check("[E1] canonical flow: prompt_chars reflects the REAL FINANCE_SYNTHESIS_PROFILE length, never the pre-override mock baseline", result.promptCharsActual > 0 && result.promptCharsActual !== mockEffectiveSystemPrompt.length, result.promptCharsActual);
+}
+
+// ---------- E1b. the synthesis call's actual input[0].content is built from FINANCE_SYNTHESIS_PROFILE, never effectiveSystemPrompt ----------
+{
+  const FINANCE_TOOLS = [{ type: "function", name: "simular_financiamento" }, { type: "function", name: "iniciar_novo_cliente" }];
+  let capturedInput = null;
+  const callOpenAI = async (_key, input) => { capturedInput = input; return mkResponse({ text: "ok" }); };
+  const toolSimularFinanciamento = async (_userClient, args) => (args.financing_type === "BALAO"
+    ? { financing_type: "BALAO", results: [{ term_months: 30, monthly_payment: 1766.94 }] }
+    : { mode: "payment", results: [{ term_months: 60, payment: 2984.38 }] });
+  const evaluateToolPolicy = async () => ({ allowed: true });
+  const buildBlockFromToolResult = () => null;
+  const mockEffectiveSystemPrompt = "THIS-IS-THE-OLD-FAST-PATH-PROMPT-NEVER-SENT-BY-ENGINE-FIRST";
+
+  await runRequestLoop({
+    isFinanceFastPath: true,
+    message: CANONICAL_TEST_1,
+    effectiveTools: FINANCE_TOOLS,
+    effectiveSystemPrompt: mockEffectiveSystemPrompt,
+    dynamicContextSuffix: "\n\n=== CONTEXTO TEMPORAL (mock) ===",
+    extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
+    callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult,
+    input: [{ role: "developer", content: mockEffectiveSystemPrompt }, { role: "user", content: CANONICAL_TEST_1 }],
+  });
+
+  check("[E1b] synthesis call's input[0].content does NOT contain the old fast-path prompt text", !capturedInput[0].content.includes("THIS-IS-THE-OLD-FAST-PATH-PROMPT-NEVER-SENT-BY-ENGINE-FIRST"));
+  check("[E1b] synthesis call's input[0].content contains real FINANCE_SYNTHESIS_PROFILE content (Síntese Financeira header)", capturedInput[0].content.includes("Síntese Financeira"));
+  check("[E1b] synthesis call's input[0].content contains the canonical results block label", capturedInput[0].content.includes("RESULTADOS DE SIMULAÇÃO FINANCEIRA"));
 }
 
 // ---------- E2. extraction failure -- must fall back to the unmodified old loop ----------
@@ -455,10 +498,13 @@ function mkResponse({ calls = [], text = null }) {
   // Fast-path eligible (contains "financiamento") but NOT engine-first
   // eligible (no "entrada" mention at all) -- must fall back.
   const ambiguousMessage = "Cliente comprando um carro de R$ 180.000. Quero simular o financiamento. Qual estrutura recomenda?";
+  const mockEffectiveSystemPrompt = "MOCK-FINANCE-PROMPT-PROFILE";
   const result = await runRequestLoop({
     isFinanceFastPath: true,
     message: ambiguousMessage,
     effectiveTools: FINANCE_TOOLS,
+    effectiveSystemPrompt: mockEffectiveSystemPrompt,
+    dynamicContextSuffix: "\n\n=== CONTEXTO TEMPORAL (mock) ===",
     extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
     callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult, dispatchTool,
     input: [{ role: "developer", content: "mock finance prompt" }, { role: "user", content: ambiguousMessage }],
@@ -468,6 +514,8 @@ function mkResponse({ calls = [], text = null }) {
   check("[E2] insufficient-data message: execution_path = openai_tool_loop", result.timings.execution_path === "openai_tool_loop", result.timings.execution_path);
   check("[E2] insufficient-data message: old loop ran as normal (2 passes, tool actually dispatched via the normal path)", openaiCalls.length === 2 && simulateCalled === true, { openaiCalls, simulateCalled });
   check("[E2] insufficient-data message: Pass 1 received the full fast-path tool set (2), never narrowed by engine-first logic", openaiCalls[0] === 2, openaiCalls);
+  check("[E2] insufficient-data message: prompt_profile stays 'finance' (fallback never overrides to finance_synthesis)", result.promptProfileLabel === "finance", result.promptProfileLabel);
+  check("[E2] insufficient-data message: prompt_chars stays the fallback's own FINANCE_PROMPT_PROFILE length, never FINANCE_SYNTHESIS_PROFILE's", result.promptCharsActual === mockEffectiveSystemPrompt.length, result.promptCharsActual);
 }
 
 // ---------- E3. engine-first eligible but DENIED by authorization -- must fall back, never fabricate its own denial ----------
@@ -487,6 +535,8 @@ function mkResponse({ calls = [], text = null }) {
     isFinanceFastPath: true,
     message: CANONICAL_TEST_1,
     effectiveTools: FINANCE_TOOLS,
+    effectiveSystemPrompt: "MOCK-FINANCE-PROMPT-PROFILE",
+    dynamicContextSuffix: "\n\n=== CONTEXTO TEMPORAL (mock) ===",
     extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
     callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult,
     input: [{ role: "developer", content: "mock finance prompt" }, { role: "user", content: CANONICAL_TEST_1 }],
@@ -514,9 +564,32 @@ check("balaoOptimizeEscalateForTarget itself is never redeclared/duplicated by t
 check("buildBlockFromToolResult itself is never redeclared/duplicated by this Wave (exactly one declaration)", [...source.matchAll(/function buildBlockFromToolResult\(/g)].length === 1);
 check("engine-first calls buildBlockFromToolResult (same real card-building authority, never a new one)", source.includes('buildBlockFromToolResult("simular_financiamento", simArgs, output)'));
 check("engine-first calls the SAME evaluateToolPolicy authorization gate the existing loop uses (never bypassed)", source.includes('evaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission)'));
-check("FULL_SYSTEM_PROMPT composition untouched by this Wave", /const FULL_SYSTEM_PROMPT = \[/.test(source));
-check("FINANCE_PROMPT_PROFILE composition untouched by this Wave (reused as-is for synthesis, no new synthesis profile)", /const FINANCE_PROMPT_PROFILE = \[/.test(source));
-check("no new synthesis-only prompt profile was created this Wave", !/FINANCE_SYNTHESIS_PROFILE/.test(source));
+check("FULL_SYSTEM_PROMPT composition untouched by this Wave (IA-3J.6)", /const FULL_SYSTEM_PROMPT = \[/.test(source));
+check("FINANCE_PROMPT_PROFILE composition untouched by this Wave (IA-3J.6) -- the fallback loop's own profile, never the synthesis one", /const FINANCE_PROMPT_PROFILE = \[/.test(source));
+
+// ---------- H. IA-3J.6: FINANCE_SYNTHESIS_PROFILE exists, is composed from real canonical blocks, and is significantly smaller ----------
+{
+  check("FINANCE_SYNTHESIS_PROFILE is declared exactly once", [...source.matchAll(/const FINANCE_SYNTHESIS_PROFILE = \[/g)].length === 1);
+  check("FINANCE_SYNTHESIS_PROFILE composes PROMPT_CORE_GLOBAL (identity/PII/anti-fabrication)", /const FINANCE_SYNTHESIS_PROFILE = \[[\s\S]*?PROMPT_CORE_GLOBAL,/.test(source));
+  check("FINANCE_SYNTHESIS_PROFILE composes PROMPT_COMMERCIAL_ORCHESTRATION (recommendation/comparison framing, no fabricated scores)", /const FINANCE_SYNTHESIS_PROFILE = \[[\s\S]*?PROMPT_COMMERCIAL_ORCHESTRATION,/.test(source));
+  check("FINANCE_SYNTHESIS_PROFILE composes PROMPT_SHARED_CONVERSATION (Executive First, Detail on Demand, numeric fidelity in prose)", /const FINANCE_SYNTHESIS_PROFILE = \[[\s\S]*?PROMPT_SHARED_CONVERSATION,/.test(source));
+  check("FINANCE_SYNTHESIS_PROFILE does NOT carry PROMPT_FINANCE_BASE/PROMPT_FINANCE_BALLOON/PROMPT_FINANCE_COMPARISON (pure tool-planning content, not needed post-calculation)", (() => {
+    const m = /const FINANCE_SYNTHESIS_PROFILE = \[([\s\S]*?)\]\.join/.exec(source);
+    return m && !/PROMPT_FINANCE_BASE,|PROMPT_FINANCE_BALLOON,|PROMPT_FINANCE_COMPARISON,/.test(m[1]);
+  })());
+  check("FINANCE_SYNTHESIS_PROFILE does NOT carry PROMPT_NEW_CLIENT_RESET (pure tool-call semantics, moot with tools=[])", (() => {
+    const m = /const FINANCE_SYNTHESIS_PROFILE = \[([\s\S]*?)\]\.join/.exec(source);
+    return m && !/PROMPT_NEW_CLIENT_RESET/.test(m[1]);
+  })());
+
+  // Real runtime measurement (never the source-text/CRLF-inflated
+  // figure -- see IA-3J.4J.2's own forensic) of both profiles, via
+  // the SAME extractComposedPrompt reconstruction already used above
+  // for the mocked-execution harness's FINANCE_SYNTHESIS_PROFILE.
+  const realFinancePromptProfile = extractComposedPrompt(source, "FINANCE_PROMPT_PROFILE");
+  const realFinanceSynthesisProfile = extractComposedPrompt(source, "FINANCE_SYNTHESIS_PROFILE");
+  check("FINANCE_SYNTHESIS_PROFILE is significantly smaller than FINANCE_PROMPT_PROFILE (source-text measurement; runtime authority confirmed separately, see report)", realFinanceSynthesisProfile.length < realFinancePromptProfile.length * 0.5, { synthesis: realFinanceSynthesisProfile.length, finance: realFinancePromptProfile.length });
+}
 
 console.log(`\n=== Finance Engine-First Tests (IA-3J.5): ${pass}/${pass + fail} ===`);
 console.log(fail === 0 ? "RESULT: PASS" : "RESULT: FAIL");

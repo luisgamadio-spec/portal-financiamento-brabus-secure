@@ -240,7 +240,15 @@ for (const key of UNRELATED_DOMAIN_KEYS) {
 {
   check(
     "_homolog_edge_timing carries prompt_profile/prompt_chars as siblings of stage_ms (never inside it)",
-    /stage_ms: timings, prompt_profile: isFinanceFastPath \? "finance" : "full", prompt_chars: effectiveSystemPrompt\.length \}/.test(source)
+    /stage_ms: timings, prompt_profile: promptProfileLabel, prompt_chars: promptCharsActual \}/.test(source)
+  );
+  // IA-3J.6 -- promptProfileLabel/promptCharsActual default to the
+  // exact same isFinanceFastPath-derived values as before this Wave;
+  // only the engine-first branch (finance-engine-first.test.mjs's own
+  // job) ever overrides them.
+  check(
+    "promptProfileLabel/promptCharsActual default to the same isFinanceFastPath-derived values as before IA-3J.6",
+    /let promptProfileLabel: "finance" \| "full" \| "finance_synthesis" = isFinanceFastPath \? "finance" : "full";\s*\r?\n\s*let promptCharsActual: number = effectiveSystemPrompt\.length;/.test(source)
   );
 }
 

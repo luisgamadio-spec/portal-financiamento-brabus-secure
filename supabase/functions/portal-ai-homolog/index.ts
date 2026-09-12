@@ -6905,6 +6905,80 @@ const FINANCE_PROMPT_PROFILE = [
   PROMPT_NEW_CLIENT_RESET,
 ].join(PROMPT_SEPARATOR);
 
+// IA-3J.6 -- distilled presentation-only policy for the finance
+// engine-first synthesis pass (IA-3J.5): the calculation has ALREADY
+// happened (deterministic engine, never this call) and zero tools
+// are offered, so every planning/tool-construction rule inside
+// PROMPT_FINANCE_BASE/PROMPT_FINANCE_BALLOON/PROMPT_FINANCE_COMPARISON
+// (department/entrada/term questions, which financing_type/mode/
+// balloon_* argument to pass, when to call which tool, multi-product
+// field catalogs for products engine-first never computes) is dead
+// weight here -- the model cannot act on any of it with tools: []. This
+// block carries ONLY the handful of sentences from those same three
+// blocks that are genuinely about PRESENTING an already-computed
+// Balão/Linear result (never re-derived prose, never a reworded
+// paraphrase that could drift from the original's intent -- each
+// bullet traces back to an exact rule below, kept for future
+// auditability):
+//   - "simulação nunca é aprovação" / infeasible-result disclosure
+//     <- PROMPT_FINANCE_BASE ("SIMULAÇÃO NUNCA É APROVAÇÃO" / "Se a
+//     tool indicar que uma condição é impossível");
+//   - balloon schedule + escalation disclosure + target-distance
+//     reporting + parcela-vs-balão disambiguation
+//     <- PROMPT_FINANCE_BALLOON ("BALÃO DELEGADO" / "EXPLORAÇÃO ANTES
+//     DE CONCLUIR INVIABILIDADE" / "PARCELA-ALVO SEM ENTRADA" /
+//     "NUNCA confunda 'parcela mensal' com 'balão'");
+//   - Balão-vs-Linear side-by-side framing, Linear as a secondary
+//     fact when Balão is the lead recommendation
+//     <- PROMPT_FINANCE_BALLOON ("RECOMENDAÇÃO vs. COMPARAÇÃO",
+//     "Comparação Linear × Balão") / PROMPT_FINANCE_COMPARISON's own
+//     "não existe melhor universal" framing;
+//   - never spontaneously suggest an uncalculated product/campaign
+//     <- PROMPT_FINANCE_BALLOON's own "CAMPANHAS SOB DEMANDA"
+//     principle, generalized (engine-first never computes
+//     Coparticipado/Subsidiadas/Rebate, so this is a pure safety net,
+//     never new scope).
+// This is a genuinely NEW, independently-maintained block (not a
+// shared sub-constant interpolated into the three source blocks
+// above) -- both FULL_SYSTEM_PROMPT and FINANCE_PROMPT_PROFILE above
+// remain byte-identical to before this Wave, untouched. The tradeoff
+// (the same handful of presentation rules now exist in two places)
+// is the same class of prose duplication already tracked as the
+// open, accepted D-PROSE-DUPLICATION debt -- disclosed, not hidden
+// (see this Wave's own report).
+const PROMPT_FINANCE_SYNTHESIS_PRESENTATION = `Síntese Financeira (IA-3J.6) — apresentação de resultados já calculados deterministicamente pelo motor oficial (Balão e/ou Linear), nunca recalculados por você:
+- SIMULAÇÃO NUNCA É APROVAÇÃO. Nunca diga "está aprovado", "essa é a taxa garantida" ou "essa é a proposta". Use sempre linguagem como "simulação", "condições sujeitas a confirmação e aprovação de crédito".
+- Se o resultado indicar que uma condição é impossível (feasible:false, ou nenhum resultado com parcela preenchida), diga isso claramente — nunca "ajuste" a resposta inventando um prazo, taxa ou estrutura que o resultado real não tem.
+- BALÃO: sempre mostre o balão resultante — mês e valor de cada balão (nunca esconda um balão material por brevidade). Se o resultado mostrar que uma estrutura de mais de um balão foi necessária (balloon_count_tried/escalated_from_count maiores que 1) para atingir a parcela pedida, explique isso — diga que uma estrutura de N balões (o N real) foi necessária, nunca apresente só a parcela final sem contar essa exploração.
+- PARCELA-ALVO: quando o resultado trouxer target_payment/target_exceeded (ou um campo equivalente de distância até a meta), relate com precisão quanto a parcela obtida ficou acima ou abaixo do alvo — nunca afirme "essa é a mais próxima" sem checar o resultado.
+- NUNCA confunda "parcela mensal" com "balão" — são dois valores diferentes pagos em momentos diferentes (a parcela se repete todo mês; o balão é um pagamento extra só no mês indicado, somado à parcela normal). Sempre que citar os dois, nomeie explicitamente qual é qual.
+- COMPARAÇÃO BALÃO × LINEAR: quando o resultado trouxer os dois, apresente-os lado a lado, cada um claramente identificado. Se Balão for a recomendação principal, use a parcela do Linear como um fato secundário e conciso (ex.: "Linear, para comparação: R$X em Yx") — nunca liste a parcela de cada prazo do Linear ao lado da recomendação de Balão. Nunca declare um "melhor" sem o cliente ter dito o que prioriza — explique o trade-off.
+- NÃO SUGIRA espontaneamente Coparticipado, Taxas Subsidiadas, Rebate ou qualquer outra modalidade/campanha cujo resultado não foi calculado e fornecido a você nesta resposta — a autoridade é exclusivamente o(s) resultado(s) determinístico(s) já fornecido(s), nunca um produto que você lembra existir mas não tem dado calculado.`;
+
+// IA-3J.6 -- finance engine-first synthesis profile: used ONLY for
+// the single zero-tool OpenAI call IA-3J.5's engine-first branch
+// makes (execution_path==="finance_engine_first"). Never used by the
+// fallback loop, which keeps using FINANCE_PROMPT_PROFILE exactly as
+// before. PROMPT_CORE_GLOBAL carries identity/anti-fabrication/PII/
+// numeric-fidelity/tool-budget-grace (the last one harmless but
+// unremoved -- tools:[] already makes it moot, and it is small
+// enough that surgically excising it from a safety-relevant global
+// block was judged not worth the risk this Wave);
+// PROMPT_FINANCE_SYNTHESIS_PRESENTATION (above) carries the Balão/
+// Linear-specific presentation rules; PROMPT_COMMERCIAL_ORCHESTRATION
+// and PROMPT_SHARED_CONVERSATION carry the remaining genuinely
+// synthesis-relevant policy (recommendation/comparison framing without
+// fabricated scores, Executive First, Detail on Demand, numeric
+// fidelity in prose, card-vs-text non-duplication) kept WHOLE because
+// both are already response-content-focused, not tool-construction-
+// focused -- re-read in full this Wave, not assumed.
+const FINANCE_SYNTHESIS_PROFILE = [
+  PROMPT_CORE_GLOBAL,
+  PROMPT_FINANCE_SYNTHESIS_PRESENTATION,
+  PROMPT_COMMERCIAL_ORCHESTRATION,
+  PROMPT_SHARED_CONVERSATION,
+].join(PROMPT_SEPARATOR);
+
 // =========================================================
 // Cliente OpenAI (Responses API) — timeout + 1 retry em falha transitória
 // (Partes 47-48).
@@ -7346,6 +7420,16 @@ serve(async (req) => {
     const effectiveTools = isFinanceFastPath ? FINANCE_FAST_PATH_TOOLS : TOOLS;
     const effectiveSystemPrompt = isFinanceFastPath ? FINANCE_PROMPT_PROFILE : FULL_SYSTEM_PROMPT;
     timings.tools_sent_count = effectiveTools.length;
+    // IA-3J.6 -- mutable telemetry mirrors of the profile actually
+    // sent this request; start as the same isFinanceFastPath-derived
+    // values as before this Wave, overridden below ONLY inside the
+    // engine-first branch (to "finance_synthesis" /
+    // FINANCE_SYNTHESIS_PROFILE.length) -- the fallback loop never
+    // touches these, so prompt_profile/prompt_chars stay exactly
+    // "finance"|"full" / effectiveSystemPrompt.length for every
+    // request that doesn't take the engine-first path, unchanged.
+    let promptProfileLabel: "finance" | "full" | "finance_synthesis" = isFinanceFastPath ? "finance" : "full";
+    let promptCharsActual: number = effectiveSystemPrompt.length;
 
     // IA-3J -- re-read of the same already-allow-listed, already-trusted
     // x-nx-intelligence-surface header used above for the D14 gate (this
@@ -7363,7 +7447,12 @@ serve(async (req) => {
 === MODO VOZ (IA-3J) ===
 Esta resposta será FALADA em voz alta, não lida numa tela — isso exige ser mais curto do que o já-conciso padrão de Texto (regra IA-UAT-FIX-05/UAT-06 acima). Responda em 1 a 3 frases corridas, nunca em bullets/lista (liste mal em voz) e nunca em tabela. Diga só a resposta direta e o número mais decisivo (ex.: a parcela, ou o motivo de não ser possível) — omita recomendação detalhada, histórico e ressalvas secundárias do corpo falado; se houver mais de um número relevante (ex.: parcela E balão), diga os dois, nunca esconda um balão material para encurtar. Sempre ofereça continuar no detalhe falando, nunca assumindo que o usuário está vendo uma tela ("posso detalhar mais, se quiser" — nunca "veja os detalhes abaixo" nem "no card acima"). Esta seção não altera nenhuma regra de cálculo, tool ou limite financeiro — é só o estilo da fala.`
       : "";
-    const systemPromptWithDate = `${effectiveSystemPrompt}${voiceConcisionAddendum}
+    // IA-3J.6 -- factored out so the engine-first synthesis branch
+    // below can rebuild its own developer message on
+    // FINANCE_SYNTHESIS_PROFILE instead of effectiveSystemPrompt
+    // while reusing this EXACT same voice/date suffix (single
+    // source, never a second hand-typed copy of this text).
+    const dynamicContextSuffix = `${voiceConcisionAddendum}
 
 === CONTEXTO TEMPORAL (calculado nesta requisição, nunca fixo) ===
 CURRENT_DATE: ${currentDateStr}
@@ -7371,6 +7460,7 @@ CURRENT_TIME: ${currentTimeStr}
 TIMEZONE: America/Sao_Paulo
 
 Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determinísticas ("hoje", "ontem", "anteontem", "este mês", "mês passado", "últimos N dias", "este ano", "até agora"/"até hoje") sem pedir confirmação ao usuário — isso inclui settlement_date de Antecipação quando o usuário disser algo como "quitar hoje" ou "daqui a X meses" tendo hoje como referência. Para expressões genuinamente ambíguas ("ultimamente", "período recente", "há um tempo", "depois de pagar N parcelas" sem saber quando o contrato começou), continue pedindo esclarecimento — CURRENT_DATE resolve o "quando é hoje", não substitui dado que só o usuário sabe.`;
+    const systemPromptWithDate = `${effectiveSystemPrompt}${dynamicContextSuffix}`;
 
     // ---- Loop de tool calling (Partes 16, 46, 47) ----
     // IA-UAT-VOICE-NOVOCLIENTE-01 — tamanho do bloco de conversa anterior
@@ -7451,16 +7541,24 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
         // context (never a user-role message claiming to be the
         // human, never elevated above the existing global policy) --
         // data the model must use exactly as given, labeled as such,
-        // never its own calculation. Reuses FINANCE_PROMPT_PROFILE
-        // (already part of systemPromptWithDate above) for synthesis
-        // policy -- no new synthesis-only profile this Wave.
+        // never its own calculation.
         const engineResultsBlock = `
 
 === RESULTADOS DE SIMULAÇÃO FINANCEIRA (calculados deterministicamente pelo motor oficial ANTES desta resposta -- nunca recalculados por você) ===
 ${JSON.stringify(engineResults.map((r) => r.output))}
 
 Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca arredonde diferente do que já vem calculado, nunca invente um resultado que não esteja aqui. Se algum campo necessário não estiver presente, diga que não foi possível simular essa condição específica.`;
-        input[0].content = `${input[0].content}${engineResultsBlock}`;
+        // IA-3J.6 -- the synthesis call's developer message is REBUILT
+        // from FINANCE_SYNTHESIS_PROFILE (never effectiveSystemPrompt/
+        // FINANCE_PROMPT_PROFILE -- that remains the fallback loop's
+        // own, completely untouched) + the SAME dynamicContextSuffix
+        // (single source, see its own declaration above) + the
+        // results block above. input[0] is fully replaced, not
+        // appended to, since its prior content (effectiveSystemPrompt-
+        // based) is never sent on this path.
+        input[0].content = `${FINANCE_SYNTHESIS_PROFILE}${dynamicContextSuffix}${engineResultsBlock}`;
+        promptProfileLabel = "finance_synthesis";
+        promptCharsActual = FINANCE_SYNTHESIS_PROFILE.length;
 
         const synthesisTools: any[] = [];
         timings.tools_sent_count_per_pass.push(synthesisTools.length);
@@ -7638,7 +7736,7 @@ Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca ar
         // of already-safe metadata instance_id already sets this
         // precedent for: a short enum string and a plain character
         // count, never prompt content, never a tool schema, never PII.
-        _homolog_edge_timing: { handler_entry_epoch_ms: startedAt, response_ready_epoch_ms: Date.now(), instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, latency_ms: latencyMs, stage_ms: timings, prompt_profile: isFinanceFastPath ? "finance" : "full", prompt_chars: effectiveSystemPrompt.length }
+        _homolog_edge_timing: { handler_entry_epoch_ms: startedAt, response_ready_epoch_ms: Date.now(), instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, latency_ms: latencyMs, stage_ms: timings, prompt_profile: promptProfileLabel, prompt_chars: promptCharsActual }
       }),
       { status: 200, headers }
     );
