@@ -69,7 +69,7 @@ const financePrompt = extractComposedPrompt(source, "FINANCE_PROMPT_PROFILE");
 
 // ---------- A. full-prompt byte equivalence ----------
 {
-  check("FULL_SYSTEM_PROMPT is exactly 111,345 chars (107,011 through IA-3K.1 + 4,334 from IA-3K.3's finance-routing/commercial-policy bullets in PROMPT_FINANCE_BASE/PROMPT_FINANCE_SYNTHESIS_PRESENTATION/PROMPT_COMMERCIAL_ORCHESTRATION)", fullPrompt.length === 111345, fullPrompt.length);
+  check("FULL_SYSTEM_PROMPT is exactly 115,053 chars (111,345 through IA-3K.3 + 3,708 from IA-3K.4's goal-driven Balão/Multi-Balão + Cash Conversion context/rate-override bullets)", fullPrompt.length === 115053, fullPrompt.length);
   const hash = createHash("sha256").update(fullPrompt, "utf8").digest("hex");
   // Known-good hash of the pre-split SYSTEM_PROMPT content, captured
   // from the real source at IA-3J.4H.2's own HEAD (commit 9f3a8ae) --
@@ -104,7 +104,10 @@ const ANCHORS = {
   "Score (2C.4)": "O Score (0 a 1000) é oficial e determinístico",
   "Salary/Commissions (2C.5)": "SOMENTE LEITURA, sem exceção. Você NUNCA fecha competência",
   "Historical deep policy (2D.2)": "CORRELAÇÃO NÃO É CAUSALIDADE",
-  "Cash Conversion deep policy (2F.2)": "TAXA DE APLICAÇÃO É FIXA, 1,12% AO MÊS, SEMPRE",
+  // IA-3K.4 -- this bullet's wording changed (1,12% became a default,
+  // not an immutable constant) but it's still the same PROMPT_CASH_
+  // CONVERSION-only anchor, still absent from the finance profile.
+  "Cash Conversion deep policy (2F.2)": "TAXA DE APLICAÇÃO: 1,12% AO MÊS É O DEFAULT, NÃO UMA CONSTANTE IMUTÁVEL",
   "Antecipação deep policy (2F.1)": "FIRST_DUE_DATE OMITIDA (UAT-ANTECIPACAO-AUTONOMY-01)",
   "Rate Calculator deep policy (2F.3)": "MATEMÁTICA ≠ COMERCIAL, SEMPRE SEPARAR",
   "Coparticipado simulation (2D.5)": "Fase IA-2D.5 — Plano Coparticipado",

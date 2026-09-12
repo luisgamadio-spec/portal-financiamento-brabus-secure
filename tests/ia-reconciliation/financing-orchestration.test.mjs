@@ -83,9 +83,24 @@ const prompt = extractComposedPrompt(source, "FULL_SYSTEM_PROMPT");
     "the old 'e, quando elegíveis, Coparticipado/Subsidiadas' auto-inclusion clause is no longer in the BALÃO ESPONTÂNEO rule",
     !/considere Balão no espaço de opções \(junto de Linear e, quando elegíveis, Coparticipado\/Subsidiadas\)/.test(prompt)
   );
+  // IA-3K.4 -- the BALÃO ESPONTÂNEO bullet itself was rewritten and
+  // strengthened (real UAT defect: Balão wasn't automatically
+  // consulted when Linear missed a stated parcela-alvo) -- the
+  // guarantee this test cares about (Balão/Multi-Balão evaluated
+  // automatically, never gated behind the literal word "balão";
+  // Coparticipado/Subsidiadas still excluded from that automatic
+  // space) is still present, re-pinned to the new wording.
   check(
-    "BALÃO ESPONTÂNEO itself is preserved (Balão still default-on) — only the campaign clause was removed",
-    /considere Balão no espaço de opções \(junto de Linear\) sempre que for elegível/.test(prompt)
+    "Balão/Multi-Balão are still treated as normal, automatically-evaluated alternatives (not on-demand) -- new, strengthened GOAL-DRIVEN wording",
+    /Balão e Multi-Balão deixam de ser opcionais: são alternativas normais do espaço de busca, nunca uma modalidade "especial"/.test(prompt)
+  );
+  check(
+    "Coparticipado/Subsidiadas still explicitly excluded from the automatic space",
+    /Coparticipado\/Subsidiadas continuam NÃO entrando automaticamente neste espaço/.test(prompt)
+  );
+  check(
+    "the new rule explicitly forbids concluding 'avalie outra estrutura' without trying Balão/Multi-Balão first (IA-3K.4)",
+    /PROIBIDO encerrar a resposta com "seria necessário avaliar outra estrutura"/.test(prompt)
   );
 
   // The pre-existing REBATE EXISTE EM DOIS PRODUTOS rule is untouched --

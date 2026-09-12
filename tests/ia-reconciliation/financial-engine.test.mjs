@@ -92,18 +92,29 @@ check(
 }
 
 {
-  // Source-invariant: the real dispatcher call site must pass the
-  // constant, not the model/user-supplied application_rate.
+  // IA-3K.4 — Human decision explicitly supersedes IA-3K.3's freeze
+  // interpretation: 1,12% a.m. is now a DEFAULT, not an immutable
+  // constant against an explicit user override. Source-invariant: the
+  // real dispatcher call site must pass a resolved `effectiveRate`
+  // (requestedRate when the caller explicitly provided one, else the
+  // constant) — never a raw, unindirected pass-through of the caller's
+  // own field, and never skipping the constant entirely when no
+  // override was requested.
   const callSite = extractFunction(source, "toolSimularCashConversion");
-  const passesConstant = /cashConversionCalcular\(\s*args\.capital\s*,\s*args\.monthly_payment\s*,\s*args\.term_months\s*,\s*CASH_CONVERSION_APPLICATION_RATE\s*\)/.test(callSite);
-  const passesUserRate = /cashConversionCalcular\([^)]*args\.application_rate[^)]*\)/.test(callSite);
+  const passesEffectiveRate = /cashConversionCalcular\(\s*args\.capital\s*,\s*args\.monthly_payment\s*,\s*args\.term_months\s*,\s*effectiveRate\s*\)/.test(callSite);
+  const effectiveRateIsRequestedOrConstant = /effectiveRate\s*=\s*rateOverrideApplied\s*\?\s*requestedRate\s*:\s*CASH_CONVERSION_APPLICATION_RATE/.test(callSite);
+  const rateOverrideAppliedMeansNonNullRequest = /rateOverrideApplied\s*=\s*requestedRate\s*!==\s*null/.test(callSite);
   check(
-    "toolSimularCashConversion's real call site passes the fixed constant as the 4th argument",
-    passesConstant
+    "toolSimularCashConversion's real call site passes a resolved effectiveRate (never a raw args.application_rate pass-through)",
+    passesEffectiveRate
   );
   check(
-    "toolSimularCashConversion's real call site never passes args.application_rate into the engine",
-    !passesUserRate
+    "effectiveRate resolves to the user's explicit requestedRate when provided, else the CASH_CONVERSION_APPLICATION_RATE constant",
+    effectiveRateIsRequestedOrConstant
+  );
+  check(
+    "rateOverrideApplied is true exactly when the caller provided a non-null requestedRate",
+    rateOverrideAppliedMeansNonNullRequest
   );
 }
 

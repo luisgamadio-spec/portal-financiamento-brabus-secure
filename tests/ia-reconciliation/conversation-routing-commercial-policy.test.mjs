@@ -190,9 +190,14 @@ const synthesisPrompt = extractComposedPrompt(source, "FINANCE_SYNTHESIS_PROFILE
 {
   check("[FULL] never instructs asking department as a default step", !/pergunte ao usuário qual departamento antes de simular/.test(fullPrompt));
   check("[FULL] the no-signal-at-all -> NOVOS default bullet exists", /na AUSÊNCIA de qualquer um desses sinais em toda a conversa, assuma NOVOS automaticamente, sem perguntar/.test(fullPrompt));
-  check("[FULL] the Linear-default / never-ask-Linear-or-Balão bullet exists", /PLANO PADRÃO É LINEAR, NUNCA PERGUNTE "LINEAR OU BALÃO\?"/.test(fullPrompt));
+  // IA-3K.4 -- this bullet was rewritten (real UAT defect: "não
+  // perguntar Linear ou Balão" was misread as "never evaluate Balão
+  // unless asked", when it only ever meant "never ASK about it as a
+  // default step"). Still never asks "Linear ou Balão?" -- re-pinned
+  // to the corrected wording.
+  check("[FULL] never asks 'Linear ou Balão?' as a default step (still true after IA-3K.4's reframing)", /NUNCA pergunte "Linear ou Balão\?"/.test(fullPrompt));
   check("[FULL] the LINEAR target-payment-without-term search bullet exists", /PARCELA-ALVO SEM PRAZO, EM LINEAR \(IA-3K\.3\)/.test(fullPrompt));
-  check("[FINANCE_PROMPT_PROFILE] carries the same 3 new PROMPT_FINANCE_BASE bullets (it includes PROMPT_FINANCE_BASE)", /na AUSÊNCIA de qualquer um desses sinais/.test(financePrompt) && /PLANO PADRÃO É LINEAR/.test(financePrompt) && /PARCELA-ALVO SEM PRAZO, EM LINEAR/.test(financePrompt));
+  check("[FINANCE_PROMPT_PROFILE] carries the same PROMPT_FINANCE_BASE bullets (it includes PROMPT_FINANCE_BASE)", /na AUSÊNCIA de qualquer um desses sinais/.test(financePrompt) && /NUNCA pergunte "Linear ou Balão\?"/.test(financePrompt) && /PARCELA-ALVO SEM PRAZO, EM LINEAR/.test(financePrompt));
 }
 {
   check("[SYNTHESIS] the no-target multi-term LINEAR selection bullet exists (engine-first zero-tool path)", /LINEAR COM MAIS DE UM PRAZO E SEM PARCELA-ALVO \(IA-3K\.3/.test(synthesisPrompt));
@@ -203,35 +208,25 @@ const synthesisPrompt = extractComposedPrompt(source, "FINANCE_SYNTHESIS_PROFILE
 // PART D — Cash Conversion: fixed 1,12% rate untouched; explicit-override nuance documented
 // ========================================================================
 {
+  // IA-3K.4 -- a Human decision, recorded explicitly in that wave's own
+  // brief, supersedes IA-3K.3's freeze interpretation ("esta decisão
+  // Human substitui a interpretação de freeze feita na IA-3K.3"):
+  // 1,12% a.m. is now a DEFAULT, applied automatically when the user
+  // doesn't state a rate, but an EXPLICIT user-stated rate for a given
+  // scenario is now actually used in the real calculation -- never a
+  // comment layered on top of the 1,12% result. This section's checks
+  // were rewritten accordingly; see conversation-routing-commercial-
+  // policy.test.mjs's own IA-3K.4 counterpart for the full regression
+  // coverage (default/override/unit-validation/context-reuse).
   const rateConst = extractConst(source, "CASH_CONVERSION_APPLICATION_RATE");
-  check("[D] CASH_CONVERSION_APPLICATION_RATE is still exactly 0.0112 (1,12% a.m., untouched)", /=\s*0\.0112\s*;/.test(rateConst), rateConst);
+  check("[D] CASH_CONVERSION_APPLICATION_RATE is still exactly 0.0112 (1,12% a.m., untouched, still the default)", /=\s*0\.0112\s*;/.test(rateConst), rateConst);
 
   const toolFnSrc = extractFunction(source, "toolSimularCashConversion");
-  check("[D] toolSimularCashConversion still passes the CONSTANT, never args.application_rate, into the engine", toolFnSrc.includes("cashConversionCalcular(args.capital, args.monthly_payment, args.term_months, CASH_CONVERSION_APPLICATION_RATE)"));
+  check("[D] toolSimularCashConversion resolves effectiveRate (requestedRate when provided, else the constant) -- never a raw args.application_rate pass-through", toolFnSrc.includes("cashConversionCalcular(args.capital, args.monthly_payment, args.term_months, effectiveRate)"));
+  check("[D] the formula/engine call itself is otherwise untouched (same function, same other 3 arguments)", /cashConversionCalcular\(args\.capital, args\.monthly_payment, args\.term_months, effectiveRate\)/.test(toolFnSrc));
 
-  // IA-3K.3 -- the brief's §6 asked for "quando o usuário informar
-  // explicitamente outra taxa, usar a taxa informada". The ENGINE has
-  // deliberately ignored args.application_rate since UAT-CASH-
-  // CONVERSION-AUTONOMY-01 (a previously Human-ratified, explicitly
-  // frozen business rule -- see the prompt text checked below, and
-  // this same Wave's own §13 freeze list, which names "Cash Conversion
-  // formulas" explicitly). Implementing literal rate substitution
-  // would mean reopening that frozen decision, not a conversational
-  // fix -- out of scope here. This Wave's actual, scoped fix is the
-  // classifier correction (PART A3 above): it makes sure a request
-  // phrased as "à vista ou financiar" actually REACHES this existing,
-  // already-correct "don't ask, explain the fixed premise, never
-  // substitute" policy -- confirmed unchanged below -- instead of
-  // being misrouted to a profile that doesn't even have this tool.
-  check("[D] the explain-never-substitute policy text is present and unchanged", financePromptNeverHasCashConversionIsExpected());
-  function financePromptNeverHasCashConversionIsExpected() {
-    // PROMPT_CASH_CONVERSION is intentionally NOT part of
-    // FINANCE_PROMPT_PROFILE (confirmed in PART B) -- its policy text
-    // only needs to exist in FULL_SYSTEM_PROMPT, which is where a
-    // correctly-denied Cash Conversion request actually lands.
-    return /TAXA DE APLICAÇÃO É FIXA, 1,12% AO MÊS, SEMPRE/.test(fullPrompt)
-      && /NÃO a use nem a repasse como se fosse adotada/.test(fullPrompt);
-  }
+  check("[D] the prompt now documents 1,12% as a DEFAULT, not an immutable constant (IA-3K.4)", /1,12% AO MÊS É O DEFAULT, NÃO UMA CONSTANTE IMUTÁVEL/.test(fullPrompt));
+  check("[D] the prompt still forbids asking the rate proactively", /nunca pergunte a taxa proativamente/.test(fullPrompt));
 }
 
 // ========================================================================
