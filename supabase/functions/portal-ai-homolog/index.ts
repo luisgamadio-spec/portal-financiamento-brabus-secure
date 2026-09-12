@@ -4565,6 +4565,41 @@ async function toolSimularCashConversion(_userClient: any, args: CashConversionI
 }
 
 // =========================================================
+// IA-3K.1 -- Market Intelligence CONTRACT ONLY, not wired.
+//
+// Cash Conversion's own break_even_rate (above) is a closed-form
+// threshold computed purely from the user's own financing scenario --
+// comparing it against a REAL external investment opportunity would
+// require a verifiable external data source. Audited before writing
+// anything: the ONLY external fetch anywhere in this file is to
+// OpenAI itself (callOpenAI, Partes 47-48) -- no existing market-
+// data RPC, no existing rate-lookup tool, no scraper, nothing to
+// reuse. Per this Wave's own explicit instruction ("NÃO improvisar
+// scraper; NÃO colocar URL hardcoded; NÃO criar browser-side fetch;
+// NÃO inventar API"), this Wave adds ONLY the shape a future,
+// properly-audited Market Intelligence lookup would need to satisfy
+// to be safely surfaced by buildCashConversionBlock/the Cash
+// Conversion prompt policy -- never constructed anywhere in this
+// file, never a dispatchTool case, never referenced by any tool
+// schema. Tracked as the open debt D-MARKET-INTELLIGENCE-NOT-
+// IMPLEMENTED (this Wave's own report) until a real, reviewed data
+// source exists.
+interface MarketIntelligenceOpportunity {
+  issuer: string; // emissor (ex.: "XP Investimentos", "Banco Inter") -- nunca hardcoded a um único emissor
+  product: string; // produto (ex.: "CDB", "Tesouro Selic", "LCI")
+  advertised_rate_label: string; // texto original da fonte (ex.: "102% do CDI") -- nunca pré-convertido silenciosamente
+  advertised_rate_basis: "monthly_effective" | "annual_effective" | "percent_of_cdi" | "other"; // unidade declarada pela fonte -- nunca presumida
+  comparable_monthly_rate: number | null; // só preenchido quando existir uma conversão confiável para taxa mensal efetiva; null quando não comparável (Seção 13 — nunca declarar que supera o break-even nesse caso)
+  term_label: string | null; // prazo/vencimento, como a própria fonte descreveu
+  liquidity_label: string | null; // liquidez declarada pela fonte
+  tax_label: string | null; // tributação declarada pela fonte
+  fgc_covered: boolean | null; // cobertura FGC quando aplicável e confirmada pela fonte -- null quando não informado
+  source_name: string; // nome da fonte consultada
+  source_url: string; // URL da fonte consultada
+  retrieved_at: string; // timestamp ISO desta consulta
+}
+
+// =========================================================
 // Fase IA-2F.3 — Calculadora / Descoberta de Taxa
 //
 // Auditoria localizou a calculadora oficial (#discoverScreen, idêntica
@@ -5644,6 +5679,15 @@ function buildSemestralMetricsBlock(args: SimulationInput, result: any): any | n
 // o renderer já existente. O fluxo parcela-a-parcela (rows) fica só no
 // JSON retornado à IA para explicação textual; não é replicado em
 // tabela aqui, por fidelidade ao princípio de menor patch (Parte BG).
+// IA-3K.1 -- real conversational UAT (UAT-VOICE-01A) found the
+// calculation/speed approved but the presentation "visualmente cru e
+// repetitivo" -- a generic items grid, with the model's own prose
+// then restating the same numbers again. `settlement_card` is
+// presentation-only metadata (never consumed by any calculation,
+// same contract class as `financing_card`, IA-3J.4C) so V2 can render
+// a native hero-card instead of the generic metrics grid -- `items`
+// below is kept byte-for-byte as before (accessibility/non-V2
+// consumers), this is purely additive.
 function buildAntecipacaoBlock(args: AntecipacaoInput, result: any): any | null {
   if (!result.feasible) return null;
   // UAT-ANTECIPACAO-AUTONOMY-01, Gate 20 — quando first_due_date foi
@@ -5662,11 +5706,39 @@ function buildAntecipacaoBlock(args: AntecipacaoInput, result: any): any | null 
     { label: "Desconto total", value: result.discount_total, format: "currency" },
     { label: "Valor para quitação", value: result.settlement_amount, format: "currency" }
   ];
-  return { type: "metrics", title: "Simulação — Antecipação / Liquidação Antecipada", period_label: "Estimativa comercial — não é proposta nem aprovação de crédito", items };
+  // IA-3K.1 -- echoes args.balloons verbatim (the tool's own already-
+  // validated input, never recomputed/invented) so the card can show
+  // "Balão de R$X na parcela Y" without any new calculation.
+  const balloons = Array.isArray(args.balloons)
+    ? args.balloons.map((b) => ({ installment_number: b.installment_number, value: b.value }))
+    : [];
+  const settlementCard = {
+    settlement_amount: result.settlement_amount,
+    settlement_date: result.settlement_date,
+    gross_total: result.gross_total,
+    discount_total: result.discount_total,
+    discount_percent_of_gross: result.discount_percent_of_gross,
+    installments_considered: result.installments_considered,
+    scope_label: result.scope_label,
+    first_due_date: result.first_due_date,
+    first_due_date_assumed: result.first_due_date_assumed,
+    balloons
+  };
+  return { type: "metrics", title: "Simulação — Antecipação / Liquidação Antecipada", period_label: "Estimativa comercial — não é proposta nem aprovação de crédito", items, settlement_card: settlementCard };
 }
 
 // Fase IA-2F.2 — Cash Conversion. Sempre "metrics" — 0 alteração de
 // frontend, mesmo componente já usado por Semestral/Anual e Antecipação.
+// IA-3K.1 -- real conversational UAT (UAT-VOICE-01B) found the math
+// functional but the presentation "excesso de repetição" and
+// "excessivamente neutra/passiva para contexto F&I" -- the break-even
+// buried as the last, parenthetical item, and no capital-preservation
+// framing surfaced visually. `cash_conversion_card` is presentation-
+// only metadata (never consumed by any calculation, same contract
+// class as `financing_card`/`settlement_card` above) so V2 can render
+// a native card leading with the scenario, the math result, and the
+// capital-preservation framing as distinct sections -- `items` below
+// is kept byte-for-byte as before, this is purely additive.
 function buildCashConversionBlock(args: CashConversionInput, result: any): any | null {
   // UAT-CASH-CONVERSION-AUTONOMY-01 — taxa é sempre a premissa fixa
   // (1,12% a.m.), nunca escondida; se o usuário tentou outra taxa, o
@@ -5686,7 +5758,18 @@ function buildCashConversionBlock(args: CashConversionInput, result: any): any |
   if (result.break_even_rate !== null) {
     items.push({ label: "Taxa de equilíbrio (a.m., cálculo adicional)", value: round2(result.break_even_rate * 100), format: "percent" });
   }
-  return { type: "metrics", title: "Simulação — Cash Conversion", period_label: `Classificação: ${result.classification === "FINANCIAR" ? "Financiar e preservar o capital" : result.classification === "UTILIZAR" ? "Utilizar o capital" : "Resultados equivalentes"} — estimativa dentro das premissas informadas, não é recomendação de investimento`, items };
+  const cashConversionCard = {
+    capital: result.capital,
+    monthly_payment: result.monthly_payment,
+    term_months: result.term_months,
+    application_rate: result.application_rate,
+    break_even_rate: result.break_even_rate,
+    final_financing_value: result.final_financing_value,
+    future_investment_value: result.future_investment_value,
+    projected_difference: result.projected_difference,
+    classification: result.classification
+  };
+  return { type: "metrics", title: "Simulação — Cash Conversion", period_label: `Classificação: ${result.classification === "FINANCIAR" ? "Financiar e preservar o capital" : result.classification === "UTILIZAR" ? "Utilizar o capital" : "Resultados equivalentes"} — estimativa dentro das premissas informadas, não é recomendação de investimento`, items, cash_conversion_card: cashConversionCard };
 }
 
 // Fase IA-2F.3 — Calculadora de Taxa. Sempre "metrics" — 0 alteração de
@@ -6754,13 +6837,15 @@ const PROMPT_ANTECIPACAO = `Fase IA-2F.1 — Antecipação / Liquidação Anteci
 - TRÊS CONCEITOS DIFERENTES, NUNCA MISTURAR NO TEXTO: gross_total (quanto ainda seria pago nominalmente, sem antecipar), settlement_amount (quanto pagar para quitar antecipando) e discount_total (a diferença entre os dois). Sempre que fizer sentido, apresente os três separadamente.
 - NÃO EXISTEM NESTA TOOL: IOF, tarifa de quitação, multa contratual, CET, nem "vale a pena antecipar" como julgamento de investimento — isso depende de custo de oportunidade (simular_cash_conversion, Fase IA-2F.2 abaixo). Responda apenas com os números desta simulação e deixe claro que a decisão de investimento é um tema separado.
 - PRIVACIDADE: nunca busque um contrato por CPF, nome de cliente ou chassi para preencher esta tool — use somente os termos financeiros que o próprio usuário informar na conversa.
-- Combinação com simular_financiamento no mesmo turno (ex.: "simule um Balão e diga quanto pago para quitar no mês 24"): é permitida, dentro do limite de MAX_TOOL_CALLS=5 — simule primeiro, depois chame simular_antecipacao com os termos exatos do resultado simulado (parcela e balão obtidos, não reinventados).`;
+- Combinação com simular_financiamento no mesmo turno (ex.: "simule um Balão e diga quanto pago para quitar no mês 24"): é permitida, dentro do limite de MAX_TOOL_CALLS=5 — simule primeiro, depois chame simular_antecipacao com os termos exatos do resultado simulado (parcela e balão obtidos, não reinventados).
+- APRESENTAÇÃO (IA-3K.1 — UAT real confirmou cálculo/velocidade aprovados, mas apresentação repetitiva): o card visual já mostra o valor de quitação, o valor nominal restante, o desconto, a economia (%), os pagamentos restantes e eventuais balões — seu texto é a conclusão e o essencial (valor de quitação, data, e a premissa de primeira parcela quando assumida), nunca um novo parágrafo relistando os mesmos números que o card já mostra.`;
 const PROMPT_CASH_CONVERSION = `Fase IA-2F.2 — Cash Conversion (simular_cash_conversion; auditado a partir do motor oficial assets/js/cash-conversion.js, idêntico em Novos/Seminovos):
 - FERRAMENTA INDEPENDENTE PARA CAPITAL/PARCELA/PRAZO: capital, monthly_payment e term_months são sempre informados na conversa — nunca vêm automaticamente de uma simulação anterior. Se o usuário ainda não tem uma parcela definida (ex.: "quero financiar R$70.000 em 36 meses e comparar com deixar aplicado"), chame simular_financiamento (ou outro motor já homologado) primeiro para obter a parcela, e só então chame simular_cash_conversion com esse valor.
 - TAXA DE APLICAÇÃO É FIXA, 1,12% AO MÊS, SEMPRE (UAT-CASH-CONVERSION-AUTONOMY-01): nunca pergunte a taxa de aplicação ao usuário — a tool já a aplica automaticamente (application_rate é ignorado por ela; deixe null). Se o usuário mencionar outra taxa (própria, anual, "X% do CDI", ou qualquer valor específico), NÃO a use nem a repasse como se fosse adotada — explique brevemente, uma vez, que o Cash Conversion do portal utiliza a premissa padrão de 1,12% ao mês (ex.: "Para essa comparação, uso a taxa padrão de aplicação do portal, de 1,12% ao mês"); não crie um modo customizado nem finja calcular com o valor que ele sugeriu.
 - O MOTOR NÃO SIMULA FLUXO DE CAIXA: as parcelas nunca são deduzidas do capital aplicado — são dois cálculos paralelos e independentes (nominal das parcelas vs. capital a juros compostos). Não descreva isso como "o cliente paga a parcela com o rendimento da aplicação" nem qualquer narrativa de fluxo de caixa mês a mês; descreva os dois lados separadamente.
 - NÃO EXISTE NO MOTOR: imposto de renda, IOF, come-cotas, inflação, risco/volatilidade. Nunca adicione esses fatores à explicação nem à conta.
 - BREAK-EVEN NÃO É NATIVO DO PORTAL: break_even_rate é um cálculo adicional desta fase, não uma saída do Cash Conversion oficial. Ao mencioná-lo, deixe claro que é "a rentabilidade que faria os dois cenários empatarem dentro dessas premissas" — nunca "rentabilidade garantida" ou "taxa recomendada".
+- BREAK-EVEN É ELEMENTO CENTRAL, NUNCA RODAPÉ (IA-3K.1 — UAT real confirmou que a taxa de equilíbrio ficava escondida como o último item, quase um detalhe): sempre que break_even_rate existir, mencione-o ativamente na conclusão (não só se perguntado) em uma frase curta comparando-o com a taxa de aplicação usada — ex.: "a partir de aproximadamente {break_even_rate}% a.m., dentro das mesmas premissas, a preservação do capital passa a alterar a comparação matemática". Use sempre o break_even_rate exatamente como a tool devolveu — nunca recalcule isso.
 - BALÃO NÃO É SUPORTADO: se o contrato tiver Balão, esta tool não tem como representá-lo — recuse a composição explicando a limitação; nunca simule ignorando silenciosamente o valor do balão.
 - SEMESTRAL/ANUAL NÃO SÃO SUPORTADOS: não têm parcela mensal — não converta os pagamentos periódicos numa parcela mensal fictícia para forçar a composição.
 - QUANDO RECONHECER A INTENÇÃO (sem exigir a frase "Cash Conversion"): "vale mais a pena financiar ou pagar à vista?", "o cliente tem dinheiro para pagar à vista", "quero mostrar vantagem de financiar", "e se ele deixar o dinheiro aplicado?", "como eu argumento para ele financiar?", "por que não pagar à vista?" — todas envolvem comparar capital preservado/aplicado contra o fluxo do financiamento. Não dispare esta tool para toda pergunta genérica sobre financiamento — só quando essa comparação específica estiver em jogo. Em recomendações amplas ("qual a melhor condição?"), pode considerar Cash Conversion como argumento adicional quando o contexto mostrar capital disponível para à vista, sem inserir isso em toda resposta financeira (mesmo princípio de "considerar, não forçar" já usado para Balão).
@@ -6773,6 +6858,8 @@ FINANCING-FIRST — POSTURA COMERCIAL (UAT-CASH-CONVERSION-AUTONOMY-01, Parte B)
 - OBJEÇÃO DO CLIENTE ("não quer dívida", "prefere pagar à vista", "por que financiar se tem o dinheiro?"): reconheça a preferência como legítima, sem tratá-la como irracional nem desqualificá-la — depois apresente o contraponto verdadeiro (liquidez, capital aplicado, custo de oportunidade) baseado nos números do cenário, nunca com pressão.
 - SCRIPT PARA O CONSULTANTE ("como eu explico/apresento isso para o cliente?"): pode gerar uma fala comercial curta e natural, mas todo número nela precisa vir do resultado real da tool — nunca invente economia, ganho, saldo ou rentabilidade que a simulação não devolveu.
 - RESPEITAR PEDIDO EXPLÍCITO DE FORMATO: se o usuário pedir "só os números, sem argumento comercial", entregue só os números — financing-first é postura padrão, não obrigação de ignorar instrução explícita sobre a forma da resposta; a verdade financeira não muda de qualquer forma. Se o usuário pedir argumentos para pagar à vista, forneça-os com a mesma honestidade (ausência de dívida, menor compromisso mensal, eventual menor custo financeiro conforme o cenário) — nunca invente uma proibição de defender o pagamento à vista quando pedido diretamente.
+- APRESENTAÇÃO (IA-3K.1 — UAT real confirmou excesso de repetição): o card visual já mostra capital, financiamento, taxa considerada, taxa de equilíbrio e o resultado matemático — seu texto é UMA conclusão (quem vence e por quanto), o break-even na forma da regra acima, e a argumentação comercial (liquidez/preservação de capital); nunca um novo parágrafo ou "resumo" relistando os mesmos números que o card já mostra.
+- MARKET INTELLIGENCE AINDA NÃO DISPONÍVEL (IA-3K.1): esta fase NÃO tem acesso a nenhuma fonte externa verificável de rentabilidade de investimento — nunca diga "encontrei uma aplicação de X%" nem cite um emissor/produto/taxa de mercado sem uma consulta real que não existe ainda. Se o usuário pedir para comparar com uma oportunidade de mercado específica, explique que essa comparação ainda não está disponível nesta fase e continue com a matemática do break-even (acima) como a referência objetiva disponível. Se o usuário já informar uma rentabilidade externa conhecida por ele (não uma busca sua), trate como um dado do cenário: só declare que ela supera o break-even quando a unidade informada for genuinamente comparável à taxa mensal efetiva do break-even (nunca equiparar % do CDI, taxa anual, rentabilidade bruta/líquida ou pré/pós-fixado sem uma conversão confiável) — quando não for comparável com segurança, apresente como informação do usuário, sem concluir comparação.
 - Combinação com simular_financiamento no mesmo turno: permitida, dentro de MAX_TOOL_CALLS=5 (tipicamente 2 chamadas).`;
 const PROMPT_FINANCE_COMPARISON = `Fase IA-2E.1 — Comparação e Recomendação Multi-Produto (arquitetura: você mesmo orquestra chamadas individuais de simular_financiamento por produto — não existe tool nova nem modo batch; nenhum score, peso ou probabilidade oculta existe em lugar nenhum do backend, então a única forma de recomendar bem é aplicando estas regras a cada resposta):
 - NÃO EXISTE "melhor financiamento" universal. Existe "melhor adequação aos critérios que o cliente informou explicitamente". Nunca recomende um produto por preferência própria ou por ele parecer "mais completo" — só por atender (ou não) aos critérios declarados.
