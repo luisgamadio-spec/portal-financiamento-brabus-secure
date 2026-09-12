@@ -6538,6 +6538,34 @@ const CLIENT_BOUNDARY_RE = /agora outro cliente|novo cliente|nova negocia[cç][�
 // target/goal signal would otherwise trigger BOTH_BALAO_AND_LINEAR.
 const LINEAR_ONLY_EXCLUSION_RE = /s(?:o|ó)mente linear|s(?:o|ó)\s+linear|sem bal[ãa]o|sem bal[õo]es|n[ãa]o quero bal[ãa]o|nenhum bal[ãa]o/i;
 
+// IA-UAT-04 -- the mirror of LINEAR_ONLY_EXCLUSION_RE, for the new
+// required-down-payment commercial selector ONLY (Section 8) -- never
+// shared with FinanceEngineFirstPlan's own hasBalao/hasLinear scenario
+// logic, which has a DIFFERENT default (Linear-only unless Balão is
+// positively mentioned) from this plan type's new default (both,
+// automatically, Section 3). Because Balão is already included here
+// by default, a plain "quero Balão" in this plan's own universe is
+// asymmetric with a plain "quero Linear": it is redundant UNLESS it
+// means "switch to Balão only" (the real stateful follow-up shape,
+// Section 9's own "Agora quero Balão." turn, reusing context with no
+// new numbers) -- so it is treated as an exclusion here, unlike
+// LINEAR_ONLY_EXCLUSION_RE's own stricter "somente/sem" requirement
+// (intentionally left untouched, shared with the other plan type).
+const BALAO_ONLY_EXCLUSION_RE = /s(?:o|ó)mente bal[ãa]o|s(?:o|ó)\s+bal[ãa]o|apenas bal[ãa]o|sem linear|n[ãa]o quero linear|nenhum linear|quero bal[ãa]o/i;
+
+// IA-UAT-04 -- explicit bypass of the new 3-proposal commercial cap
+// ("mostre todas as opções") -- deterministic detector, never left for
+// the model to infer; User explicit constraint > default policy
+// (Section 8).
+const ALL_COMMERCIAL_OPTIONS_RE = /todas as op[cç][õo]es|todas as alternativas|todos os prazos|mostrar?\s+tudo|ver todas|todas as propostas/i;
+
+// IA-UAT-04 -- a bare "só/apenas <N>" with no unit suffix (the real
+// UAT phrasing "E só em 48?" has no "meses"/"x") -- a narrower fallback
+// than the existing single-term regex below (which requires meses/mes/x),
+// consulted only when that one finds nothing, and only for a number
+// that is itself a real valid term (never invented).
+const BARE_TERM_OVERRIDE_RE = /\b(?:s[oó]|apenas)\s+(?:em\s+)?(\d{1,3})\b/i;
+
 function resolveStatefulFinancePlan(
   conversation: Array<{ role: string; content: string }>,
   message: string
@@ -6813,6 +6841,24 @@ interface RequiredDownPaymentPlan {
   // A populated array = the user named specific term(s) -- one REAL
   // dispatch per named term, in parallel (the actual multi-option fix).
   termMonthsList: number[] | null;
+  // IA-UAT-04 -- Section 8's explicit override. null = open
+  // recommendation (the new deterministic <=3 commercial selector
+  // applies, Section 3); LINEAR_ONLY/BALAO_ONLY = the user explicitly
+  // excluded the other financing type this turn.
+  financingTypeOverride: "LINEAR_ONLY" | "BALAO_ONLY" | null;
+  // IA-UAT-04 -- Section 8's "mostre todas as opções": bypasses the
+  // 3-proposal cap entirely for this turn.
+  allOptionsRequested: boolean;
+}
+
+// IA-UAT-04 -- single choke point for both extraction functions below
+// (direct and stateful) so the override/bypass detection is read from
+// ONE place, never duplicated/drifted between them.
+function extractCommercialOverrides(message: string): { financingTypeOverride: "LINEAR_ONLY" | "BALAO_ONLY" | null; allOptionsRequested: boolean } {
+  const financingTypeOverride = LINEAR_ONLY_EXCLUSION_RE.test(message) ? "LINEAR_ONLY"
+    : BALAO_ONLY_EXCLUSION_RE.test(message) ? "BALAO_ONLY"
+    : null;
+  return { financingTypeOverride, allOptionsRequested: ALL_COMMERCIAL_OPTIONS_RE.test(message) };
 }
 
 // Extracts an explicit LIST of terms from natural phrasing this
@@ -6883,16 +6929,24 @@ function extractRequiredDownPaymentPlan(message: string): RequiredDownPaymentPla
   if (vehicleValue === null || vehicleValue <= 0) return null;
 
   const validTerms = simPrazosFor(department);
-  const explicitList = extractTermMonthsList(message, validTerms);
-  let termMonthsList: number[] | null;
-  if (explicitList) {
-    termMonthsList = explicitList;
-  } else {
-    const single = /\b(\d{1,3})\s*(?:meses|mes\b|x\b)/i.exec(message);
-    termMonthsList = single && validTerms.includes(Number(single[1])) ? [Number(single[1])] : null;
-  }
+  const termMonthsList = resolveTermMonthsList(message, validTerms);
 
-  return { department, vehicleValue, vehicleYear, targetPayment, termMonthsList };
+  return { department, vehicleValue, vehicleYear, targetPayment, termMonthsList, ...extractCommercialOverrides(message) };
+}
+
+// IA-UAT-04 -- shared by both extraction functions: explicitList first
+// (2+ terms), then the existing suffixed single-term match (meses/mes/
+// x), then BARE_TERM_OVERRIDE_RE's own narrower "só/apenas <N>" shape
+// (the real UAT phrasing "E só em 48?" has no unit suffix at all) --
+// never invents a term outside validTerms.
+function resolveTermMonthsList(message: string, validTerms: number[]): number[] | null {
+  const explicitList = extractTermMonthsList(message, validTerms);
+  if (explicitList) return explicitList;
+  const single = /\b(\d{1,3})\s*(?:meses|mes\b|x\b)/i.exec(message);
+  if (single && validTerms.includes(Number(single[1]))) return [Number(single[1])];
+  const bare = BARE_TERM_OVERRIDE_RE.exec(message);
+  if (bare && validTerms.includes(Number(bare[1]))) return [Number(bare[1])];
+  return null;
 }
 
 function resolveStatefulRequiredDownPaymentPlan(
@@ -6903,37 +6957,52 @@ function resolveStatefulRequiredDownPaymentPlan(
   if (direct) return direct;
 
   if (CLIENT_BOUNDARY_RE.test(message)) return null;
-  const hasGoalSignal = /parcela|\blinear\b|\bentrada\b|meses|\bmes\b|\bx\b/i.test(message);
+  // IA-UAT-04 -- extended to also recognize a pure override/refinement
+  // turn with no new number of its own at all (Section 9: "Mostra só
+  // Linear.", "Agora quero Balão.") -- these carry no parcela/entrada/
+  // meses token, only an override phrase, so the ORIGINAL regex alone
+  // would reject them before ever reaching the inheritance logic below.
+  const hasGoalSignal = /parcela|\blinear\b|\bentrada\b|meses|\bmes\b|\bx\b|bal[ãa]o|bal[õo]es/i.test(message)
+    || LINEAR_ONLY_EXCLUSION_RE.test(message) || BALAO_ONLY_EXCLUSION_RE.test(message)
+    || ALL_COMMERCIAL_OPTIONS_RE.test(message) || BARE_TERM_OVERRIDE_RE.test(message);
   if (!hasGoalSignal) return null;
 
   // Reuse resolveStatefulFinancePlan's own vehicle/department lookback
   // (never a second history-scanning implementation) for whichever
-  // fields are missing in THIS message -- target payment and the term
-  // list still need to come from this message (or this function
-  // returns null, since inventing either from history would be
-  // inventing intent).
+  // fields are missing in THIS message. IA-UAT-04 -- target payment MAY
+  // now also be inherited (never invented: only from a REAL prior
+  // target-bearing turn, found in the SAME backward scan as the
+  // vehicle, so the two never come from two different historical
+  // moments) when this message is a pure override/refinement with no
+  // target number of its own -- still REQUIRES a vehicle/value to exist
+  // somewhere in history, exactly as before.
   const targetMatch = new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*parcela`, "i").exec(message)
     || new RegExp(`parcela[^\\d]{0,25}(${BR_MONEY_TOKEN_RE_SRC})`, "i").exec(message);
-  if (!targetMatch) return null;
-  const targetPayment = parseBRMoneyToken(targetMatch[1]);
-  if (targetPayment === null) return null;
+  let targetPayment = targetMatch ? parseBRMoneyToken(targetMatch[1]) : null;
+  if (targetMatch && targetPayment === null) return null; // a malformed target token was stated -- never silently fall back to an unrelated historical one
 
-  let historicalVehicle: { department: SimDepartment; vehicleValue: number; vehicleYear: number | null } | null = null;
+  let historicalVehicle: { department: SimDepartment; vehicleValue: number; vehicleYear: number | null; targetPayment: number | null } | null = null;
   for (let i = conversation.length - 1; i >= 0; i--) {
     const turn = conversation[i];
     if (turn.role !== "user") continue;
     if (CLIENT_BOUNDARY_RE.test(turn.content)) break;
     const p = extractFinanceEngineFirstPlan(turn.content) || extractRequiredDownPaymentPlan(turn.content);
-    if (p) { historicalVehicle = { department: p.department, vehicleValue: p.vehicleValue, vehicleYear: p.vehicleYear }; break; }
+    if (p) { historicalVehicle = { department: p.department, vehicleValue: p.vehicleValue, vehicleYear: p.vehicleYear, targetPayment: p.targetPayment }; break; }
   }
   if (!historicalVehicle) return null;
 
-  const validTerms = simPrazosFor(historicalVehicle.department);
-  const explicitList = extractTermMonthsList(message, validTerms);
-  const single = /\b(\d{1,3})\s*(?:meses|mes\b|x\b)/i.exec(message);
-  const termMonthsList: number[] | null = explicitList || (single && validTerms.includes(Number(single[1])) ? [Number(single[1])] : null);
+  if (targetPayment === null) {
+    if (historicalVehicle.targetPayment === null) return null; // never invent a target that was never stated anywhere in this conversation
+    targetPayment = historicalVehicle.targetPayment;
+  }
 
-  return { department: historicalVehicle.department, vehicleValue: historicalVehicle.vehicleValue, vehicleYear: historicalVehicle.vehicleYear, targetPayment, termMonthsList };
+  const validTerms = simPrazosFor(historicalVehicle.department);
+  const termMonthsList = resolveTermMonthsList(message, validTerms);
+
+  return {
+    department: historicalVehicle.department, vehicleValue: historicalVehicle.vehicleValue, vehicleYear: historicalVehicle.vehicleYear,
+    targetPayment, termMonthsList, ...extractCommercialOverrides(message)
+  };
 }
 
 // null termMonthsList -> ONE dispatch, term_months omitted (the real
@@ -6943,15 +7012,138 @@ function resolveStatefulRequiredDownPaymentPlan(
 // ceiling (never silently bypassing the same governance limit the
 // normal tool loop already enforces; in practice a Human never names
 // more than 2-3 terms at once).
+// Only ever called when plan.termMonthsList is populated (explicit
+// term(s) named, Section 8) -- the open-recommendation case
+// (termMonthsList===null) goes through buildCommercialSelectionInputs
+// below instead, whether the 3-proposal selector applies or the Human
+// asked for "todas as opções" (same dispatch either way; they differ
+// only in how the RESULTS are processed afterward).
 function buildRequiredDownPaymentSimulationInputs(plan: RequiredDownPaymentPlan): SimulationInput[] {
   const base: Partial<SimulationInput> = {
     department: plan.department, vehicle_value: plan.vehicleValue, vehicle_year: plan.vehicleYear,
-    target_payment: plan.targetPayment, financing_type: "LINEAR", mode: "required_down_payment"
+    target_payment: plan.targetPayment
   };
-  if (plan.termMonthsList === null) {
-    return [emptySimulationInput({ ...base, term_months: null })];
+  if (plan.financingTypeOverride === "BALAO_ONLY") {
+    // IA-UAT-04 -- explicit terms + "somente Balão": ONE call via the
+    // engine's own term_months_list (already supported by the same
+    // optimize-for-target mechanism below), restricted to exactly the
+    // named terms -- never N separate calls, never a new capability.
+    const terms = plan.termMonthsList !== null ? plan.termMonthsList.slice(0, MAX_TOOL_CALLS) : null;
+    return [emptySimulationInput({
+      ...base, financing_type: "BALAO", mode: "payment", down_payment: null, down_payment_percent: null, balloon_value: null,
+      term_months: null, term_months_list: terms
+    })];
   }
-  return plan.termMonthsList.slice(0, MAX_TOOL_CALLS).map((term) => emptySimulationInput({ ...base, term_months: term }));
+  if (plan.termMonthsList === null) {
+    // Defensive/standalone fallback (§13 Opening Behavior Polish,
+    // VOICE-UAT-01, UNCHANGED): the real dispatch site never reaches
+    // this branch for the open-recommendation case any more (it calls
+    // buildCommercialSelectionInputs instead) -- kept here so this
+    // function still returns a correct single combined call for any
+    // direct caller/plan shape, exactly as it always has.
+    return [emptySimulationInput({ ...base, financing_type: "LINEAR", mode: "required_down_payment", term_months: null })];
+  }
+  const terms = plan.termMonthsList.slice(0, MAX_TOOL_CALLS);
+  return terms.map((term) => emptySimulationInput({ ...base, financing_type: "LINEAR", mode: "required_down_payment", term_months: term }));
+}
+
+// IA-UAT-04 -- the open-recommendation dispatch (Section 3/4/5): at
+// most 2 real calls (never N), both already-existing engine
+// capabilities, never a new formula. LINEAR's own required_down_
+// payment with term_months omitted already loops over every valid
+// term server-side (unchanged). BALÃO reuses the EXISTING, already-
+// homologated UAT-BALAO-EXPLORATION-01 optimize-for-target path
+// (mode="payment", balloon_value=null, down_payment=null, term_months
+// omitted) -- confirmed by direct reading to be the ONLY Balão
+// modality that searches every valid term for the entrada that best
+// hits a target payment without the caller choosing a term/balloon
+// value first; required_down_payment mode cannot do this for Balão
+// (it requires an explicit term_months AND balloon_value per call).
+// Skips whichever side financingTypeOverride explicitly excludes
+// (Section 8) -- never dispatches a call whose result would be
+// discarded anyway.
+function buildCommercialSelectionInputs(plan: RequiredDownPaymentPlan): SimulationInput[] {
+  const base: Partial<SimulationInput> = {
+    department: plan.department, vehicle_value: plan.vehicleValue, vehicle_year: plan.vehicleYear,
+    target_payment: plan.targetPayment
+  };
+  const inputs: SimulationInput[] = [];
+  if (plan.financingTypeOverride !== "BALAO_ONLY") {
+    inputs.push(emptySimulationInput({ ...base, financing_type: "LINEAR", mode: "required_down_payment", term_months: null }));
+  }
+  if (plan.financingTypeOverride !== "LINEAR_ONLY") {
+    inputs.push(emptySimulationInput({ ...base, financing_type: "BALAO", mode: "payment", down_payment: null, down_payment_percent: null, balloon_value: null, term_months: null }));
+  }
+  return inputs;
+}
+
+interface CommercialProposal {
+  kind: "LINEAR" | "BALAO";
+  label: "RECOMENDADO" | "ALTERNATIVA";
+  term_months: number;
+  down_payment: number;
+  monthly_payment: number;
+  raw: any;
+}
+
+// IA-UAT-04 -- Section 3/6/7's deterministic selector: operates ONLY
+// on results the engine already computed above (never a new
+// calculation), picks <=3 proposals, and labels them for presentation.
+// Pure function (no I/O, no tool dispatch) -- same shape discipline as
+// the existing selectClosestCandidate (IA-REGRESSION-01), so this is
+// directly unit-testable against real dispatched results.
+function selectCommercialProposals(results: Array<{ simArgs: SimulationInput; output: any }>): CommercialProposal[] {
+  const linearResult = results.find((r) => r.simArgs.financing_type === "LINEAR");
+  const balaoResult = results.find((r) => r.simArgs.financing_type === "BALAO");
+
+  // LINEAR (Section 6) -- never "always the 2 longest terms" as a
+  // blind rule: #1 = the feasible term with the LOWEST entrada the
+  // engine actually returned (read from real numbers, not assumed to
+  // be the longest term); #2 = the feasible term immediately BELOW #1
+  // among the real candidates (the "próximo prazo padrão válido
+  // imediatamente abaixo da primeira" the brief asks for), falling
+  // back to the next-lowest-entrada candidate only when none exists
+  // below #1 (e.g. #1 is already the shortest feasible term).
+  const linearCandidates: Array<{ term_months: number; down_payment: number; monthly_payment: number; raw: any }> = linearResult
+    ? (linearResult.output.results || [])
+        .filter((r: any) => r.possible === true && typeof r.down_payment === "number")
+        .map((r: any) => ({ term_months: r.term_months, down_payment: r.down_payment, monthly_payment: r.payment, raw: r }))
+    : [];
+  const linearSelected: typeof linearCandidates = [];
+  if (linearCandidates.length > 0) {
+    // Deterministic tie-break on an EXACT entrada tie: prefer the
+    // longer term (same "prefer the simpler/more standard structure"
+    // tie-break philosophy already established by selectClosestCandidate).
+    const byLowestEntrada = [...linearCandidates].sort((a, b) => (a.down_payment - b.down_payment) || (b.term_months - a.term_months));
+    const first = byLowestEntrada[0];
+    linearSelected.push(first);
+    const immediatelyBelow = linearCandidates
+      .filter((c) => c.term_months < first.term_months)
+      .sort((a, b) => b.term_months - a.term_months)[0];
+    const second = immediatelyBelow || byLowestEntrada.find((c) => c.term_months !== first.term_months);
+    if (second) linearSelected.push(second);
+  }
+
+  // BALÃO -- the optimize-for-target call already returns AT MOST one
+  // feasible structure (its own min_down_payment objective, searched
+  // across every valid term server-side) -- only feasibility gating
+  // needed here, no further selection.
+  const balaoSelected: typeof linearCandidates = (balaoResult && balaoResult.output.feasible === true)
+    ? [{ term_months: balaoResult.output.term_months, down_payment: balaoResult.output.down_payment, monthly_payment: balaoResult.output.monthly_payment, raw: balaoResult.output }]
+    : [];
+
+  const proposals: Array<Omit<CommercialProposal, "label">> = [
+    ...linearSelected.map((c) => ({ kind: "LINEAR" as const, term_months: c.term_months, down_payment: c.down_payment, monthly_payment: c.monthly_payment, raw: c.raw })),
+    ...balaoSelected.map((c) => ({ kind: "BALAO" as const, term_months: c.term_months, down_payment: c.down_payment, monthly_payment: c.monthly_payment, raw: c.raw }))
+  ];
+  // Section 7: present by ascending entrada -- whichever structure
+  // preserves the MOST capital (lowest entrada) for the SAME
+  // parcela-alvo is the one worth recommending first, regardless of
+  // type. This generalizes Section 7's own worked example (Balão
+  // superior in entrada -> Balão RECOMENDADO) into one consistent,
+  // deterministic rule rather than a Balão-specific special case.
+  proposals.sort((a, b) => a.down_payment - b.down_payment);
+  return proposals.map((p, i) => ({ ...p, label: i === 0 ? "RECOMENDADO" as const : "ALTERNATIVA" as const }));
 }
 
 // Fase IA-2D.2 — o enum de period desta tool aceita "full_history" além
@@ -8190,7 +8382,25 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
     // resolved a plan (they require/recognize an entrada; this plan
     // shape requires its ABSENCE + a stated target payment -- mutually
     // exclusive by construction, never double-resolved).
-    const requiredDownPaymentPlan = (!cashContext && !engineFirstPlan && isFinanceFastPath) ? resolveStatefulRequiredDownPaymentPlan(conversation, message) : null;
+    // IA-UAT-04 -- a pure override/refinement follow-up ("Mostra só
+    // Linear.", "E só em 48?") carries none of FINANCE_FAST_PATH_ALLOW_
+    // RE's own keywords (balão/financiar/parcela/entrada/residual), so
+    // isFinanceFastPath alone would reject it BEFORE this plan's own
+    // stateful resolver (which already correctly inherits vehicle/
+    // target from history, confirmed by direct unit test) ever runs.
+    // Narrow, additive OR -- never widens isFinanceFastPath itself, so
+    // engineFirstPlan/cashContext and the generic loop's own tools/
+    // prompt-profile selection (computed earlier from the ORIGINAL
+    // isFinanceFastPath) are completely unaffected. Safe specifically
+    // because resolveStatefulRequiredDownPaymentPlan's OWN backward
+    // scan still requires a REAL historical vehicle+target match
+    // before resolving anything -- an override phrase in an unrelated
+    // (non-finance) conversation still resolves to null here, falling
+    // through to the generic loop exactly as before.
+    const hasRequiredDownPaymentFollowUpSignal = LINEAR_ONLY_EXCLUSION_RE.test(message) || BALAO_ONLY_EXCLUSION_RE.test(message)
+      || ALL_COMMERCIAL_OPTIONS_RE.test(message) || BARE_TERM_OVERRIDE_RE.test(message);
+    const requiredDownPaymentPlan = (!cashContext && !engineFirstPlan && (isFinanceFastPath || hasRequiredDownPaymentFollowUpSignal))
+      ? resolveStatefulRequiredDownPaymentPlan(conversation, message) : null;
     let engineFirstRan = false;
 
     if (cashContext) {
@@ -8351,39 +8561,93 @@ Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca ar
     }
 
     if (!engineFirstRan && requiredDownPaymentPlan) {
-      const rdpInputs = buildRequiredDownPaymentSimulationInputs(requiredDownPaymentPlan);
+      // IA-UAT-04 -- the open-recommendation case (no term/plan named)
+      // dispatches through the NEW commercial-selection inputs (<=2
+      // calls: LINEAR all-terms + BALAO optimize-for-target, minus
+      // whichever side financingTypeOverride excludes); any explicit
+      // term/plan constraint keeps the EXISTING dispatch unchanged.
+      const isOpenRecommendation = requiredDownPaymentPlan.termMonthsList === null;
+      const rdpInputs = isOpenRecommendation
+        ? buildCommercialSelectionInputs(requiredDownPaymentPlan)
+        : buildRequiredDownPaymentSimulationInputs(requiredDownPaymentPlan);
       const rdpPolicyDecisions = await Promise.all(
         rdpInputs.map((simArgs) => evaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission))
       );
       if (rdpPolicyDecisions.every((d) => d.allowed)) {
-        // VOICE-UAT-01 -- ONE real dispatch PER requested term, in
+        // VOICE-UAT-01 -- ONE real dispatch PER requested term (or, for
+        // the open-recommendation case, PER financing type), in
         // parallel, before any OpenAI call -- never left for the model
-        // to remember to make a second/third sequential call. This is
-        // exactly the real engine (required_down_payment mode,
-        // unchanged) the very next Human turn proved works in
-        // isolation; the Wave's own fix is making EVERY requested term
-        // run, every time, deterministically, in the SAME turn.
+        // to remember to make a second/third sequential call.
         const rdpResults = await Promise.all(rdpInputs.map(async (simArgs) => {
           const t_toolStart = Date.now();
           const output = await toolSimularFinanciamento(userClient, simArgs);
           timings.tool_dispatch_ms.push({ name: "simular_financiamento", ms: Date.now() - t_toolStart });
           return { simArgs, output };
         }));
-        for (const { simArgs, output } of rdpResults) {
-          const block = buildBlockFromToolResult("simular_financiamento", simArgs, output);
-          if (Array.isArray(block)) blocks.push(...block);
-          else if (block) blocks.push(block);
-          toolsUsed.push("simular_financiamento");
-          homologCalls.push({ name: "simular_financiamento", args: simArgs, result: output });
-        }
         toolCallCount = rdpResults.length;
+        for (const { simArgs, output } of rdpResults) {
+          toolsUsed.push("simular_financiamento");
+          homologCalls.push({ name: "simular_financiamento", args: simArgs, result: output }); // portal-ai-homolog ONLY -- full engine output, traceability, never cherry-picked to canonical as-is
+        }
 
-        const rdpResultsBlock = `
+        // IA-UAT-04 -- Section 3/4: deterministic <=3 selection, ONLY
+        // for the default open recommendation (no explicit term/plan,
+        // no "todas as opções" bypass) -- computed BEFORE any block or
+        // synthesis text is built, so both ever see only the selection
+        // (Section 11), never the full multi-term comparison.
+        const selection = (isOpenRecommendation && !requiredDownPaymentPlan.allOptionsRequested)
+          ? selectCommercialProposals(rdpResults)
+          : null;
+
+        let rdpResultsBlock: string;
+        if (selection) {
+          homologCalls.push({ name: "__deterministic_commercial_selection", args: { target_payment: requiredDownPaymentPlan.targetPayment, financing_type_override: requiredDownPaymentPlan.financingTypeOverride }, result: selection }); // portal-ai-homolog ONLY, traceability — never cherry-picked to canonical
+          for (const proposal of selection) {
+            if (proposal.kind === "LINEAR") {
+              const linearResult = rdpResults.find((r) => r.simArgs.financing_type === "LINEAR")!;
+              // Synthetic, filtered output -- SAME shape the engine
+              // returned, `results` narrowed to just this ONE selected
+              // term -- reuses buildBlockFromToolResult completely
+              // unmodified, the exact same card a single named-term
+              // dispatch already builds (Section 11: the structured
+              // payload must contain only the selected proposals).
+              const filteredOutput = { ...linearResult.output, results: [proposal.raw] };
+              const block = buildBlockFromToolResult("simular_financiamento", linearResult.simArgs, filteredOutput);
+              if (Array.isArray(block)) blocks.push(...block); else if (block) blocks.push(block);
+            } else {
+              const balaoResult = rdpResults.find((r) => r.simArgs.financing_type === "BALAO")!;
+              // The Balão optimize-for-target call already returns
+              // exactly ONE structure at its top level -- nothing to
+              // filter, pass through unmodified.
+              const block = buildBlockFromToolResult("simular_financiamento", balaoResult.simArgs, balaoResult.output);
+              if (Array.isArray(block)) blocks.push(...block); else if (block) blocks.push(block);
+            }
+          }
+          rdpResultsBlock = `
+
+=== PROPOSTAS COMERCIAIS SELECIONADAS DETERMINISTICAMENTE (no máximo 3, calculadas pelo motor oficial ANTES desta resposta -- nunca escolhidas por você; ordem = RECOMENDADO primeiro, por menor entrada) ===
+${JSON.stringify(selection)}
+
+Apresente EXATAMENTE estas ${selection.length} proposta(s), nesta ordem, cada uma com seu próprio rótulo (RECOMENDADO ou ALTERNATIVA) -- nunca enumere outros prazos/estruturas que não estejam aqui, mesmo que você "saiba" que existem. Explique em poucas frases por que a primeira foi recomendada (normalmente: chega mais perto da parcela-alvo preservando mais capital na entrada). Seja conciso -- os detalhes completos já aparecem nos cards, não repita cada número na prosa.${selection.length === 0 ? " Nenhuma estrutura válida foi encontrada para esta parcela-alvo -- diga isso claramente, sem inventar uma proposta." : ""}`;
+        } else {
+          for (const { simArgs, output } of rdpResults) {
+            const block = buildBlockFromToolResult("simular_financiamento", simArgs, output);
+            if (Array.isArray(block)) blocks.push(...block); else if (block) blocks.push(block);
+          }
+          rdpResultsBlock = requiredDownPaymentPlan.termMonthsList !== null
+            ? `
 
 === RESULTADOS DE SIMULAÇÃO FINANCEIRA — ENTRADA NECESSÁRIA (calculados deterministicamente pelo motor oficial ANTES desta resposta, um por prazo solicitado -- nunca recalculados por você) ===
 ${JSON.stringify(rdpResults.map((r) => r.output))}
 
-Cada item acima corresponde a um prazo que o usuário pediu (ver term_months de cada resultado) -- TODOS foram calculados de verdade nesta mesma resposta, nunca deixe de apresentar um deles. Use EXCLUSIVAMENTE os números acima -- nunca recalcule, nunca invente um resultado que não esteja aqui. Se algum específico vier com possible:false, diga isso claramente só para aquele prazo, sem afetar a apresentação dos demais.`;
+Cada item acima corresponde a um prazo que o usuário pediu (ver term_months de cada resultado) -- TODOS foram calculados de verdade nesta mesma resposta, nunca deixe de apresentar um deles. Use EXCLUSIVAMENTE os números acima -- nunca recalcule, nunca invente um resultado que não esteja aqui. Se algum específico vier com possible:false, diga isso claramente só para aquele prazo, sem afetar a apresentação dos demais.`
+            : `
+
+=== RESULTADOS DE SIMULAÇÃO FINANCEIRA — TODAS AS OPÇÕES (o usuário pediu explicitamente para ver todas; calculados deterministicamente pelo motor oficial ANTES desta resposta -- nunca recalculados por você) ===
+${JSON.stringify(rdpResults.map((r) => r.output))}
+
+O usuário pediu explicitamente para ver todas as opções -- por isso, excepcionalmente, apresente a comparação completa (todos os prazos/estruturas acima), não apenas uma seleção de 3. Use EXCLUSIVAMENTE os números acima -- nunca recalcule, nunca invente um resultado que não esteja aqui.`;
+        }
 
         input[0].content = `${FINANCE_SYNTHESIS_PROFILE}${dynamicContextSuffix}${rdpResultsBlock}`;
         promptProfileLabel = "finance_synthesis";

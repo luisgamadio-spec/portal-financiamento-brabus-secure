@@ -203,7 +203,18 @@ export { baiSend }; export function getRenderCount() { return renderCount; } exp
   const clientBoundaryConst = "export " + extractConst(source, "CLIENT_BOUNDARY_RE");
   const maxToolCallsConst = "export " + extractConst(source, "MAX_TOOL_CALLS");
   const extractTermListFn = "export " + extractFunction(source, "extractTermMonthsList");
+  // IA-UAT-04 -- extractRequiredDownPaymentPlan/resolveStatefulRequiredDownPaymentPlan
+  // now depend on these 5 additional real declarations (overrides/bypass
+  // regexes + the 2 new shared choke-point helpers) -- extracted here too,
+  // same "never a hand-copied replica" discipline, so this pre-existing
+  // Wave's own multi-option tests keep exercising the REAL current source.
+  const linearOnlyConst = "export " + extractConst(source, "LINEAR_ONLY_EXCLUSION_RE");
+  const balaoOnlyConst = "export " + extractConst(source, "BALAO_ONLY_EXCLUSION_RE");
+  const allOptionsConst = "export " + extractConst(source, "ALL_COMMERCIAL_OPTIONS_RE");
+  const bareTermConst = "export " + extractConst(source, "BARE_TERM_OVERRIDE_RE");
   const requiredPlanInterface = "export " + extractInterface(source, "RequiredDownPaymentPlan");
+  const extractOverridesFn = "export " + extractFunction(source, "extractCommercialOverrides");
+  const resolveTermsFn = "export " + extractFunction(source, "resolveTermMonthsList");
   const extractRdpFn = "export " + extractFunction(source, "extractRequiredDownPaymentPlan");
   const resolveRdpFn = "export " + extractFunction(source, "resolveStatefulRequiredDownPaymentPlan");
   const buildRdpFn = "export " + extractFunction(source, "buildRequiredDownPaymentSimulationInputs");
@@ -213,7 +224,9 @@ export { baiSend }; export function getRenderCount() { return renderCount; } exp
     simDepartmentType, simulationModeType, simFinancingTypeType, simulationInputInterface,
     round2Fn, brMoneyTokenConst, vehicleValueReConst, parseBRMoneyTokenFn, maskSpanFn,
     novosPrazosConst, seminovosPrazosConst, simPrazosForFn, extractPlanFn, emptySimulationInputFn,
-    clientBoundaryConst, maxToolCallsConst, extractTermListFn, requiredPlanInterface, extractRdpFn, resolveRdpFn, buildRdpFn,
+    clientBoundaryConst, maxToolCallsConst, extractTermListFn,
+    linearOnlyConst, balaoOnlyConst, allOptionsConst, bareTermConst,
+    requiredPlanInterface, extractOverridesFn, resolveTermsFn, extractRdpFn, resolveRdpFn, buildRdpFn,
   ].join("\n\n");
   const tmpDir3 = mkdtempSync(join(tmpdir(), "ia-recon-multioption-"));
   const modPath3 = join(tmpDir3, "extracted.ts");
