@@ -173,7 +173,22 @@ const FIXTURES = {
     linhas: [
       { prazo: 36, entrada_pct: 0.2, taxa: 0.021 },
       { prazo: 48, entrada_pct: 0.2, taxa: 0.023 },
-      { prazo: 60, entrada_pct: 0.2, taxa: 0.025 }
+      { prazo: 60, entrada_pct: 0.2, taxa: 0.025 },
+      // IA-REGRESSION-01 -- additive only (the 3 rows above, used by
+      // other pre-existing tests, are untouched). novosFaixaEntrada
+      // buckets a 50% down payment (the real UAT scenario this Wave's
+      // own E2E harness reproduces, R$180.000/R$90.000) into the 0.5
+      // bucket -- exact-match lookup, never a threshold like Balão's --
+      // so every NOVOS_PRAZOS term needs its own 0.5 row for Linear to
+      // be genuinely computable across the full term set in that E2E.
+      { prazo: 12, entrada_pct: 0.5, taxa: 0.018 },
+      { prazo: 18, entrada_pct: 0.5, taxa: 0.0185 },
+      { prazo: 24, entrada_pct: 0.5, taxa: 0.019 },
+      { prazo: 30, entrada_pct: 0.5, taxa: 0.0195 },
+      { prazo: 36, entrada_pct: 0.5, taxa: 0.02 },
+      { prazo: 42, entrada_pct: 0.5, taxa: 0.0205 },
+      { prazo: 48, entrada_pct: 0.5, taxa: 0.021 },
+      { prazo: 60, entrada_pct: 0.5, taxa: 0.022 }
     ]
   },
   simulador_get_taxas_subsidiadas: {

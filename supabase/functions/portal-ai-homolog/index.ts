@@ -6501,6 +6501,268 @@ function buildEngineFirstSimulationInputs(plan: FinanceEngineFirstPlan): Simulat
   return inputs;
 }
 
+// =========================================================
+// IA-REGRESSION-01 -- stateful finance context resolution.
+//
+// Real UAT regression forensic: a goal-driven follow-up ("E se ele
+// quiser uma parcela perto de R$1.800?") never restates vehicle/
+// entrada, so the stateless extractFinanceEngineFirstPlan (above,
+// completely unmodified) always returned null for it -- sending the
+// request through the model-governed tool loop, where IA-3J.4K.1's
+// own Pass-2 tool elision (a latency optimization whose own comment
+// explicitly assumed "no currently-governed fast-path scenario needs
+// a tool call past Pass 1") then structurally prevented a second,
+// sequential Balão call within the same turn -- the model's own text
+// could announce "vou avaliar Balão" but had literally zero tools
+// left to call. Per the architectural principle this Wave restores
+// (the LLM is never the orchestrator of which engines run for
+// structured finance), this resolver performs that orchestration
+// deterministically, BEFORE any OpenAI call: it looks backward
+// through the REAL conversation (never invented) for the most recent
+// message where the stateless parser already succeeded, reuses that
+// scenario's vehicle/department/year verbatim, applies an explicit
+// down-payment delta ("mais/menos RX de entrada") stated in THIS
+// message when present, and re-runs the SAME unmodified extractor on
+// the combined text -- every existing extraction rule (target/term/
+// scenario/department) is reused exactly as-is, never duplicated.
+// =========================================================
+
+// Exact phrasing iniciar_novo_cliente's own tool description already
+// triggers on (never a new client-boundary concept) -- scanning never
+// crosses this, so a new client's follow-up can never silently inherit
+// a previous client's vehicle/entrada.
+const CLIENT_BOUNDARY_RE = /agora outro cliente|novo cliente|nova negocia[cç][ãa]o|esquece esse cliente|vamos come[cç]ar do zero|desconsidera tudo desse neg[oó]cio/i;
+
+// "somente Linear"/"só Linear"/"sem Balão": an explicit hard constraint
+// from the user, never inferred -- forces LINEAR_ONLY even when a
+// target/goal signal would otherwise trigger BOTH_BALAO_AND_LINEAR.
+const LINEAR_ONLY_EXCLUSION_RE = /s(?:o|ó)mente linear|s(?:o|ó)\s+linear|sem bal[ãa]o|sem bal[õo]es|n[ãa]o quero bal[ãa]o|nenhum bal[ãa]o/i;
+
+function resolveStatefulFinancePlan(
+  conversation: Array<{ role: string; content: string }>,
+  message: string
+): FinanceEngineFirstPlan | null {
+  const direct = extractFinanceEngineFirstPlan(message);
+  if (direct) return applyLinearOnlyExclusion(direct, message);
+
+  // A client-boundary signal in THIS message itself ("agora outro
+  // cliente, quero uma parcela perto de R$X") must never inherit the
+  // previous client's vehicle/entrada just because the same turn also
+  // asks a financial question -- checked BEFORE any history lookback,
+  // never only against historical turns.
+  if (CLIENT_BOUNDARY_RE.test(message)) return null;
+
+  // Only attempt the history fallback when THIS message itself carries
+  // a finance goal/modality signal -- otherwise this isn't a finance
+  // follow-up at all, and reaching into history would be inventing an
+  // intent the user never expressed this turn.
+  const hasGoalSignal = /bal[ãa]o|bal[õo]es|residual|\blinear\b|parcela|compar|recomenda|chegar o mais perto|baixar a parcela|entrada/i.test(message);
+  if (!hasGoalSignal) return null;
+
+  let historicalPlan: FinanceEngineFirstPlan | null = null;
+  for (let i = conversation.length - 1; i >= 0; i--) {
+    const turn = conversation[i];
+    if (turn.role !== "user") continue;
+    if (CLIENT_BOUNDARY_RE.test(turn.content)) break; // never cross a client boundary
+    const p = extractFinanceEngineFirstPlan(turn.content);
+    if (p) { historicalPlan = p; break; }
+  }
+  if (!historicalPlan) return null;
+
+  // If THIS message already restates an absolute down payment, it
+  // takes priority over history -- omit history's own entrada from the
+  // synthetic text below so the extractor finds only the current one.
+  const hasOwnDownPayment = new RegExp(`entrada[^\\d]{0,15}(${BR_MONEY_TOKEN_RE_SRC})`, "i").test(message)
+    || new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*entrada`, "i").test(message);
+
+  let effectiveDownPayment: number | null = hasOwnDownPayment ? null : historicalPlan.downPayment;
+  if (!hasOwnDownPayment) {
+    const deltaPlus = new RegExp(`mais\\s*(${BR_MONEY_TOKEN_RE_SRC})\\s*(?:de|na)?\\s*entrada`, "i").exec(message);
+    const deltaMinus = new RegExp(`menos\\s*(${BR_MONEY_TOKEN_RE_SRC})\\s*(?:de|na)?\\s*entrada`, "i").exec(message);
+    if (deltaPlus) {
+      const d = parseBRMoneyToken(deltaPlus[1]);
+      if (d !== null) effectiveDownPayment = historicalPlan.downPayment + d;
+    } else if (deltaMinus) {
+      const d = parseBRMoneyToken(deltaMinus[1]);
+      if (d !== null) effectiveDownPayment = Math.max(0, historicalPlan.downPayment - d);
+    }
+  }
+
+  const seminovoClause = historicalPlan.department === "SEMINOVOS"
+    ? ` Veículo seminovo, ano ${historicalPlan.vehicleYear}.`
+    : "";
+  const entradaClause = effectiveDownPayment !== null ? ` Entrada de R$ ${effectiveDownPayment}.` : "";
+  // Historical facts come FIRST (clean, single, unambiguous mentions) so
+  // the stateless extractor's own leftmost-match regexes always resolve
+  // vehicle/entrada/department from here; the raw current message comes
+  // AFTER, so its own target/term/scenario signals (and any restated
+  // entrada, handled above) are the ones actually picked up for those
+  // fields -- no extraction rule inside extractFinanceEngineFirstPlan is
+  // duplicated or reimplemented here.
+  const historicalFactsText = `Cliente comprando um veículo de R$ ${historicalPlan.vehicleValue}.${entradaClause}${seminovoClause}`;
+  const resolved = extractFinanceEngineFirstPlan(`${historicalFactsText} ${message}`);
+  return resolved ? applyLinearOnlyExclusion(resolved, message) : null;
+}
+
+function applyLinearOnlyExclusion(plan: FinanceEngineFirstPlan, message: string): FinanceEngineFirstPlan {
+  if (plan.scenario !== "LINEAR_ONLY" && LINEAR_ONLY_EXCLUSION_RE.test(message)) {
+    return { ...plan, scenario: "LINEAR_ONLY" };
+  }
+  return plan;
+}
+
+// IA-REGRESSION-01 -- deterministic candidate selection for a stated
+// parcela-alvo: min(|payment - target|) over the UNION of every real,
+// feasible candidate the engines above actually returned (Linear's
+// full results[] plus Balão's own escalated best, when present) --
+// never delegated to the LLM, never a new formula (each candidate's
+// payment is a verbatim field from an already-computed engine result).
+// Ties prefer the simpler structure (LINEAR over BALAO).
+interface EngineFirstCandidate { source: "LINEAR" | "BALAO"; term_months: number; payment: number; balloons?: unknown; }
+
+function collectEngineFirstCandidates(engineResults: Array<{ simArgs: SimulationInput; output: any }>): EngineFirstCandidate[] {
+  const candidates: EngineFirstCandidate[] = [];
+  for (const { simArgs, output } of engineResults) {
+    if (!output || typeof output !== "object") continue;
+    if (simArgs.financing_type === "BALAO") {
+      if (output.feasible === true && typeof output.monthly_payment === "number") {
+        candidates.push({ source: "BALAO", term_months: output.term_months, payment: output.monthly_payment, balloons: output.balloons ?? null });
+      }
+    } else if (Array.isArray(output.results)) {
+      for (const r of output.results) {
+        if (typeof r.payment === "number") candidates.push({ source: "LINEAR", term_months: r.term_months, payment: r.payment });
+      }
+    }
+  }
+  return candidates;
+}
+
+function selectClosestCandidate(candidates: EngineFirstCandidate[], targetPayment: number): { selected: EngineFirstCandidate; distance: number; candidates_evaluated: number } | null {
+  if (candidates.length === 0) return null;
+  const best = candidates.reduce((b, c) => {
+    const bd = Math.abs(b.payment - targetPayment);
+    const cd = Math.abs(c.payment - targetPayment);
+    if (cd < bd - 1e-9) return c;
+    if (Math.abs(cd - bd) < 1e-9 && b.source === "BALAO" && c.source === "LINEAR") return c; // tie -> simpler structure
+    return b;
+  });
+  return { selected: best, distance: round2(Math.abs(best.payment - targetPayment)), candidates_evaluated: candidates.length };
+}
+
+// =========================================================
+// IA-REGRESSION-01 -- deterministic Cash Conversion context
+// resolution. Real UAT regression forensic (Case B): "Nesse mesmo
+// cliente, vale mais a pena usar os 90 mil de entrada ou preservar
+// esse dinheiro e financiar?" was misclassified by classifyFinance-
+// FastPath as finance-fast-path (contains "entrada"/"financiar"),
+// which routes to FINANCE_FAST_PATH_TOOLS (no simular_cash_conversion
+// at all) and FINANCE_PROMPT_PROFILE (no PROMPT_CASH_CONVERSION text
+// -- including the 1,12%-default rule and any context-reuse rule).
+// The model had neither the tool nor the policy text and asked for
+// data already known. This resolver is a dedicated, positive
+// classifier + deterministic orchestrator for Cash Conversion intent,
+// checked BEFORE the generic isFinanceFastPath branch, so this class
+// of request never depends on that classifier at all.
+// =========================================================
+
+// Documented Cash Conversion intent phrasings (PROMPT_CASH_CONVERSION's
+// own "QUANDO RECONHECER A INTENÇÃO" bullet) plus the real UAT phrasing
+// ("preservar esse dinheiro e financiar") that none of them covered.
+const CASH_CONVERSION_INTENT_RE = /[aà]\s*vista|deixar[^.?!]{0,30}(aplicad|investid)|preservar[^.?!]{0,30}(dinheiro|capital)|usar[^.?!]{0,40}entrada[^.?!]{0,20}ou[^.?!]{0,20}preservar|vale a pena financiar|mostrar vantagem de financiar|argumento[^.?!]{0,20}financiar/i;
+
+// "X% ao mês" / "X% a.m." -- the ONLY explicit-rate phrasing this
+// resolver recognizes; anything else (CDI, anual, etc.) is deliberately
+// left unresolved here (falls through to the null/default path) rather
+// than risk a wrong unit conversion.
+const CASH_RATE_OVERRIDE_RE = /(\d{1,2}(?:,\d{1,2})?)\s*%\s*(?:ao\s*m[êe]s|a\.m\.|mensal)/i;
+
+function parseCashRateOverride(message: string): number | null {
+  const m = CASH_RATE_OVERRIDE_RE.exec(message);
+  if (!m) return null;
+  const pct = Number(m[1].replace(",", "."));
+  if (!isFinite(pct) || pct <= 0) return null;
+  // Math.round(pct*100)/10000 (never round2(pct)/100, which leaves a
+  // binary-floating-point artifact like 0.013000000000000001 for
+  // pct=1.3) -- 1,30 -> 0.013, same decimal-fraction convention as
+  // CASH_CONVERSION_APPLICATION_RATE.
+  const decimal = Math.round(pct * 100) / 10000;
+  return decimal > 0 && decimal < 1 ? decimal : null;
+}
+
+interface ResolvedCashContext {
+  capital: number;
+  applicationRate: number | null; // null -> toolSimularCashConversion's own 0,0112 default
+  baselineDepartment: SimDepartment;
+  baselineVehicleValue: number;
+  baselineVehicleYear: number | null;
+}
+
+function resolveCashConversionContext(
+  conversation: Array<{ role: string; content: string }>,
+  message: string
+): ResolvedCashContext | null {
+  // Same defense as resolveStatefulFinancePlan: a client-boundary
+  // signal in THIS message itself must never resolve capital/rate from
+  // a previous client's scenario, even if the same turn also carries
+  // Cash Conversion phrasing.
+  if (CLIENT_BOUNDARY_RE.test(message)) return null;
+
+  const isDirectCashIntent = CASH_CONVERSION_INTENT_RE.test(message);
+  const rateOverride = parseCashRateOverride(message);
+
+  // A bare rate-override follow-up ("E se ele conseguir 1,30% ao mês?
+  // Refaz.") only counts as a Cash Conversion continuation when a
+  // recent user turn already established Cash Conversion intent --
+  // never invented from a rate mention alone, and never crossing a
+  // client boundary.
+  let isContinuation = false;
+  if (!isDirectCashIntent && rateOverride !== null) {
+    for (let i = conversation.length - 1; i >= 0; i--) {
+      const turn = conversation[i];
+      if (turn.role !== "user") continue;
+      if (CLIENT_BOUNDARY_RE.test(turn.content)) break;
+      if (CASH_CONVERSION_INTENT_RE.test(turn.content)) { isContinuation = true; break; }
+      // Stop at the first user turn that isn't itself part of this
+      // same Cash Conversion exchange -- a rate-only follow-up only
+      // ever refers to the immediately preceding Cash turn.
+      break;
+    }
+  }
+  if (!isDirectCashIntent && !isContinuation) return null;
+
+  // capital = the down payment/entrada already established for this
+  // client/scenario (Fase explicit Human decision, IA-3K.4/§11) --
+  // reuse the SAME stateful finance resolver used for Linear/Balão so
+  // this never duplicates vehicle/entrada extraction.
+  const financePlan = resolveStatefulFinancePlan(conversation, message)
+    ?? (() => {
+      // The current message itself may carry no finance-goal signal at
+      // all (e.g. a bare rate-override follow-up) -- in that case,
+      // resolveStatefulFinancePlan's own hasGoalSignal gate returns
+      // null even though "entrada" is what we actually need. Retry
+      // directly against history using a synthetic message that always
+      // satisfies that gate, reusing the exact same resolver -- never a
+      // second extraction implementation.
+      for (let i = conversation.length - 1; i >= 0; i--) {
+        const turn = conversation[i];
+        if (turn.role !== "user") continue;
+        if (CLIENT_BOUNDARY_RE.test(turn.content)) break;
+        const p = extractFinanceEngineFirstPlan(turn.content);
+        if (p) return p;
+      }
+      return null;
+    })();
+  if (!financePlan) return null;
+
+  return {
+    capital: financePlan.downPayment,
+    applicationRate: rateOverride,
+    baselineDepartment: financePlan.department,
+    baselineVehicleValue: financePlan.vehicleValue,
+    baselineVehicleYear: financePlan.vehicleYear,
+  };
+}
+
 // Fase IA-2D.2 — o enum de period desta tool aceita "full_history" além
 // dos valores já usados pelas outras 7 (PERIOD_ENUM não é alterado, para
 // não afetar nenhuma tool existente).
@@ -7013,7 +7275,8 @@ Apresentação (Fase IA-2C.1): quando você chamar uma tool, a interface já exi
 - ASK-ONCE: quando faltar mais de um dado, pergunte todos juntos numa frase, não em rodadas separadas.
 - TOM EXECUTIVO em Score/Ranking/Comissões/Resultado: dê o número e a posição/conclusão primeiro; só explique a composição/fórmula se o usuário pedir ou demonstrar interesse nisso.
 - "QUAL VOCÊ ESCOLHERIA" SEM PRIORIDADE DECLARADA: nunca recuse nem invente uma preferência — responda condicionalmente ("depende do que você quer privilegiar: pela menor parcela é X; pela menor entrada é Y").
-- ISSO NÃO SUBSTITUI AS REGRAS DE PRECISÃO: nunca omita Balão, prazo diferente, entrada diferente, premissa do Cash ou qualquer fato que mude a decisão só para ser mais breve — e continue pedindo explicitamente qualquer dado financeiro que faltar (data, departamento, modelo exato) em vez de presumir, mesmo que isso custe uma pergunta a mais.`;
+- ISSO NÃO SUBSTITUI AS REGRAS DE PRECISÃO: nunca omita Balão, prazo diferente, entrada diferente, premissa do Cash ou qualquer fato que mude a decisão só para ser mais breve — e continue pedindo explicitamente qualquer dado financeiro que faltar (data, departamento, modelo exato) em vez de presumir, mesmo que isso custe uma pergunta a mais.
+- NUNCA PROMETA UMA AVALIAÇÃO FUTURA (IA-REGRESSION-01 — correção de um defeito real confirmado em UAT: a resposta disse "vou avaliar automaticamente uma estrutura com Balão" e nenhuma estrutura Balão apareceu — a frase prometia uma execução que nunca aconteceu): nunca escreva "vou avaliar", "vou calcular", "vou verificar" ou equivalente sobre uma estrutura/modalidade que não tenha um resultado real já calculado no mesmo turno (um tool call ou resultado de motor já retornado) — se uma estrutura ainda não foi avaliada e você não tem como avaliá-la agora, diga isso diretamente (ex.: "não avaliei Balão para este cenário") em vez de prometer uma ação futura que seu texto não pode garantir que vai acontecer.`;
 const PROMPT_NEW_CLIENT_RESET = `Fase IA-UAT-VOICE-NOVOCLIENTE-01 — Reset determinístico de cenário entre clientes:
 - DUAS CAMADAS DE CONTEXTO. CONTEXTO ESPECÍFICO DE CENÁRIO (deve ser esquecido ao trocar de cliente): cliente, modelo, trim/tração, novo/seminovo, valor do veículo, entrada, percentual de entrada, valor financiado, prazo, parcela alvo, plano, balão, preferência ou restrição por balão, rebate/condição comercial específica, simulações e opções numeradas já apresentadas para aquele cliente, e referências ("a primeira", "essa", "ela") ligadas a essas opções. CONTEXTO GLOBAL DA CONVERSA (nunca reseta com iniciar_novo_cliente): idioma, perfil/permissões do usuário, loja autorizada, data/hora corrente, regras institucionais, e qualquer consulta ao histórico OPERACIONAL do Portal (vendas, financiamentos, Score, Resultado, Ranking) — esse histórico é dado agregado do Portal, não premissa do cliente atual, e continua consultável normalmente mesmo logo após um reset.
 - QUANDO CHAMAR iniciar_novo_cliente: o usuário sinaliza de forma clara que está abandonando o cenário atual e começando outro (ver a description da ferramenta para os exemplos e para os casos que NÃO devem resetar). Chame no MESMO turno em que reconhecer o sinal, mesmo que o usuário ainda não tenha dado nenhum dado novo — não espere o próximo turno.
@@ -7146,6 +7409,35 @@ const PROMPT_FINANCE_SYNTHESIS_PRESENTATION = `Síntese Financeira (IA-3J.6) —
 const FINANCE_SYNTHESIS_PROFILE = [
   PROMPT_CORE_GLOBAL,
   PROMPT_FINANCE_SYNTHESIS_PRESENTATION,
+  PROMPT_COMMERCIAL_ORCHESTRATION,
+  PROMPT_SHARED_CONVERSATION,
+].join(PROMPT_SEPARATOR);
+
+// IA-REGRESSION-01 -- Cash Conversion's own engine-first synthesis
+// profile, mirroring FINANCE_SYNTHESIS_PRESENTATION's exact pattern:
+// used ONLY for the single zero-tool OpenAI call the new deterministic
+// Cash Conversion branch makes (execution_path==="cash_conversion_
+// engine_first"). Distilled from PROMPT_CASH_CONVERSION's own
+// presentation-relevant rules (break-even centrality, financing-first
+// commercial framing, anti-repetition, Market-Intelligence-not-yet-
+// available honesty) -- never the tool-construction/intent-recognition
+// bullets, since zero tools are offered and the calculation already
+// happened. The commercial-objection policy (IA-3K.3) lives in
+// PROMPT_COMMERCIAL_ORCHESTRATION, kept WHOLE below, same as
+// FINANCE_SYNTHESIS_PROFILE.
+const PROMPT_CASH_SYNTHESIS_PRESENTATION = `Síntese Cash Conversion (IA-REGRESSION-01) — apresentação de um resultado já calculado deterministicamente pelo motor oficial, nunca recalculado por você:
+- O MOTOR NÃO SIMULA FLUXO DE CAIXA: as parcelas nunca são deduzidas do capital aplicado — são dois cálculos paralelos e independentes (nominal das parcelas vs. capital a juros compostos). Descreva os dois lados separadamente, nunca como um fluxo de caixa mês a mês único.
+- NÃO EXISTE NO MOTOR: imposto de renda, IOF, come-cotas, inflação, risco/volatilidade. Nunca adicione esses fatores à explicação.
+- A TAXA USADA JÁ FOI RESOLVIDA (default 1,12% a.m. ou a taxa explícita que o cliente informou para este cenário) — nunca pergunte, nunca questione, nunca recalcule com outro valor; application_rate no resultado é exatamente a taxa já usada.
+- BREAK-EVEN É ELEMENTO CENTRAL, NUNCA RODAPÉ: sempre que break_even_rate existir no resultado, mencione-o ativamente na conclusão (não só se perguntado) comparando-o com a taxa de aplicação usada. Use sempre o break_even_rate exatamente como a tool devolveu — nunca recalcule isso.
+- BALÃO NÃO É SUPORTADO por este motor: se o contrato tiver Balão, isso já teria sido recusado antes de chegar aqui — nunca finja compor os dois.
+- FINANCING-FIRST — POSTURA COMERCIAL: ajude a construir o melhor argumento VERDADEIRO a favor do financiamento (preservação de liquidez, capital disponível, rendimento do capital, flexibilidade, custo de oportunidade do pagamento à vista) — nunca minta, nunca omita custo, nunca invente rentabilidade, nunca esconda um resultado adverso. Se classification=UTILIZAR ou a diferença for pequena, diga isso claramente e proporcionalmente — nunca distorça o cálculo para caber no objetivo comercial.
+- APRESENTAÇÃO: UMA conclusão (quem vence e por quanto), o break-even na forma da regra acima, e a argumentação comercial — nunca um novo parágrafo relistando os mesmos números que o card já mostra.
+- MARKET INTELLIGENCE AINDA NÃO DISPONÍVEL: esta fase não tem acesso a nenhuma fonte externa verificável de rentabilidade de investimento — nunca diga "encontrei uma aplicação de X%" nem cite um emissor/produto/taxa de mercado sem uma consulta real que não existe ainda.`;
+
+const CASH_SYNTHESIS_PROFILE = [
+  PROMPT_CORE_GLOBAL,
+  PROMPT_CASH_SYNTHESIS_PRESENTATION,
   PROMPT_COMMERCIAL_ORCHESTRATION,
   PROMPT_SHARED_CONVERSATION,
 ].join(PROMPT_SEPARATOR);
@@ -7331,7 +7623,7 @@ serve(async (req) => {
     // below fired, "openai_tool_loop" for the existing architecture
     // (including every case where engine-first was eligible but its
     // own authorization pre-check denied a call, see below).
-    execution_path: "finance_engine_first" | "openai_tool_loop" | null;
+    execution_path: "finance_engine_first" | "cash_conversion_engine_first" | "openai_tool_loop" | null;
     // IA-3J.5 -- total OpenAI calls actually made this request (1 for
     // engine-first's single synthesis call; 2-6 for the existing
     // multi-pass loop) -- a plain count, redundant with
@@ -7677,10 +7969,106 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
     // block is to skip Pass-1 planning for a narrow, already-
     // unambiguous class of requests -- it never changes what the
     // existing loop below does for a request it doesn't recognize.
-    const engineFirstPlan = isFinanceFastPath ? extractFinanceEngineFirstPlan(message) : null;
+    // IA-REGRESSION-01 -- Cash Conversion's own dedicated, positive
+    // classifier + deterministic resolver, checked BEFORE the generic
+    // isFinanceFastPath branch -- this class of request never depends
+    // on classifyFinanceFastPath at all anymore (real UAT regression:
+    // a Cash Conversion question containing "entrada"/"financiar" was
+    // misclassified as finance-fast-path, landing on a toolset with no
+    // simular_cash_conversion at all and a prompt profile with none of
+    // PROMPT_CASH_CONVERSION's policy text). See resolveCashConversion-
+    // Context's own declaration for the full forensic.
+    const cashContext = resolveCashConversionContext(conversation, message);
+
+    // IA-REGRESSION-01 -- resolveStatefulFinancePlan (tries the
+    // unmodified, stateless extractFinanceEngineFirstPlan(message)
+    // FIRST; only when that returns null AND this message carries a
+    // finance goal signal does it look backward through the real
+    // conversation for the scenario's vehicle/entrada/department) --
+    // see its own declaration for the full real-UAT regression this
+    // restores: a goal-driven follow-up with no in-message vehicle/
+    // entrada used to always fall through to the model-governed tool
+    // loop, where Pass-2 tool elision then made a second, sequential
+    // Balão call structurally impossible within the same turn. Gated
+    // on !cashContext so a Cash Conversion question (which can also
+    // carry a bare "entrada" goal signal) is never double-resolved as
+    // a plain financing request instead.
+    const engineFirstPlan = (!cashContext && isFinanceFastPath) ? resolveStatefulFinancePlan(conversation, message) : null;
     let engineFirstRan = false;
 
-    if (engineFirstPlan) {
+    if (cashContext) {
+      const cashArgs: CashConversionInput = {
+        capital: cashContext.capital, monthly_payment: null, term_months: null, application_rate: cashContext.applicationRate
+      };
+      // Deterministic baseline: the financing payment/term this
+      // comparison uses is LINEAR's own "menor parcela/prazo mais
+      // longo" result for the already-resolved scenario (the same
+      // convention already established for a plain recommendation,
+      // §11 of this Wave's own brief) -- computed here, server-side,
+      // never left for the model to remember or re-derive.
+      const baselineInput = emptySimulationInput({
+        department: cashContext.baselineDepartment, vehicle_value: cashContext.baselineVehicleValue,
+        down_payment: cashContext.capital, vehicle_year: cashContext.baselineVehicleYear,
+        financing_type: "LINEAR", mode: "payment", show_term_comparison: false
+      });
+      const policyDecision = await evaluateToolPolicy("simular_financiamento", baselineInput, authorityEnvelope, checkModulePermission);
+      if (policyDecision.allowed) {
+        const t_baselineStart = Date.now();
+        const baselineOutput = await toolSimularFinanciamento(userClient, baselineInput);
+        timings.tool_dispatch_ms.push({ name: "simular_financiamento", ms: Date.now() - t_baselineStart });
+        const baselineCandidates = (baselineOutput.results || []).filter((r: any) => typeof r.payment === "number");
+        const baseline = baselineCandidates.length > 0
+          ? baselineCandidates.reduce((b: any, r: any) => (r.payment < b.payment ? r : b))
+          : null;
+        if (baseline) {
+          cashArgs.monthly_payment = baseline.payment;
+          cashArgs.term_months = baseline.term_months;
+          toolsUsed.push("simular_financiamento");
+          homologCalls.push({ name: "simular_financiamento", args: baselineInput, result: baselineOutput });
+
+          const cashPolicyDecision = await evaluateToolPolicy("simular_cash_conversion", cashArgs, authorityEnvelope, checkModulePermission);
+          if (cashPolicyDecision.allowed) {
+            const t_cashStart = Date.now();
+            const cashOutput = await toolSimularCashConversion(userClient, cashArgs);
+            timings.tool_dispatch_ms.push({ name: "simular_cash_conversion", ms: Date.now() - t_cashStart });
+            toolCallCount = 2;
+            toolsUsed.push("simular_cash_conversion");
+            homologCalls.push({ name: "simular_cash_conversion", args: cashArgs, result: cashOutput });
+
+            const baselineBlock = buildBlockFromToolResult("simular_financiamento", baselineInput, baselineOutput);
+            if (Array.isArray(baselineBlock)) blocks.push(...baselineBlock); else if (baselineBlock) blocks.push(baselineBlock);
+            const cashBlock = buildBlockFromToolResult("simular_cash_conversion", cashArgs, cashOutput);
+            if (Array.isArray(cashBlock)) blocks.push(...cashBlock); else if (cashBlock) blocks.push(cashBlock);
+
+            const cashResultsBlock = `
+
+=== RESULTADO CASH CONVERSION (calculado deterministicamente pelo motor oficial ANTES desta resposta -- capital/taxa/parcela já resolvidos pelo backend, nunca recalculados por você) ===
+${JSON.stringify({ financing_baseline: baselineOutput, cash_conversion: cashOutput })}
+
+capital = a entrada já estabelecida para este cliente/cenário (nunca pergunte de novo). application_rate = ${cashContext.applicationRate !== null ? "a taxa explícita que o cliente informou para este cenário" : "o default de 1,12% a.m. (nenhuma taxa foi informada)"} — nunca pergunte a taxa. monthly_payment/term_months = o financiamento Linear de referência (menor parcela, prazo mais longo) para este cenário. Use EXCLUSIVAMENTE os números acima -- nunca recalcule, nunca invente um resultado que não esteja aqui.`;
+
+            input[0].content = `${CASH_SYNTHESIS_PROFILE}${dynamicContextSuffix}${cashResultsBlock}`;
+            promptProfileLabel = "finance_synthesis";
+            promptCharsActual = CASH_SYNTHESIS_PROFILE.length;
+
+            const synthesisTools: any[] = [];
+            timings.tools_sent_count_per_pass.push(synthesisTools.length);
+            timings.input_item_count_per_pass.push(input.length);
+            const t_openaiStart = Date.now();
+            const response = await callOpenAI(openaiKey, input, synthesisTools);
+            timings.openai_pass_ms.push(Date.now() - t_openaiStart);
+            totalInputTokens += response?.usage?.input_tokens ?? 0;
+            totalOutputTokens += response?.usage?.output_tokens ?? 0;
+            lastModel = response?.model ?? OPENAI_MODEL;
+            finalText = extractOutputText(response);
+            timings.execution_path = "cash_conversion_engine_first";
+            engineFirstRan = true;
+          }
+        }
+      }
+    }
+
+    if (!engineFirstRan && engineFirstPlan) {
       const engineFirstInputs = buildEngineFirstSimulationInputs(engineFirstPlan);
       // Same governed authorization check the existing loop already
       // runs per tool call (Fase IA-3F.1) -- never bypassed here. If
@@ -7707,6 +8095,25 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
         }
         toolCallCount = engineResults.length;
 
+        // IA-REGRESSION-01 -- deterministic candidate SELECTION, never
+        // delegated to the LLM (the architectural principle this Wave
+        // restores): when a parcela-alvo exists, compute the real
+        // closest candidate across every feasible Linear+Balão result
+        // the engines above actually returned, server-side, BEFORE the
+        // model ever sees the data. Absent without a target (plain
+        // simulation) -- unchanged, no selection block in that case.
+        const selection = engineFirstPlan.targetPayment !== null
+          ? selectClosestCandidate(collectEngineFirstCandidates(engineResults), engineFirstPlan.targetPayment)
+          : null;
+        if (selection) homologCalls.push({ name: "__deterministic_candidate_selection", args: { target_payment: engineFirstPlan.targetPayment }, result: selection }); // portal-ai-homolog ONLY, traceability — never cherry-picked to canonical
+        const selectionBlock = selection
+          ? `
+
+=== CANDIDATO SELECIONADO DETERMINISTICAMENTE (menor distância até a parcela-alvo de R$${engineFirstPlan.targetPayment}, entre ${selection.candidates_evaluated} candidatos reais avaliados -- nunca escolhido por você) ===
+${JSON.stringify(selection)}
+
+Esta é A estrutura a recomendar como principal. Se ela vier de BALÃO, apresente o balão (mês e valor) junto da parcela. Nunca mencione uma estrutura (Balão, Multi-Balão) que não apareça nos resultados acima como já calculada — se você mencionar que vai avaliar algo, ela já foi avaliada; nunca prometa uma avaliação futura.`
+          : "";
         // IA-3J.5 -- the computed results enter the SAME developer
         // channel CURRENT_DATE already uses for per-request dynamic
         // context (never a user-role message claiming to be the
@@ -7718,7 +8125,7 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
 === RESULTADOS DE SIMULAÇÃO FINANCEIRA (calculados deterministicamente pelo motor oficial ANTES desta resposta -- nunca recalculados por você) ===
 ${JSON.stringify(engineResults.map((r) => r.output))}
 
-Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca arredonde diferente do que já vem calculado, nunca invente um resultado que não esteja aqui. Se algum campo necessário não estiver presente, diga que não foi possível simular essa condição específica.`;
+Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca arredonde diferente do que já vem calculado, nunca invente um resultado que não esteja aqui. Se algum campo necessário não estiver presente, diga que não foi possível simular essa condição específica.${selectionBlock}`;
         // IA-3J.6 -- the synthesis call's developer message is REBUILT
         // from FINANCE_SYNTHESIS_PROFILE (never effectiveSystemPrompt/
         // FINANCE_PROMPT_PROFILE -- that remains the fallback loop's
