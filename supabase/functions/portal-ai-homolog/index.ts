@@ -6142,6 +6142,213 @@ function classifyFinanceFastPath(message: string): boolean {
   return true;
 }
 
+// =========================================================
+// IA-3J.5 -- deterministic finance engine-first fast path.
+//
+// IA-3J.4K.2's own real Human sample (total_ui_ms 17,670, OpenAI
+// 13,149ms across 2 sequential passes, perception LENTO) confirmed
+// further Pass-2 micro-optimization has limited headroom -- OpenAI
+// itself dominates, and canonical Test 1's Pass 1 is PURE PLANNING
+// (decide Balão-vs-Linear, extract parameters, call the tool) before
+// any synthesis happens. For the NARROW, explicitly-enumerated class
+// of unambiguous finance requests below, that planning pass is
+// replaced by a small deterministic parser -- never a second LLM
+// call -- that only ever recognizes a request when every required
+// field is unambiguous in the raw text. Anything it does not
+// confidently recognize returns null, and the caller (below, in the
+// request handler) falls back untouched to the existing OpenAI/tool
+// loop -- this function can only ever narrow which requests skip
+// planning, never change what the old architecture itself does for
+// a request it doesn't recognize. Already gated by the caller on
+// the fast-path classifier itself, so anything carrying a
+// denylist keyword (campanhas, antecipação, cash conversion, taxa,
+// histórico, etc.) or missing the allowlist signal entirely never
+// reaches this parser at all.
+// =========================================================
+
+type FinanceEngineFirstScenario = "LINEAR_ONLY" | "BALAO_ONLY" | "BOTH_BALAO_AND_LINEAR";
+
+interface FinanceEngineFirstPlan {
+  department: SimDepartment;
+  vehicleValue: number;
+  downPayment: number;
+  vehicleYear: number | null;
+  targetPayment: number | null;
+  termMonths: number | null;
+  scenario: FinanceEngineFirstScenario;
+}
+
+// A Brazilian-formatted money token as raw text -- "R$ 180.000",
+// "180000", "1.800", "90 mil", optionally with a decimal comma
+// ("1.800,50"). Every "." must be a genuine BR thousands separator
+// (followed by exactly 3 digits) -- never a greedy `[\d.,]*`, which
+// would swallow a sentence-ending period right after an amount (e.g.
+// "entrada de R$ 90.000." would otherwise capture "90.000." and fail
+// to parse). Deliberately simple: anything outside this shape is not
+// recognized by parseBRMoneyToken below (returns null, never a
+// best-effort guess).
+const BR_MONEY_TOKEN_RE_SRC = "R?\\$?\\s*(?:\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d+(?:,\\d{1,2})?)\\s*(?:mil\\b)?";
+
+// Vehicle-value scan only: same BR-number shape, but never matches a
+// short bare number with no "R$" sign and no thousands grouping (so a
+// stray "0" from "0 km", or later a term like "48" from "48 meses",
+// is never mistaken for the vehicle value -- a real vehicle value is
+// always either R$-prefixed, properly grouped, or at least 4 bare
+// digits).
+const VEHICLE_VALUE_RE_SRC = "(?:R\\$\\s*(?:\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d+(?:,\\d{1,2})?)|\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d{4,}(?:,\\d{1,2})?)\\s*(?:mil\\b)?";
+
+function parseBRMoneyToken(raw: string): number | null {
+  let s = raw.trim().replace(/^R\$\s*/i, "").trim();
+  let multiplier = 1;
+  const milMatch = /^([\d.,]+)\s*mil$/i.exec(s);
+  if (milMatch) { s = milMatch[1]; multiplier = 1000; }
+  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s)) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else if (/^\d+,\d{1,2}$/.test(s)) {
+    s = s.replace(",", ".");
+  } else if (!/^\d+$/.test(s)) {
+    return null; // not a shape this parser recognizes -- fail closed, never guess
+  }
+  const n = Number(s);
+  if (!isFinite(n) || n <= 0) return null;
+  return round2(n * multiplier);
+}
+
+// Replaces [start, end) of `s` with spaces of the same length, so a
+// later, broader regex scan (e.g. "first remaining money mention" for
+// vehicle value) never re-matches a span already attributed to a
+// more specific labeled field (target payment, down payment).
+function maskSpan(s: string, start: number, end: number): string {
+  return s.slice(0, start) + " ".repeat(end - start) + s.slice(end);
+}
+
+function extractFinanceEngineFirstPlan(message: string): FinanceEngineFirstPlan | null {
+  if (typeof message !== "string" || !message.trim()) return null;
+  let working = message;
+
+  // -- target payment: "R$ 1.800 de parcela" / "parcela de R$X" /
+  // "parcela de até R$X" / "parcela máxima de R$X". Optional -- a
+  // request with no target payment (e.g. a plain explicit-term
+  // simulation) is still eligible.
+  let targetPayment: number | null = null;
+  const targetRe1 = new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*parcela`, "i");
+  const targetRe2 = new RegExp(`parcela[^\\d]{0,25}(${BR_MONEY_TOKEN_RE_SRC})`, "i");
+  let m: RegExpExecArray | null = targetRe1.exec(working);
+  if (!m) m = targetRe2.exec(working);
+  if (m) {
+    targetPayment = parseBRMoneyToken(m[1]);
+    if (targetPayment === null) return null; // looked like a target-payment mention but didn't parse -- fail closed
+    working = maskSpan(working, m.index, m.index + m[0].length);
+  }
+
+  // -- down payment: "entrada de R$X" / "com entrada de R$X".
+  // Required -- engine-first only handles a FIXED, explicit down
+  // payment, never an inherited/assumed one.
+  const downRe = new RegExp(`entrada[^\\d]{0,15}(${BR_MONEY_TOKEN_RE_SRC})`, "i");
+  m = downRe.exec(working);
+  if (!m) return null;
+  const downPayment = parseBRMoneyToken(m[1]);
+  if (downPayment === null) return null;
+  working = maskSpan(working, m.index, m.index + m[0].length);
+
+  // -- department: only an explicit 0km/novo or seminovo/usado
+  // signal counts -- never a default guess. Seminovos additionally
+  // requires an explicit vehicle year (the canonical engine itself
+  // throws without one); absent that, fail closed rather than omit a
+  // field the tool requires. Extracted (and, when found, masked out
+  // of `working`) BEFORE the vehicle-value scan below -- otherwise a
+  // 4-digit vehicle year would itself be mistaken for the vehicle
+  // value.
+  let department: SimDepartment | null = null;
+  let vehicleYear: number | null = null;
+  if (/\b0\s*km\b|\bzero\s*km\b/i.test(message)) {
+    department = "NOVOS";
+  } else if (/\bseminovo|\busado\b/i.test(message)) {
+    department = "SEMINOVOS";
+    const yearMatch = /\b(19|20)\d{2}\b/.exec(working);
+    vehicleYear = yearMatch ? Number(yearMatch[0]) : null;
+    if (vehicleYear === null) return null;
+    working = maskSpan(working, yearMatch.index, yearMatch.index + yearMatch[0].length);
+  }
+  if (department === null) return null;
+
+  // -- vehicle value: the first remaining money mention once target
+  // payment, down payment, and (for Seminovos) the vehicle year have
+  // all been masked out. Required.
+  const vehicleValueRe = new RegExp(VEHICLE_VALUE_RE_SRC, "i");
+  const vehicleMatch = vehicleValueRe.exec(working);
+  const vehicleValue = vehicleMatch ? parseBRMoneyToken(vehicleMatch[0]) : null;
+  if (vehicleValue === null || vehicleValue <= 0) return null;
+
+  // -- term: an explicit "N meses"/"N mes"/"Nx" is used verbatim;
+  // anything else (including "prazo pode variar"/"qualquer prazo") is
+  // left null, which is exactly what toolSimularFinanciamento already
+  // treats as "evaluate every department term" -- no new semantics.
+  let termMonths: number | null = null;
+  const termMatch = /\b(\d{1,3})\s*(?:meses|mes\b|x\b)/i.exec(message);
+  if (termMatch) termMonths = Number(termMatch[1]);
+
+  // -- scenario: a deliberately narrow decision, mirroring the SAME
+  // recommendation-vs-comparison judgment already encoded in
+  // PROMPT_FINANCE_BALLOON's own "BALÃO ESPONTÂNEO"/"RECOMENDAÇÃO vs
+  // COMPARAÇÃO" rules -- applied deterministically here, only for
+  // this already-narrowed class of messages. Explicit Balão and/or
+  // Linear naming wins outright; absent either, a recommendation/
+  // comparison/min-payment signal spontaneously considers both
+  // (matching canonical Test 1's own exact phrasing, which never says
+  // "Balão"); absent all of that, the tool's own default modality
+  // (financing_type omitted => LINEAR) applies.
+  const hasBalao = /bal[ãa]o/i.test(message);
+  const hasLinear = /\blinear\b/i.test(message);
+  const hasCompareOrRecommend = /compar|\bversus\b|\bvs\.?\b|lado a lado|recomenda|qual estrutura|melhor condi[cç][ãa]o|menor parcela|mais barata|chegar o mais perto/i.test(message);
+  let scenario: FinanceEngineFirstScenario;
+  if (hasBalao && hasLinear) scenario = "BOTH_BALAO_AND_LINEAR";
+  else if (hasBalao) scenario = "BALAO_ONLY";
+  else if (hasLinear) scenario = "LINEAR_ONLY";
+  else if (hasCompareOrRecommend) scenario = "BOTH_BALAO_AND_LINEAR";
+  else scenario = "LINEAR_ONLY";
+
+  return { department, vehicleValue, downPayment, vehicleYear, targetPayment, termMonths, scenario };
+}
+
+// Fills every SimulationInput key with its safe, unused-field default
+// (mirrors the EXACT defaults the real "simular_financiamento"
+// dispatch-validation block already uses, never a new convention) so
+// the two call sites below only ever state the fields they actually
+// set.
+function emptySimulationInput(overrides: Partial<SimulationInput>): SimulationInput {
+  return {
+    mode: "payment", financing_type: null, department: "NOVOS", vehicle_value: null, down_payment: null,
+    down_payment_percent: null, target_payment: null, term_months: null, vehicle_year: null,
+    down_payment_percents: null, balloon_value: null, balloon_month: null, balloon_cap: null,
+    term_months_list: null, balloons: null, balloon_count_max: null, show_term_comparison: null,
+    priority: null, model: null, rate: null, min_sale_value: null, periodicity: null,
+    ...overrides
+  };
+}
+
+// Translates a recognized plan into 1-2 real SimulationInput calls --
+// always financing_type BALAO and/or LINEAR, always mode="payment",
+// always show_term_comparison=false (a recommendation, never a
+// comparison table -- matching PROMPT_FINANCE_BALLOON's own
+// RECOMENDAÇÃO default). Never a new financing_type, never a new
+// mode -- both already validated exhaustively by the existing tool.
+function buildEngineFirstSimulationInputs(plan: FinanceEngineFirstPlan): SimulationInput[] {
+  const base: Partial<SimulationInput> = {
+    department: plan.department, vehicle_value: plan.vehicleValue, down_payment: plan.downPayment,
+    vehicle_year: plan.vehicleYear, target_payment: plan.targetPayment, term_months: plan.termMonths,
+    show_term_comparison: false
+  };
+  const inputs: SimulationInput[] = [];
+  if (plan.scenario === "BALAO_ONLY" || plan.scenario === "BOTH_BALAO_AND_LINEAR") {
+    inputs.push(emptySimulationInput({ ...base, financing_type: "BALAO" }));
+  }
+  if (plan.scenario === "LINEAR_ONLY" || plan.scenario === "BOTH_BALAO_AND_LINEAR") {
+    inputs.push(emptySimulationInput({ ...base, financing_type: "LINEAR" }));
+  }
+  return inputs;
+}
+
 // Fase IA-2D.2 — o enum de period desta tool aceita "full_history" além
 // dos valores já usados pelas outras 7 (PERIOD_ENUM não é alterado, para
 // não afetar nenhuma tool existente).
@@ -6873,7 +7080,19 @@ serve(async (req) => {
     // incremental accounting from IA-3J.4K's own forensic without
     // exposing anything new.
     input_item_count_per_pass: number[];
-  } = { auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [], tools_sent_count: null, tools_sent_count_per_pass: [], input_item_count_per_pass: [] };
+    // IA-3J.5 -- which request architecture actually ran this request
+    // (a short enum string, same safety class as prompt_profile) --
+    // "finance_engine_first" when the deterministic engine-first path
+    // below fired, "openai_tool_loop" for the existing architecture
+    // (including every case where engine-first was eligible but its
+    // own authorization pre-check denied a call, see below).
+    execution_path: "finance_engine_first" | "openai_tool_loop" | null;
+    // IA-3J.5 -- total OpenAI calls actually made this request (1 for
+    // engine-first's single synthesis call; 2-6 for the existing
+    // multi-pass loop) -- a plain count, redundant with
+    // openai_pass_ms.length but explicit for telemetry clarity.
+    openai_pass_count: number | null;
+  } = { auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [], tools_sent_count: null, tools_sent_count_per_pass: [], input_item_count_per_pass: [], execution_path: null, openai_pass_count: null };
 
   if (req.method === "OPTIONS") {
     // IA-3G.5A -- the ONE branch every real browser request hits first
@@ -7189,6 +7408,77 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
     // at the bottom of the loop body below.
     let passIndex = 0;
 
+    // IA-3J.5 -- deterministic finance engine-first: computed once,
+    // only when the fast-path itself already fired (the full profile
+    // is never eligible -- every genuinely sequential/cross-domain
+    // chain lives there, untouched). engineFirstPlan is null for
+    // anything not confidently recognized; the ONLY effect of this
+    // block is to skip Pass-1 planning for a narrow, already-
+    // unambiguous class of requests -- it never changes what the
+    // existing loop below does for a request it doesn't recognize.
+    const engineFirstPlan = isFinanceFastPath ? extractFinanceEngineFirstPlan(message) : null;
+    let engineFirstRan = false;
+
+    if (engineFirstPlan) {
+      const engineFirstInputs = buildEngineFirstSimulationInputs(engineFirstPlan);
+      // Same governed authorization check the existing loop already
+      // runs per tool call (Fase IA-3F.1) -- never bypassed here. If
+      // ANY planned call would be denied, fall through to the
+      // existing loop below, which already has fully-tested denial
+      // behavior -- engine-first never fabricates its own denial
+      // response.
+      const policyDecisions = await Promise.all(
+        engineFirstInputs.map((simArgs) => evaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission))
+      );
+      if (policyDecisions.every((d) => d.allowed)) {
+        const engineResults = await Promise.all(engineFirstInputs.map(async (simArgs) => {
+          const t_toolStart = Date.now();
+          const output = await toolSimularFinanciamento(userClient, simArgs);
+          timings.tool_dispatch_ms.push({ name: "simular_financiamento", ms: Date.now() - t_toolStart });
+          return { simArgs, output };
+        }));
+        for (const { simArgs, output } of engineResults) {
+          const block = buildBlockFromToolResult("simular_financiamento", simArgs, output);
+          if (Array.isArray(block)) blocks.push(...block);
+          else if (block) blocks.push(block);
+          toolsUsed.push("simular_financiamento");
+          homologCalls.push({ name: "simular_financiamento", args: simArgs, result: output }); // portal-ai-homolog ONLY
+        }
+        toolCallCount = engineResults.length;
+
+        // IA-3J.5 -- the computed results enter the SAME developer
+        // channel CURRENT_DATE already uses for per-request dynamic
+        // context (never a user-role message claiming to be the
+        // human, never elevated above the existing global policy) --
+        // data the model must use exactly as given, labeled as such,
+        // never its own calculation. Reuses FINANCE_PROMPT_PROFILE
+        // (already part of systemPromptWithDate above) for synthesis
+        // policy -- no new synthesis-only profile this Wave.
+        const engineResultsBlock = `
+
+=== RESULTADOS DE SIMULAÇÃO FINANCEIRA (calculados deterministicamente pelo motor oficial ANTES desta resposta -- nunca recalculados por você) ===
+${JSON.stringify(engineResults.map((r) => r.output))}
+
+Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca arredonde diferente do que já vem calculado, nunca invente um resultado que não esteja aqui. Se algum campo necessário não estiver presente, diga que não foi possível simular essa condição específica.`;
+        input[0].content = `${input[0].content}${engineResultsBlock}`;
+
+        const synthesisTools: any[] = [];
+        timings.tools_sent_count_per_pass.push(synthesisTools.length);
+        timings.input_item_count_per_pass.push(input.length);
+        const t_openaiStart = Date.now();
+        const response = await callOpenAI(openaiKey, input, synthesisTools);
+        timings.openai_pass_ms.push(Date.now() - t_openaiStart);
+        totalInputTokens += response?.usage?.input_tokens ?? 0;
+        totalOutputTokens += response?.usage?.output_tokens ?? 0;
+        lastModel = response?.model ?? OPENAI_MODEL;
+        finalText = extractOutputText(response);
+        timings.execution_path = "finance_engine_first";
+        engineFirstRan = true;
+      }
+    }
+
+    if (!engineFirstRan) {
+    timings.execution_path = "openai_tool_loop";
     while (true) {
       if (Date.now() > deadline) {
         throw new ToolError("A consulta demorou demais e foi interrompida.");
@@ -7293,7 +7583,9 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
       }
       passIndex++; // IA-3J.4K.1 -- explicit, auditable: one more pass is about to happen
     }
+    }
 
+    timings.openai_pass_count = timings.openai_pass_ms.length; // IA-3J.5 -- explicit, redundant with the array length above for telemetry clarity
     const latencyMs = Date.now() - startedAt;
     console.log(JSON.stringify({
       request_id: requestId,

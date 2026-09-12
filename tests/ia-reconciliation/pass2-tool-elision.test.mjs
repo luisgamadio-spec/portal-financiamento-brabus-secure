@@ -58,11 +58,27 @@ function extractClass(src, name) {
 // inside a string literal would corrupt the count; this file's own
 // loop body contains exactly one such pair, the self-balancing `"{}"`
 // in `JSON.parse(call.arguments || "{}")`, which nets to zero).
+// IA-3J.5 -- the real source now wraps `while (true) { ... }` inside
+// `if (!engineFirstRan) { ... }` (the fallback branch), with the new
+// engine-first block itself sitting between the pre-loop declarations
+// and that `if`. This test's own job is the OLD loop's behavior
+// (full-profile + fallback), not engine-first (see
+// finance-engine-first.test.mjs for that) -- so this extracts the
+// pre-loop declarations and the while-loop body as TWO separate real
+// slices, deliberately skipping the engine-first block and its `if`
+// wrapper in between (never hand-copied -- both pieces are verbatim
+// source text, just not contiguous in the file any more).
 function extractRequestLoopRegion(src) {
   const start = src.indexOf("let toolCallCount = 0;");
   if (start === -1) throw new Error("extractRequestLoopRegion: region start not found");
+  const passIndexMarker = "let passIndex = 0;";
+  const passIndexIdx = src.indexOf(passIndexMarker, start);
+  if (passIndexIdx === -1) throw new Error("extractRequestLoopRegion: passIndex declaration not found");
+  const declEnd = passIndexIdx + passIndexMarker.length;
+  const preDeclarations = src.slice(start, declEnd);
+
   const loopMarker = "while (true) {";
-  const loopStart = src.indexOf(loopMarker, start);
+  const loopStart = src.indexOf(loopMarker, declEnd);
   if (loopStart === -1) throw new Error("extractRequestLoopRegion: while(true) not found after region start");
   const bodyOpen = loopStart + loopMarker.length - 1;
   let depth = 0, i = bodyOpen;
@@ -70,7 +86,8 @@ function extractRequestLoopRegion(src) {
     if (src[i] === "{") depth++;
     else if (src[i] === "}") { depth--; if (depth === 0) { i++; break; } }
   }
-  return src.slice(start, i);
+  const whileLoop = src.slice(loopStart, i);
+  return preDeclarations + "\n\n" + whileLoop;
 }
 
 const loopRegion = extractRequestLoopRegion(source);
