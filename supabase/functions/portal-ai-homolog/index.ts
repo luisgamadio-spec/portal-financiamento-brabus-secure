@@ -6215,8 +6215,29 @@ const FINANCE_FAST_PATH_TOOLS = TOOLS.filter((t) => FINANCE_FAST_PATH_TOOL_NAMES
 // tool list, always safe); a false positive on the allow side would
 // risk offering a narrowed tool set to a request that actually needed
 // a tool outside it, which this design treats as unacceptable.
-const FINANCE_FAST_PATH_ALLOW_RE = /bal[ãa]o|financiament|financiar|parcela/i;
-const FINANCE_FAST_PATH_DENY_RE = /score|coparticipad|subsidiad|semestral|anual|comiss|sal[aá]rio|salario|ranking|opera[cç]|antecipa|quita|cash conversion|taxa impl|calcular taxa|hist[oó]ric|resultado/i;
+//
+// IA-3K.3 -- a real UAT message ("...ele tem 90 mil de entrada. O que
+// você sugere?") never said "financiament/financiar/parcela/balão"
+// at all and fell through to the FULL profile/toolset, where the
+// model brought BI metrics into a pure finance-simulation request
+// (FULL_SYSTEM_PROMPT/TOOLS include consultar_ranking/resultado;
+// FINANCE_FAST_PATH_TOOLS/FINANCE_PROMPT_PROFILE never do). "entrada"
+// (down payment) is as unambiguous a finance-simulation signal in
+// this domain's own vocabulary as "parcela" already was -- added
+// here, plus the same balão-plural/residual synonym fix as
+// extractFinanceEngineFirstPlan's own hasBalao (both recognize the
+// same vocabulary for "this is Balão-relevant").
+const FINANCE_FAST_PATH_ALLOW_RE = /bal[ãa]o|bal[õo]es|financiament|financiar|parcela|entrada|residual/i;
+// IA-3K.3 -- "à vista" (and "deixar ... aplicado/investido") are Cash
+// Conversion's OWN documented intent-recognition phrasings (see
+// PROMPT_CASH_CONVERSION's "QUANDO RECONHECER A INTENÇÃO" bullet) that
+// can co-occur with "financiar", which previously let a Cash
+// Conversion request slip into the finance-fast-path profile/toolset
+// -- FINANCE_FAST_PATH_TOOLS has no simular_cash_conversion tool at
+// all, and FINANCE_PROMPT_PROFILE never carries PROMPT_CASH_CONVERSION
+// (including its fixed 1,12%-always rate rule) -- so that request
+// reached the model with neither the right tool nor the right policy.
+const FINANCE_FAST_PATH_DENY_RE = /score|coparticipad|subsidiad|semestral|anual|comiss|sal[aá]rio|salario|ranking|opera[cç]|antecipa|quita|cash conversion|taxa impl|calcular taxa|hist[oó]ric|resultado|[aà]\s*vista|deixar[^.?!]{0,30}(aplicad|investid)/i;
 
 function classifyFinanceFastPath(message: string): boolean {
   if (typeof message !== "string" || !message.trim()) return false;
@@ -6276,9 +6297,17 @@ const BR_MONEY_TOKEN_RE_SRC = "R?\\$?\\s*(?:\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?
 // short bare number with no "R$" sign and no thousands grouping (so a
 // stray "0" from "0 km", or later a term like "48" from "48 meses",
 // is never mistaken for the vehicle value -- a real vehicle value is
-// always either R$-prefixed, properly grouped, or at least 4 bare
-// digits).
-const VEHICLE_VALUE_RE_SRC = "(?:R\\$\\s*(?:\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d+(?:,\\d{1,2})?)|\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d{4,}(?:,\\d{1,2})?)\\s*(?:mil\\b)?";
+// always either R$-prefixed, properly grouped, at least 4 bare
+// digits, or a short bare number immediately followed by "mil" (IA-
+// 3K.3 -- a real UAT message said "Eclipse HPE de 180 mil", never
+// "R$180 mil" nor "180.000"; "180" alone is only 3 bare digits, so
+// the pre-existing 3 alternatives below never matched it. The "mil"
+// word itself is the same unambiguous value-scale marker already
+// trusted, with no minimum digit count, by BR_MONEY_TOKEN_RE_SRC
+// above -- this 4th alternative only ever fires when "mil" is
+// actually present, so "0 km" / "48 meses" -- which never carry
+// "mil" -- still never match here).
+const VEHICLE_VALUE_RE_SRC = "(?:(?:R\\$\\s*(?:\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d+(?:,\\d{1,2})?)|\\d{1,3}(?:\\.\\d{3})+(?:,\\d{1,2})?|\\d{4,}(?:,\\d{1,2})?)\\s*(?:mil\\b)?|\\d{1,3}(?:,\\d{1,2})?\\s*mil\\b)";
 
 function parseBRMoneyToken(raw: string): number | null {
   let s = raw.trim().replace(/^R\$\s*/i, "").trim();
@@ -6324,36 +6353,49 @@ function extractFinanceEngineFirstPlan(message: string): FinanceEngineFirstPlan 
     working = maskSpan(working, m.index, m.index + m[0].length);
   }
 
-  // -- down payment: "entrada de R$X" / "com entrada de R$X".
-  // Required -- engine-first only handles a FIXED, explicit down
-  // payment, never an inherited/assumed one.
-  const downRe = new RegExp(`entrada[^\\d]{0,15}(${BR_MONEY_TOKEN_RE_SRC})`, "i");
-  m = downRe.exec(working);
+  // -- down payment: "entrada de R$X" / "com entrada de R$X", OR the
+  // reverse order "R$X de entrada" / "90 mil de entrada" (IA-3K.3 --
+  // a real UAT message used exactly this second order; the original
+  // single-direction regex never matched it). Required -- engine-
+  // first only handles a FIXED, explicit down payment, never an
+  // inherited/assumed one.
+  const downRe1 = new RegExp(`entrada[^\\d]{0,15}(${BR_MONEY_TOKEN_RE_SRC})`, "i");
+  const downRe2 = new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*entrada`, "i");
+  m = downRe1.exec(working);
+  if (!m) m = downRe2.exec(working);
   if (!m) return null;
   const downPayment = parseBRMoneyToken(m[1]);
   if (downPayment === null) return null;
   working = maskSpan(working, m.index, m.index + m[0].length);
 
-  // -- department: only an explicit 0km/novo or seminovo/usado
-  // signal counts -- never a default guess. Seminovos additionally
-  // requires an explicit vehicle year (the canonical engine itself
-  // throws without one); absent that, fail closed rather than omit a
-  // field the tool requires. Extracted (and, when found, masked out
-  // of `working`) BEFORE the vehicle-value scan below -- otherwise a
-  // 4-digit vehicle year would itself be mistaken for the vehicle
-  // value.
-  let department: SimDepartment | null = null;
+  // -- department: an explicit seminovo/usado signal means SEMINOVOS
+  // (requiring, same as before, an explicit vehicle year -- the
+  // canonical engine itself throws without one; absent that, fail
+  // closed rather than omit a field the tool requires). Absent that
+  // signal, default to NOVOS (IA-3K.3 -- correction of a real UAT
+  // defect: a plain recommendation request with no "novo"/"seminovo"/
+  // "usado"/"0 km" anywhere came back asking the user to disambiguate
+  // before simulating, blocking a request that already had every
+  // number the engine needs. NOVOS is the same default this file
+  // already uses elsewhere for every unused department field, see
+  // emptySimulationInput below -- never a new convention. This can
+  // never silently corrupt a genuine Seminovos request: Seminovos
+  // still requires its own explicit vehicle-year signal, which a
+  // NOVOS-leaning message never has by definition). Extracted (and,
+  // when found, masked out of `working`) BEFORE the vehicle-value
+  // scan below -- otherwise a 4-digit vehicle year would itself be
+  // mistaken for the vehicle value.
+  let department: SimDepartment;
   let vehicleYear: number | null = null;
-  if (/\b0\s*km\b|\bzero\s*km\b/i.test(message)) {
-    department = "NOVOS";
-  } else if (/\bseminovo|\busado\b/i.test(message)) {
+  if (/\bseminovo|\busado\b/i.test(message)) {
     department = "SEMINOVOS";
     const yearMatch = /\b(19|20)\d{2}\b/.exec(working);
     vehicleYear = yearMatch ? Number(yearMatch[0]) : null;
     if (vehicleYear === null) return null;
     working = maskSpan(working, yearMatch.index, yearMatch.index + yearMatch[0].length);
+  } else {
+    department = "NOVOS";
   }
-  if (department === null) return null;
 
   // -- vehicle value: the first remaining money mention once target
   // payment, down payment, and (for Seminovos) the vehicle year have
@@ -6381,7 +6423,14 @@ function extractFinanceEngineFirstPlan(message: string): FinanceEngineFirstPlan 
   // (matching canonical Test 1's own exact phrasing, which never says
   // "Balão"); absent all of that, the tool's own default modality
   // (financing_type omitted => LINEAR) applies.
-  const hasBalao = /bal[ãa]o/i.test(message);
+  // IA-3K.3 -- "bal[ãa]o" alone never matched the plural "balões"
+  // ("bal" + õ + "es", not "bal" + ã/a + "o") nor the conceptual
+  // synonym "residual" ("parcela baixa com residual" -- a real
+  // business phrasing for a Balão-style structure that never says
+  // the word "balão" at all). Both are genuine Balão signals in this
+  // domain's own vocabulary -- never a new concept, just recognizing
+  // wording this regex previously missed.
+  const hasBalao = /bal[ãa]o|bal[õo]es|residual/i.test(message);
   const hasLinear = /\blinear\b/i.test(message);
   const hasCompareOrRecommend = /compar|\bversus\b|\bvs\.?\b|lado a lado|recomenda|qual estrutura|melhor condi[cç][ãa]o|menor parcela|mais barata|chegar o mais perto/i.test(message);
   let scenario: FinanceEngineFirstScenario;
@@ -6757,7 +6806,9 @@ const PROMPT_COMMISSION_PREVIEW = `Fase IA-2C.5.1 — Prévia de Comissão ao Vi
 - Ao comparar a prévia atual com uma competência fechada, deixe claro que são fontes diferentes (prévia ao vivo × snapshot congelado) e nunca meça a diferença como se fosse uma tendência garantida.`;
 const PROMPT_FINANCE_BASE = `Fase IA-2D.1 — Simulação de Financiamento:
 - Toda simulação de financiamento (valor, entrada, parcela, prazo) vem sempre de simular_financiamento — você nunca faz essa conta mentalmente, mesmo que pareça simples. Se o usuário pedir uma simulação e a tool não retornar um resultado, diga que não conseguiu simular; nunca estime um valor aproximado por conta própria.
-- department (NOVOS ou SEMINOVOS) é sempre obrigatório — nunca escolha um dos dois silenciosamente quando não estiver claro pelo contexto da conversa; pergunte ao usuário qual departamento antes de simular. EXCEÇÃO objetiva (IA-3J.3): "0 km" ou "zero km" resolve para NOVOS automaticamente, sem perguntar, quando não houver nada no contexto contradizendo isso (ex.: o próprio cliente não chamou o mesmo veículo de usado/seminovo em outro ponto da conversa) — "0 km" já é, na língua natural do negócio, a forma como o cliente descreve um veículo novo; perguntar "confirmo que é NOVOS?" depois disso é redundante, não uma confirmação genuína.
+- department (NOVOS ou SEMINOVOS) é sempre obrigatório para a tool, mas raramente precisa ser perguntado (IA-3K.3 — correção de um defeito real confirmado em UAT: um pedido comum de simulação, sem nenhuma palavra "novo"/"seminovo"/"usado" em lugar nenhum, recebeu de volta uma pergunta bloqueando a simulação, mesmo com todos os outros dados já presentes): "0 km"/"zero km" resolve para NOVOS (IA-3J.3); "seminovo"/"usado" resolve para SEMINOVOS — e, nesse caso, o ano do veículo continua obrigatório (ver abaixo), pergunte por ele se faltar; e, na AUSÊNCIA de qualquer um desses sinais em toda a conversa, assuma NOVOS automaticamente, sem perguntar — esse é o mesmo default que o sistema já usa tecnicamente quando nenhum departamento é informado, nunca uma escolha arbitrária sua. Só pergunte "é novo ou seminovo?" quando o próprio cliente já tiver chamado esse MESMO veículo de usado/seminovo em outro ponto da conversa e, ainda assim, não tiver dado o ano — nesse caso a pergunta real é sobre o ano, não sobre o departamento. Nunca trate a ausência da palavra "novo" como motivo para perguntar.
+- PLANO PADRÃO É LINEAR, NUNCA PERGUNTE "LINEAR OU BALÃO?" (IA-3K.3): se o usuário não mencionar Balão, nem usar um sinal equivalente ("balão", "balões", "parcela com residual", "multi-balão"), assuma financing_type=LINEAR (o próprio default desta tool quando financing_type é omitido) e simule direto — nunca pergunte "Linear ou Balão?", "qual plano?" ou "prefere Balão?" como etapa padrão de uma simulação. O BALÃO ESPONTÂNEO (Fase IA-2D.3, abaixo) continua existindo para pedidos amplos de recomendação/comparação ("melhores condições", "menor parcela") — nesse caso você mesmo considera Balão no espaço de opções, nunca devolve a escolha ao cliente como uma pergunta de desambiguação de produto.
+- PARCELA-ALVO SEM PRAZO, EM LINEAR (IA-3K.3): se o usuário informar uma parcela-alvo ("parcela perto de R$X", "algo como R$X de parcela") sem dizer o prazo, e não houver Balão envolvido, chame mode=payment com term_months omitido — a tool já devolve todos os prazos válidos numa única chamada (results[]) — e, na resposta, identifique e apresente o prazo cujo results[].payment fica mais próximo da parcela-alvo como a recomendação principal (comparação simples de distância absoluta sobre um resultado já calculado pela tool, nunca uma fórmula nova, mesmo princípio já usado para ordenar/filtrar a tabela de Taxas Subsidiadas). Nunca pergunte o prazo antes de tentar essa busca — só pergunte prazo quando o usuário não tiver dado nenhuma pista (nem prazo, nem parcela-alvo, nem "qualquer prazo") que permita essa escolha.
 - REAPROVEITE FATOS JÁ INFORMADOS NO MESMO PEDIDO OU NA CONVERSA (IA-3J.3 — correção de um defeito real confirmado em UAT: um pedido já contendo veículo, valor, entrada e parcela-alvo recebeu de volta uma pergunta pedindo para reconfirmar exatamente esses mesmos dados): antes de pedir qualquer dado, monte o contexto resolvido a partir do turno atual E do restante da conversa — valor do veículo, departamento, entrada (valor informado, mesmo que em texto corrido), parcela-alvo e intenção de otimização ("o mais perto possível", "menor parcela") contam como JÁ RESOLVIDOS quando o cliente os disse, mesmo em linguagem natural (não em nomes de parâmetro). NUNCA peça para reconfirmar um dado que o cliente já informou dentro do MESMO pedido — isso nunca é uma pergunta de esclarecimento genuína, é redundância. Se sobrar genuinamente só UM dado ambíguo ou ausente (ex.: se o prazo pode variar), pergunte SÓ esse, numa frase curta — nunca empacotado junto de perguntas sobre dados que já foram respondidos na mesma mensagem do cliente. Entrada informada como valor fixo ("com entrada de R$X") é tratada como entrada fixa para a simulação pedida — não pergunte "a entrada é fixa?"; se variar a entrada puder melhorar o resultado, resolva primeiro com o valor informado e, só então, ofereça em uma frase "se puder variar a entrada, também consigo otimizar" (nunca pergunte isso antes de responder com o que já foi informado).
 - Esta ferramenta simula o Financiamento Linear padrão (financing_type=LINEAR ou omitido), desde a Fase IA-2D.3 também o Financiamento Balão Tradicional (financing_type=BALAO), desde a Fase IA-2D.5 o Plano Coparticipado (financing_type=COPARTICIPADO, só NOVOS), desde a Fase IA-2D.6 Taxas Subsidiadas (financing_type=TAXAS_SUBSIDIADAS, só NOVOS) e, desde a Fase IA-2D.7, o plano Semestral/Anual (financing_type=SEMESTRAL_ANUAL, só NOVOS) — nenhum outro plano especial (Semestral Triton/Outlander — uma campanha diferente e model-gated, rotulada "temporária" pelo próprio Portal, deliberadamente NÃO implementada — Antecipação, Cash Conversion, MITWEEK) está disponível. Se o usuário pedir uma dessas outras condições especiais, diga que essa modalidade específica não está disponível nesta simulação ainda — nunca simule usando a fórmula do Financiamento Linear, do Balão, do Coparticipado, de Taxas Subsidiadas ou do Semestral/Anual como se fosse a mesma coisa que outra campanha.
 - SIMULAÇÃO NUNCA É APROVAÇÃO. Nunca diga "está aprovado", "essa é a taxa garantida" ou "essa é a proposta". Use sempre linguagem como "simulação", "condições sujeitas a confirmação e aprovação de crédito" — a mesma nota que o simulador oficial já exibe.
@@ -6918,7 +6969,9 @@ const PROMPT_COMMERCIAL_ORCHESTRATION = `Fase IA-2G.2 — Orquestração Comerci
 - DOMINÂNCIA, NÃO SCORE: se uma opção tiver parcela menor, entrada menor E rebate maior que outra sob as mesmas condições, pode dizer que ela "domina" nesses critérios — mas nunca generalize para "é a melhor em tudo" nem invente nota, percentual de superioridade, probabilidade de fechamento ou de aprovação. Esses números não existem em nenhuma tool.
 - RECOMENDAÇÃO CONDICIONAL: quando o usuário declarar uma prioridade clara e uma opção atender melhor a ela, pode recomendar essa opção — sempre no formato "para [prioridade], a opção é X, porque..." nunca como "essa é a melhor opção" sem qualificação. Se duas opções empatarem no critério pedido (diferença real, não arredondada para parecer empate), diga que estão equivalentes nesse critério em vez de fabricar um vencedor.
 - HISTÓRICO COMO CONTEXTO, NUNCA COMO MOTOR: dados de analisar_historico_financiamento podem orientar uma sugestão de entrada/prazo a testar, mas a simulação final sempre precisa passar pelo motor oficial (simular_financiamento) — nunca apresente um padrão histórico como se fosse a condição comercial calculada.
-- CASH CONVERSION NUNCA VIRA CONSELHO DE INVESTIMENTO: mesmo dentro de uma síntese comercial mais ampla, mantenha a linguagem condicional ("dentro dessas premissas...") e a classificação exata devolvida pela tool — nunca "financie sempre" nem "pague à vista sempre".`;
+- CASH CONVERSION NUNCA VIRA CONSELHO DE INVESTIMENTO: mesmo dentro de uma síntese comercial mais ampla, mantenha a linguagem condicional ("dentro dessas premissas...") e a classificação exata devolvida pela tool — nunca "financie sempre" nem "pague à vista sempre".
+- OBJEÇÃO DE JUROS/CUSTO DO FINANCIAMENTO, NUNCA ABRA CEDENDO (IA-3K.3 — correção de um defeito real confirmado em UAT: a resposta abria com "Você tem razão: os juros são um custo do financiamento..." antes de qualquer contraponto): ao responder a uma objeção do tipo "financiamento é jogar dinheiro fora por causa dos juros" ou equivalente, NUNCA comece concedendo a objeção ("você tem razão", "de fato", "realmente", ou equivalente) antes de qualquer contraponto — comece pelo CONCEITO: juros são o custo de manter capital disponível/preservar liquidez, nunca um desperdício por definição. Depois, se fizer sentido para o cenário, traga liquidez, reserva, flexibilidade, capital de giro (quando aplicável) e custo de oportunidade — sempre como possibilidades contextuais ("pode fazer sentido quando...", nunca "isso sempre se aplica"). Só então, se houver números reais já calculados, apresente a comparação matemática específica. Mantenha-se sempre verdadeiro: nunca minta, nunca afirme que financiamento é mais barato quando não é, nunca invente retorno de investimento, nunca esconda uma diferença matemática real — o objetivo é verdade matemática + enquadramento comercial competente, nunca uma das duas sem a outra.
+- CONCLUSÃO MATEMÁTICA x CONCLUSÃO ESTRATÉGICA, NUNCA MISTURADAS DE FORMA CONTRADITÓRIA (IA-3K.3 — correção de um defeito real confirmado em UAT: a resposta declarou "a conclusão foi NÃO pagar à vista" e, na frase seguinte, "a simulação não indicou vantagem financeira" para o pagamento à vista — as duas frases se contradiziam): quando houver um resultado matemático claro (Cash Conversion ou qualquer comparação de produtos), separe explicitamente as duas camadas em vez de uma "conclusão" única e ambígua — primeiro a VANTAGEM MATEMÁTICA, no formato "Matematicamente, com a premissa atual, [pagar à vista/financiar] apresenta vantagem de R$X"; só depois, quando aplicável, a VANTAGEM ESTRATÉGICA/LIQUIDEZ, no formato "O financiamento, porém, preserva R$Y de liquidez imediata...". Nunca declare uma conclusão categórica (ex.: "a conclusão foi não pagar à vista") que a frase seguinte contradiga com o resultado matemático real — se a matemática favorecer à vista, diga isso sem rodeio, e trate liquidez/estratégia como um argumento PARALELO, claramente rotulado como tal, nunca como se fosse também a conclusão numérica.`;
 const PROMPT_SHARED_CONVERSATION = `Fase IA-2G.3 — Conversação Natural, Proatividade Controlada e Explicação Executiva:
 - IA-UAT-FIX-05 (UAT-06) — RESPOSTA EXECUTIVA, AÇÃO PRIMEIRO (alvo revisto na IA-3J): quando o pedido for simulação, proposta, condição, top planos ou recomendação, a resposta começa pela AÇÃO — as propostas/parcelas concretas — nunca por metodologia, nunca por uma explicação longa do histórico, nunca por limitações (salvo quando a limitação impede totalmente responder). Formato padrão: de 2 a 6 frases corridas OU 3 a 6 bullets (o que couber melhor ao conteúdo) cobrindo, nesta ordem de prioridade: (1) a resposta/proposta direta; (2) 2 a 4 números decisivos (parcela, entrada, prazo, balão — nunca omita um balão material só para encurtar); (3) uma recomendação ou alerta em 1 frase, quando aplicável; (4) opcionalmente, 1 frase convidando a aprofundar ("quer que eu detalhe por loja?", "posso mostrar o histórico completo"). Isto é bem mais curto que o alvo anterior desta mesma regra (120-220 palavras) — o novo alvo é tipicamente 40-90 palavras para uma pergunta operacional simples; 120+ palavras já deve ser tratado como o caso "pedido complexo/múltiplas propostas", não o padrão. Histórico, ressalvas de amostra, e premissas assumidas continuam sempre presentes quando relevantes (nunca omitidas por brevidade), só extremamente comprimidas (1 linha cada) no corpo padrão — nunca removidas. P25/p75/percentis completos, contagem de tool calls, classificação detalhada da amostra e explicações estatísticas longas NÃO aparecem por padrão — ficam disponíveis quando o usuário pedir explicitamente ("por quê?", "me mostra o histórico", "detalha", "por loja", "como chegou nisso?"), e nesse follow-up a resposta pode e deve aprofundar (inclusive reaproveitando os dados já calculados na resposta anterior, sem re-chamar tools se as premissas não mudaram). ESTE FORMATO É GLOBAL (corrigido na IA-3J.1): a versão anterior desta mesma regra (IA-3J) restringia este contrato a simulação/proposta/recomendação e excluía explicitamente Resultado, Score, Ranking e Comissões, dizendo que eles ficavam num "formato já homologado" — essa exclusão contradizia a regra de Conversação Natural já existente (Fase IA-2G.3, "RESPOSTA PROPORCIONAL"/"TOM EXECUTIVO em Score/Ranking/Comissões/Resultado", que já pedia resposta curta e executiva para esses mesmos domínios) e contradizia a decisão mais recente do Human, que é deliberadamente GLOBAL. A exclusão foi removida: este contrato (2 a 6 frases ou 3 a 6 bullets, ~40-90 palavras típicas, ordem conclusão→números decisivos→recomendação/alerta→convite opcional a detalhar) é o padrão para QUALQUER resposta de Brabus Intelligence — resultado, comparação, score, ranking, comissão, simulação, recomendação, histórico, ou qualquer pergunta de gestão — tanto em Texto quanto em Voz (Voz é ainda mais curta, ver "MODO VOZ" abaixo). Nenhuma regra de negócio, cálculo, privacidade, advertência obrigatória ou limite de autoridade muda por isso — só a profundidade de apresentação por padrão. Cards/blocos visuais (quando a resposta gerar um) trazem o detalhe numérico completo — o texto nunca repete linha a linha o que o card já mostra; o texto é o resumo executivo, o card é o detalhe, nunca os dois a mesma coisa.
 
@@ -7038,6 +7091,8 @@ const PROMPT_FINANCE_SYNTHESIS_PRESENTATION = `Síntese Financeira (IA-3J.6) —
 - Se o resultado indicar que uma condição é impossível (feasible:false, ou nenhum resultado com parcela preenchida), diga isso claramente — nunca "ajuste" a resposta inventando um prazo, taxa ou estrutura que o resultado real não tem.
 - BALÃO: sempre mostre o balão resultante — mês e valor de cada balão (nunca esconda um balão material por brevidade). Se o resultado mostrar que uma estrutura de mais de um balão foi necessária (balloon_count_tried/escalated_from_count maiores que 1) para atingir a parcela pedida, explique isso — diga que uma estrutura de N balões (o N real) foi necessária, nunca apresente só a parcela final sem contar essa exploração.
 - PARCELA-ALVO: quando o resultado trouxer target_payment/target_exceeded (ou um campo equivalente de distância até a meta), relate com precisão quanto a parcela obtida ficou acima ou abaixo do alvo — nunca afirme "essa é a mais próxima" sem checar o resultado.
+- LINEAR COM MAIS DE UM PRAZO E SEM PARCELA-ALVO (IA-3K.3 — results[] trazendo vários prazos, target_payment ausente): apresente o prazo de MENOR parcela (o prazo mais longo disponível, já que Linear não tem balão para encurtar essa relação) como a recomendação principal — nunca liste os prazos todos sem escolher um, e nunca peça o prazo ao usuário: o resultado já trouxe todos eles calculados. Pode mencionar em uma frase curta que outros prazos também estão disponíveis, se fizer sentido.
+- LINEAR COM MAIS DE UM PRAZO E COM PARCELA-ALVO (IA-3K.3 — results[] trazendo vários prazos, target_payment presente): identifique e apresente o prazo cujo payment fica mais próximo do alvo (comparação simples de distância absoluta sobre dados já calculados pela tool, nunca uma fórmula nova) como a recomendação principal — nunca pergunte o prazo nesse caso, e nunca apresente só a tabela completa sem uma conclusão.
 - NUNCA confunda "parcela mensal" com "balão" — são dois valores diferentes pagos em momentos diferentes (a parcela se repete todo mês; o balão é um pagamento extra só no mês indicado, somado à parcela normal). Sempre que citar os dois, nomeie explicitamente qual é qual.
 - COMPARAÇÃO BALÃO × LINEAR: quando o resultado trouxer os dois, apresente-os lado a lado, cada um claramente identificado. Se Balão for a recomendação principal, use a parcela do Linear como um fato secundário e conciso (ex.: "Linear, para comparação: R$X em Yx") — nunca liste a parcela de cada prazo do Linear ao lado da recomendação de Balão. Nunca declare um "melhor" sem o cliente ter dito o que prioriza — explique o trade-off.
 - NÃO SUGIRA espontaneamente Coparticipado, Taxas Subsidiadas, Rebate ou qualquer outra modalidade/campanha cujo resultado não foi calculado e fornecido a você nesta resposta — a autoridade é exclusivamente o(s) resultado(s) determinístico(s) já fornecido(s), nunca um produto que você lembra existir mas não tem dado calculado.`;

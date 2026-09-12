@@ -250,7 +250,18 @@ const CANONICAL_TEST_1 = "Tenho um cliente comprando um Eclipse HPE 0 km de R$ 1
 
 check("[item 7] insufficient data (no entrada) -- null", extractFinanceEngineFirstPlan("Cliente comprando um Eclipse 0 km de R$ 180.000. Qual estrutura recomenda?") === null);
 check("[item 7] insufficient data (no vehicle value) -- null", extractFinanceEngineFirstPlan("Cliente com entrada de R$ 90.000, 0 km. Qual estrutura recomenda?") === null);
-check("[item 7] insufficient data (no department signal) -- null", extractFinanceEngineFirstPlan("Cliente comprando um carro de R$ 180.000, com entrada de R$ 90.000. Qual estrutura recomenda?") === null);
+{
+  // IA-3K.3 -- this used to be an "insufficient data" null case (no
+  // "0 km"/"seminovo" signal at all). A real UAT defect confirmed
+  // this exact shape of message (no department word anywhere) should
+  // NOT block a recommendation -- department now defaults to NOVOS
+  // in the absence of any Seminovo/usado signal, the same default
+  // already used elsewhere in this file (emptySimulationInput).
+  const msg = "Cliente comprando um carro de R$ 180.000, com entrada de R$ 90.000. Qual estrutura recomenda?";
+  const plan = extractFinanceEngineFirstPlan(msg);
+  check("[item 7] no department signal -- now defaults to NOVOS, never blocks (IA-3K.3)", plan !== null, plan);
+  if (plan) check("[item 7] defaulted department = NOVOS", plan.department === "NOVOS", plan.department);
+}
 check("[item 7] Seminovos without vehicle_year -- null (fail closed, never omit a required field)", extractFinanceEngineFirstPlan("Cliente comprando um carro seminovo de R$ 120.000, com entrada de R$ 40.000. Qual estrutura recomenda?") === null);
 check("[item 8] short follow-up 'e em 48?' -- null (no entrada/vehicle value at all)", extractFinanceEngineFirstPlan("e em 48?") === null);
 check("[item 8] short follow-up 'e 100 mil?' -- null", extractFinanceEngineFirstPlan("e 100 mil?") === null);

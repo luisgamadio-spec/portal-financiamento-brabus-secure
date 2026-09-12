@@ -102,8 +102,24 @@ const prompt = extractComposedPrompt(source, "FULL_SYSTEM_PROMPT");
 // ========================================================================
 {
   check(
-    "'0 km' resolves to NOVOS without asking, absent contradictory context",
-    /"0 km" ou "zero km" resolve para NOVOS automaticamente, sem perguntar/.test(prompt)
+    // IA-3K.3 -- the department bullet was rewritten to also default
+    // to NOVOS when there is no "0 km"/"seminovo" signal AT ALL (a
+    // real UAT defect: plain requests with neither word were asking
+    // the user to disambiguate before simulating). The original,
+    // narrower "0 km" -> NOVOS exception this test pinned is still
+    // explicitly present in the rewritten text -- re-pinned to the
+    // new wording, same guarantee (0km still never triggers a
+    // question), not a weakened check.
+    "'0 km'/'zero km' still resolves to NOVOS without asking (now alongside a broader no-signal-at-all default, IA-3K.3)",
+    /"0 km"\/"zero km" resolve para NOVOS \(IA-3J\.3\)/.test(prompt)
+  );
+  check(
+    "absence of ANY department signal (no '0 km', no 'seminovo/usado') also defaults to NOVOS without asking (IA-3K.3 -- real UAT defect: a plain request with neither word blocked the recommendation)",
+    /na AUSÊNCIA de qualquer um desses sinais em toda a conversa, assuma NOVOS automaticamente, sem perguntar/.test(prompt)
+  );
+  check(
+    "the rewritten department bullet never instructs asking department as a default step",
+    !/pergunte ao usuário qual departamento antes de simular/.test(prompt)
   );
   check(
     "a new rule forbids re-asking facts already given in the same request/conversation",

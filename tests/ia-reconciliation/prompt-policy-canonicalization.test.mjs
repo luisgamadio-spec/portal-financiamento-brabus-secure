@@ -71,7 +71,7 @@ function sectionSpan(name) {
 // both Waves' work on this same file, not IA-3J.4H's own move in
 // isolation. ----------
 {
-  check("SYSTEM_PROMPT content is exactly 107,011 chars (104,609 through IA-3J.4H.2 + 2,402 from IA-3K.1's 4 new presentation/anti-repetition/break-even/Market-Intelligence bullets in PROMPT_ANTECIPACAO/PROMPT_CASH_CONVERSION)", promptBody.length === 107011, promptBody.length);
+  check("SYSTEM_PROMPT content is exactly 111,345 chars (107,011 through IA-3K.1 + 4,334 from IA-3K.3's finance-routing/commercial-policy bullets in PROMPT_FINANCE_BASE/PROMPT_FINANCE_SYNTHESIS_PRESENTATION/PROMPT_COMMERCIAL_ORCHESTRATION)", promptBody.length === 111345, promptBody.length);
 }
 
 // ---------- 2. canonical block exists exactly once ----------

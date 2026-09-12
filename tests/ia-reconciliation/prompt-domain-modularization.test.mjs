@@ -69,7 +69,7 @@ const financePrompt = extractComposedPrompt(source, "FINANCE_PROMPT_PROFILE");
 
 // ---------- A. full-prompt byte equivalence ----------
 {
-  check("FULL_SYSTEM_PROMPT is exactly 107,011 chars (104,609 pre-IA-3K.1 + 2,402 from IA-3K.1's 4 new presentation/anti-repetition/break-even/Market-Intelligence bullets in PROMPT_ANTECIPACAO/PROMPT_CASH_CONVERSION)", fullPrompt.length === 107011, fullPrompt.length);
+  check("FULL_SYSTEM_PROMPT is exactly 111,345 chars (107,011 through IA-3K.1 + 4,334 from IA-3K.3's finance-routing/commercial-policy bullets in PROMPT_FINANCE_BASE/PROMPT_FINANCE_SYNTHESIS_PRESENTATION/PROMPT_COMMERCIAL_ORCHESTRATION)", fullPrompt.length === 111345, fullPrompt.length);
   const hash = createHash("sha256").update(fullPrompt, "utf8").digest("hex");
   // Known-good hash of the pre-split SYSTEM_PROMPT content, captured
   // from the real source at IA-3J.4H.2's own HEAD (commit 9f3a8ae) --
