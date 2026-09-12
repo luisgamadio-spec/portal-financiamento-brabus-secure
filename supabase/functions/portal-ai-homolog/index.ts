@@ -6763,6 +6763,197 @@ function resolveCashConversionContext(
   };
 }
 
+// =========================================================
+// VOICE-UAT-01 -- deterministic multi-option (multiple explicit terms)
+// + required-down-payment orchestration.
+//
+// Real UAT regression forensic (§9/§10 of the brief): "Sugira prazos de
+// 36 e 48 meses no plano Linear para chegar na parcela de R$3.500..."
+// -- 36x computed correctly (entrada R$248.899,17); 48x "não retornou a
+// tabela". Immediately after, "No plano Linear, em 48 meses..." alone
+// computed correctly (entrada R$234.704,17). The engine/table for 48x
+// genuinely works -- proven by the very next turn -- so this was never
+// a missing-table defect. Root cause: LINEAR's required_down_payment
+// mode takes exactly ONE term_months per call (no batch/list parameter
+// exists for it, unlike Balão's own term_months_list) -- the model was
+// left to remember, on its own, to make a SECOND sequential tool call
+// for the second requested term, within the same turn's tool budget.
+// That is exactly the "LLM as orchestrator" failure mode this
+// engagement has already fixed once for Balão-after-Linear (IA-
+// REGRESSION-01) -- the same fix shape applies here: when the user
+// explicitly lists 2+ terms, dispatch ONE deterministic call PER term,
+// in parallel, before any OpenAI call, and aggregate.
+//
+// Separately (§13, "Opening Behavior Polish"): a first turn with
+// vehicle value + target payment but NO down payment ("entrada ainda
+// não definida") has no engine-first path today at all --
+// extractFinanceEngineFirstPlan's own downRe match is REQUIRED, so it
+// returns null whenever entrada is absent, regardless of how complete
+// everything else is, falling through to the generic tool loop (where
+// the model, with nothing computed yet, defaults to stating the
+// limitation instead of solving it: "Linear exige entrada"). LINEAR
+// already has the right capability for this -- mode=required_down_
+// payment computes the entrada NEEDED for a stated target payment --
+// it was simply never reached deterministically. This is a genuinely
+// new plan shape (entrada absent, target present), kept SEPARATE from
+// FinanceEngineFirstPlan (whose own downPayment field stays required,
+// exactly as already tested) rather than weakening that interface.
+// =========================================================
+
+interface RequiredDownPaymentPlan {
+  department: SimDepartment;
+  vehicleValue: number;
+  vehicleYear: number | null;
+  targetPayment: number;
+  // null = no specific term(s) named -- omit term_months entirely, ONE
+  // combined dispatch (the real engine already loops over every valid
+  // term internally in that case, see toolSimularFinanciamento's own
+  // required_down_payment branch: `terms = args.term_months !== null ?
+  // [args.term_months] : prazos` -- never a new engine capability).
+  // A populated array = the user named specific term(s) -- one REAL
+  // dispatch per named term, in parallel (the actual multi-option fix).
+  termMonthsList: number[] | null;
+}
+
+// Extracts an explicit LIST of terms from natural phrasing this
+// domain's own users actually use -- never a single invented pattern:
+// (a) each number individually "x"-suffixed ("36x e 48x", "36x, 42x e
+// 48x"); (b) a shared trailing unit ("36 e 48 meses", "36, 42 e 48
+// meses", "36 ou 48 meses"); (c) an inclusive range ("entre 36 e 48
+// meses") expanded over the department's own REAL valid terms (never
+// inventing an invalid term like 37). Returns null for 0 or exactly 1
+// distinct valid term -- the existing single-term path already covers
+// that case; this function is only ever consulted for the genuinely
+// multi-option scenario.
+function extractTermMonthsList(message: string, validTerms: number[]): number[] | null {
+  const xSuffixed = [...message.matchAll(/\b(\d{1,3})x\b/gi)].map((m) => Number(m[1]));
+  const sharedUnitMatch = /((?:\d{1,3}\s*(?:,|e|ou)\s*)+\d{1,3})\s*(?:meses|mes\b)/i.exec(message);
+  const sharedUnitList = sharedUnitMatch ? [...sharedUnitMatch[1].matchAll(/\d{1,3}/g)].map((m) => Number(m[0])) : [];
+  const rangeMatch = /entre\s*(\d{1,3})\s*e\s*(\d{1,3})\s*meses/i.exec(message);
+  const rangeList = rangeMatch ? validTerms.filter((t) => t >= Number(rangeMatch[1]) && t <= Number(rangeMatch[2])) : [];
+
+  const combined = [...new Set([...xSuffixed, ...sharedUnitList, ...rangeList])]
+    .filter((t) => validTerms.includes(t))
+    .sort((a, b) => a - b);
+  return combined.length >= 2 ? combined : null;
+}
+
+// Single-message extraction, mirroring extractFinanceEngineFirstPlan's
+// own field-level regexes verbatim (BR_MONEY_TOKEN_RE_SRC/VEHICLE_
+// VALUE_RE_SRC/parseBRMoneyToken/maskSpan, never duplicated logic) but
+// for the INVERSE data shape: REQUIRES target_payment, REQUIRES an
+// explicit term list (>= 2 terms) OR leaves termMonthsList as a single
+// entry when the message is otherwise complete but only states one
+// term with no down payment (the §13 opening-behavior case) --
+// REQUIRES vehicle value, and explicitly REJECTS any message that
+// already states a down payment (that case belongs to the existing,
+// unmodified extractFinanceEngineFirstPlan/resolveStatefulFinancePlan
+// path instead, never both).
+function extractRequiredDownPaymentPlan(message: string): RequiredDownPaymentPlan | null {
+  if (typeof message !== "string" || !message.trim()) return null;
+  if (new RegExp(`entrada[^\\d]{0,15}(${BR_MONEY_TOKEN_RE_SRC})`, "i").test(message)) return null;
+  if (new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*entrada`, "i").test(message)) return null;
+
+  let working = message;
+
+  const targetRe1 = new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*parcela`, "i");
+  const targetRe2 = new RegExp(`parcela[^\\d]{0,25}(${BR_MONEY_TOKEN_RE_SRC})`, "i");
+  let m: RegExpExecArray | null = targetRe1.exec(working);
+  if (!m) m = targetRe2.exec(working);
+  if (!m) return null; // this plan shape REQUIRES a target payment -- absent that, not this scenario
+  const targetPayment = parseBRMoneyToken(m[1]);
+  if (targetPayment === null) return null;
+  working = maskSpan(working, m.index, m.index + m[0].length);
+
+  let department: SimDepartment;
+  let vehicleYear: number | null = null;
+  if (/\bseminovo|\busado\b/i.test(message)) {
+    department = "SEMINOVOS";
+    const yearMatch = /\b(19|20)\d{2}\b/.exec(working);
+    vehicleYear = yearMatch ? Number(yearMatch[0]) : null;
+    if (vehicleYear === null) return null;
+    working = maskSpan(working, yearMatch.index, yearMatch.index + yearMatch[0].length);
+  } else {
+    department = "NOVOS";
+  }
+
+  const vehicleValueRe = new RegExp(VEHICLE_VALUE_RE_SRC, "i");
+  const vehicleMatch = vehicleValueRe.exec(working);
+  const vehicleValue = vehicleMatch ? parseBRMoneyToken(vehicleMatch[0]) : null;
+  if (vehicleValue === null || vehicleValue <= 0) return null;
+
+  const validTerms = simPrazosFor(department);
+  const explicitList = extractTermMonthsList(message, validTerms);
+  let termMonthsList: number[] | null;
+  if (explicitList) {
+    termMonthsList = explicitList;
+  } else {
+    const single = /\b(\d{1,3})\s*(?:meses|mes\b|x\b)/i.exec(message);
+    termMonthsList = single && validTerms.includes(Number(single[1])) ? [Number(single[1])] : null;
+  }
+
+  return { department, vehicleValue, vehicleYear, targetPayment, termMonthsList };
+}
+
+function resolveStatefulRequiredDownPaymentPlan(
+  conversation: Array<{ role: string; content: string }>,
+  message: string
+): RequiredDownPaymentPlan | null {
+  const direct = extractRequiredDownPaymentPlan(message);
+  if (direct) return direct;
+
+  if (CLIENT_BOUNDARY_RE.test(message)) return null;
+  const hasGoalSignal = /parcela|\blinear\b|\bentrada\b|meses|\bmes\b|\bx\b/i.test(message);
+  if (!hasGoalSignal) return null;
+
+  // Reuse resolveStatefulFinancePlan's own vehicle/department lookback
+  // (never a second history-scanning implementation) for whichever
+  // fields are missing in THIS message -- target payment and the term
+  // list still need to come from this message (or this function
+  // returns null, since inventing either from history would be
+  // inventing intent).
+  const targetMatch = new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*parcela`, "i").exec(message)
+    || new RegExp(`parcela[^\\d]{0,25}(${BR_MONEY_TOKEN_RE_SRC})`, "i").exec(message);
+  if (!targetMatch) return null;
+  const targetPayment = parseBRMoneyToken(targetMatch[1]);
+  if (targetPayment === null) return null;
+
+  let historicalVehicle: { department: SimDepartment; vehicleValue: number; vehicleYear: number | null } | null = null;
+  for (let i = conversation.length - 1; i >= 0; i--) {
+    const turn = conversation[i];
+    if (turn.role !== "user") continue;
+    if (CLIENT_BOUNDARY_RE.test(turn.content)) break;
+    const p = extractFinanceEngineFirstPlan(turn.content) || extractRequiredDownPaymentPlan(turn.content);
+    if (p) { historicalVehicle = { department: p.department, vehicleValue: p.vehicleValue, vehicleYear: p.vehicleYear }; break; }
+  }
+  if (!historicalVehicle) return null;
+
+  const validTerms = simPrazosFor(historicalVehicle.department);
+  const explicitList = extractTermMonthsList(message, validTerms);
+  const single = /\b(\d{1,3})\s*(?:meses|mes\b|x\b)/i.exec(message);
+  const termMonthsList: number[] | null = explicitList || (single && validTerms.includes(Number(single[1])) ? [Number(single[1])] : null);
+
+  return { department: historicalVehicle.department, vehicleValue: historicalVehicle.vehicleValue, vehicleYear: historicalVehicle.vehicleYear, targetPayment, termMonthsList };
+}
+
+// null termMonthsList -> ONE dispatch, term_months omitted (the real
+// engine already loops over every valid term for this department in a
+// single call, unchanged). A populated list -> one REAL dispatch PER
+// named term, in parallel -- capped at MAX_TOOL_CALLS as a defensive
+// ceiling (never silently bypassing the same governance limit the
+// normal tool loop already enforces; in practice a Human never names
+// more than 2-3 terms at once).
+function buildRequiredDownPaymentSimulationInputs(plan: RequiredDownPaymentPlan): SimulationInput[] {
+  const base: Partial<SimulationInput> = {
+    department: plan.department, vehicle_value: plan.vehicleValue, vehicle_year: plan.vehicleYear,
+    target_payment: plan.targetPayment, financing_type: "LINEAR", mode: "required_down_payment"
+  };
+  if (plan.termMonthsList === null) {
+    return [emptySimulationInput({ ...base, term_months: null })];
+  }
+  return plan.termMonthsList.slice(0, MAX_TOOL_CALLS).map((term) => emptySimulationInput({ ...base, term_months: term }));
+}
+
 // Fase IA-2D.2 — o enum de period desta tool aceita "full_history" além
 // dos valores já usados pelas outras 7 (PERIOD_ENUM não é alterado, para
 // não afetar nenhuma tool existente).
@@ -7385,6 +7576,7 @@ const PROMPT_FINANCE_SYNTHESIS_PRESENTATION = `Síntese Financeira (IA-3J.6) —
 - PARCELA-ALVO: quando o resultado trouxer target_payment/target_exceeded (ou um campo equivalente de distância até a meta), relate com precisão quanto a parcela obtida ficou acima ou abaixo do alvo — nunca afirme "essa é a mais próxima" sem checar o resultado.
 - LINEAR COM MAIS DE UM PRAZO E SEM PARCELA-ALVO (IA-3K.3 — results[] trazendo vários prazos, target_payment ausente): apresente o prazo de MENOR parcela (o prazo mais longo disponível, já que Linear não tem balão para encurtar essa relação) como a recomendação principal — nunca liste os prazos todos sem escolher um, e nunca peça o prazo ao usuário: o resultado já trouxe todos eles calculados. Pode mencionar em uma frase curta que outros prazos também estão disponíveis, se fizer sentido.
 - LINEAR COM MAIS DE UM PRAZO E COM PARCELA-ALVO (IA-3K.3 — results[] trazendo vários prazos, target_payment presente): identifique e apresente o prazo cujo payment fica mais próximo do alvo (comparação simples de distância absoluta sobre dados já calculados pela tool, nunca uma fórmula nova) como a recomendação principal — nunca pergunte o prazo nesse caso, e nunca apresente só a tabela completa sem uma conclusão.
+- ENTRADA NECESSÁRIA, MÚLTIPLOS PRAZOS NOMEADOS (VOICE-UAT-01 — correção de um defeito real confirmado em UAT: um pedido de "36 e 48 meses" recebeu de volta só o resultado de 36, o de 48 foi dado como "não retornou a tabela" mesmo o motor funcionando normalmente para 48 isoladamente — a causa era orquestração, nunca o motor): quando o resultado trouxer "ENTRADA NECESSÁRIA" para múltiplos prazos (cada um já calculado deterministicamente, um por prazo pedido), apresente TODOS os prazos que o usuário nomeou, cada um com sua própria entrada necessária — nunca omita um deles nem diga que "não retornou" quando o resultado já está ali. Se um prazo específico vier com possible:false, diga isso só para aquele prazo, sem impedir a apresentação dos demais.
 - NUNCA confunda "parcela mensal" com "balão" — são dois valores diferentes pagos em momentos diferentes (a parcela se repete todo mês; o balão é um pagamento extra só no mês indicado, somado à parcela normal). Sempre que citar os dois, nomeie explicitamente qual é qual.
 - COMPARAÇÃO BALÃO × LINEAR: quando o resultado trouxer os dois, apresente-os lado a lado, cada um claramente identificado. Se Balão for a recomendação principal, use a parcela do Linear como um fato secundário e conciso (ex.: "Linear, para comparação: R$X em Yx") — nunca liste a parcela de cada prazo do Linear ao lado da recomendação de Balão. Nunca declare um "melhor" sem o cliente ter dito o que prioriza — explique o trade-off.
 - NÃO SUGIRA espontaneamente Coparticipado, Taxas Subsidiadas, Rebate ou qualquer outra modalidade/campanha cujo resultado não foi calculado e fornecido a você nesta resposta — a autoridade é exclusivamente o(s) resultado(s) determinístico(s) já fornecido(s), nunca um produto que você lembra existir mas não tem dado calculado.`;
@@ -7994,6 +8186,11 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
     // carry a bare "entrada" goal signal) is never double-resolved as
     // a plain financing request instead.
     const engineFirstPlan = (!cashContext && isFinanceFastPath) ? resolveStatefulFinancePlan(conversation, message) : null;
+    // VOICE-UAT-01 -- tried only when neither of the above already
+    // resolved a plan (they require/recognize an entrada; this plan
+    // shape requires its ABSENCE + a stated target payment -- mutually
+    // exclusive by construction, never double-resolved).
+    const requiredDownPaymentPlan = (!cashContext && !engineFirstPlan && isFinanceFastPath) ? resolveStatefulRequiredDownPaymentPlan(conversation, message) : null;
     let engineFirstRan = false;
 
     if (cashContext) {
@@ -8135,6 +8332,60 @@ Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca ar
         // appended to, since its prior content (effectiveSystemPrompt-
         // based) is never sent on this path.
         input[0].content = `${FINANCE_SYNTHESIS_PROFILE}${dynamicContextSuffix}${engineResultsBlock}`;
+        promptProfileLabel = "finance_synthesis";
+        promptCharsActual = FINANCE_SYNTHESIS_PROFILE.length;
+
+        const synthesisTools: any[] = [];
+        timings.tools_sent_count_per_pass.push(synthesisTools.length);
+        timings.input_item_count_per_pass.push(input.length);
+        const t_openaiStart = Date.now();
+        const response = await callOpenAI(openaiKey, input, synthesisTools);
+        timings.openai_pass_ms.push(Date.now() - t_openaiStart);
+        totalInputTokens += response?.usage?.input_tokens ?? 0;
+        totalOutputTokens += response?.usage?.output_tokens ?? 0;
+        lastModel = response?.model ?? OPENAI_MODEL;
+        finalText = extractOutputText(response);
+        timings.execution_path = "finance_engine_first";
+        engineFirstRan = true;
+      }
+    }
+
+    if (!engineFirstRan && requiredDownPaymentPlan) {
+      const rdpInputs = buildRequiredDownPaymentSimulationInputs(requiredDownPaymentPlan);
+      const rdpPolicyDecisions = await Promise.all(
+        rdpInputs.map((simArgs) => evaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission))
+      );
+      if (rdpPolicyDecisions.every((d) => d.allowed)) {
+        // VOICE-UAT-01 -- ONE real dispatch PER requested term, in
+        // parallel, before any OpenAI call -- never left for the model
+        // to remember to make a second/third sequential call. This is
+        // exactly the real engine (required_down_payment mode,
+        // unchanged) the very next Human turn proved works in
+        // isolation; the Wave's own fix is making EVERY requested term
+        // run, every time, deterministically, in the SAME turn.
+        const rdpResults = await Promise.all(rdpInputs.map(async (simArgs) => {
+          const t_toolStart = Date.now();
+          const output = await toolSimularFinanciamento(userClient, simArgs);
+          timings.tool_dispatch_ms.push({ name: "simular_financiamento", ms: Date.now() - t_toolStart });
+          return { simArgs, output };
+        }));
+        for (const { simArgs, output } of rdpResults) {
+          const block = buildBlockFromToolResult("simular_financiamento", simArgs, output);
+          if (Array.isArray(block)) blocks.push(...block);
+          else if (block) blocks.push(block);
+          toolsUsed.push("simular_financiamento");
+          homologCalls.push({ name: "simular_financiamento", args: simArgs, result: output });
+        }
+        toolCallCount = rdpResults.length;
+
+        const rdpResultsBlock = `
+
+=== RESULTADOS DE SIMULAÇÃO FINANCEIRA — ENTRADA NECESSÁRIA (calculados deterministicamente pelo motor oficial ANTES desta resposta, um por prazo solicitado -- nunca recalculados por você) ===
+${JSON.stringify(rdpResults.map((r) => r.output))}
+
+Cada item acima corresponde a um prazo que o usuário pediu (ver term_months de cada resultado) -- TODOS foram calculados de verdade nesta mesma resposta, nunca deixe de apresentar um deles. Use EXCLUSIVAMENTE os números acima -- nunca recalcule, nunca invente um resultado que não esteja aqui. Se algum específico vier com possible:false, diga isso claramente só para aquele prazo, sem afetar a apresentação dos demais.`;
+
+        input[0].content = `${FINANCE_SYNTHESIS_PROFILE}${dynamicContextSuffix}${rdpResultsBlock}`;
         promptProfileLabel = "finance_synthesis";
         promptCharsActual = FINANCE_SYNTHESIS_PROFILE.length;
 

@@ -887,13 +887,33 @@
   // (baiSendFromRealtime, mais abaixo) usa esse valor, para reaproveitar
   // 100% deste caminho (mesma sessão, mesmo histórico, mesmo
   // portal-ai-homolog) em vez de duplicar a chamada de rede.
-  async function baiSend(text) {
+  // VOICE-UAT-01 — `opts.silent` (default false): when true, this call
+  // NEVER touches AI_CONVERSATION/baiRenderBody for either turn — it is
+  // pure "fetch portal-ai-homolog, return {ok, reply, blocks}", no UI
+  // side effect at all. Added specifically for baiSendFromRealtime
+  // below (real UAT duplication forensic, proven by direct code
+  // reading, not hypothesized: baiSendFromRealtime was calling this
+  // SAME function, which unconditionally pushed+rendered a user bubble
+  // AND an assistant bubble for the tool-bridge exchange -- and
+  // portal-ai-realtime.js's own response.done handler SEPARATELY
+  // pushes+renders the Realtime model's own spoken restatement of that
+  // same exchange via baiAppendRealtimeTurn, once the post-tool
+  // response arrives. Two independent, uncoordinated render paths for
+  // one logical voice turn -- never a hypothesis, confirmed identical
+  // AI_CONVERSATION.push + baiRenderBody() call shape in both
+  // baiSend and baiAppendRealtimeTurn. The TEXT chat / VOICE-01 (push-
+  // to-talk TTS) callers are completely unaffected -- `opts` defaults
+  // to {} and silent defaults to false, byte-identical behavior.
+  async function baiSend(text, opts) {
+    var silent = !!(opts && opts.silent);
     if (AI_SENDING || !text) return { ok: false, error: 'busy' };
     AI_SENDING = true;
     var sentGen = AI_CONVERSATION_GEN; // IA-UAT-VOICE-NOVOCLIENTE-01
-    AI_CONVERSATION.push({ role: 'user', content: text });
-    baiRenderBody();
-    window.brabusAiOnInput();
+    if (!silent) {
+      AI_CONVERSATION.push({ role: 'user', content: text });
+      baiRenderBody();
+      window.brabusAiOnInput();
+    }
 
     var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timeoutId = controller ? setTimeout(function () { controller.abort(); }, BAI_REQUEST_TIMEOUT_MS) : null;
@@ -904,14 +924,17 @@
       if (!session) {
         AI_SENDING = false;
         if (timeoutId) clearTimeout(timeoutId);
-        baiRenderBodyWithError('Sessão expirada — entre novamente.');
+        if (!silent) baiRenderBodyWithError('Sessão expirada — entre novamente.');
         return { ok: false, error: 'no-session' };
       }
 
       // Envia só {role, content} — blocks é dado já servido ao cliente,
       // reenviá-lo no histórico não ajuda o modelo e só infla o payload
-      // (Parte AC).
-      var priorTurns = AI_CONVERSATION.slice(0, -1).slice(-8).map(function (m) {
+      // (Parte AC). Em modo silent, `text` nunca foi empurrado para
+      // AI_CONVERSATION (ver acima) — slice(0,-1) cortaria o turno
+      // anterior REAL em vez do turno atual (que não está lá), daí o
+      // ramo condicional abaixo.
+      var priorTurns = (silent ? AI_CONVERSATION : AI_CONVERSATION.slice(0, -1)).slice(-8).map(function (m) {
         return { role: m.role, content: m.content };
       });
       var resp;
@@ -928,10 +951,12 @@
         });
       } catch (networkErr) {
         AI_SENDING = false;
-        if (networkErr && networkErr.name === 'AbortError') {
-          baiRenderBodyWithError('A análise demorou mais do que o esperado. Tente novamente.');
-        } else {
-          baiRenderBodyWithError('Não foi possível concluir a análise agora. Tente novamente.');
+        if (!silent) {
+          if (networkErr && networkErr.name === 'AbortError') {
+            baiRenderBodyWithError('A análise demorou mais do que o esperado. Tente novamente.');
+          } else {
+            baiRenderBodyWithError('Não foi possível concluir a análise agora. Tente novamente.');
+          }
         }
         return { ok: false, error: 'network' };
       } finally {
@@ -967,13 +992,15 @@
         }
         // blocks é opcional (Parte AL) — undefined/null aqui produz o
         // mesmo comportamento de sempre (só a bolha de texto).
-        AI_CONVERSATION.push({ role: 'assistant', content: result.reply, blocks: Array.isArray(result.blocks) ? result.blocks : null });
-        baiRenderBody();
-        window.brabusAiOnInput();
-        // IA-UAT-VOICE-01 — mesmo princípio de gancho opcional acima:
-        // dispara leitura automática só se a UAT de voz estiver carregada.
-        if (typeof window.baiOnAssistantReply === 'function') {
-          window.baiOnAssistantReply(result.reply);
+        if (!silent) {
+          AI_CONVERSATION.push({ role: 'assistant', content: result.reply, blocks: Array.isArray(result.blocks) ? result.blocks : null });
+          baiRenderBody();
+          window.brabusAiOnInput();
+          // IA-UAT-VOICE-01 — mesmo princípio de gancho opcional acima:
+          // dispara leitura automática só se a UAT de voz estiver carregada.
+          if (typeof window.baiOnAssistantReply === 'function') {
+            window.baiOnAssistantReply(result.reply);
+          }
         }
         return { ok: true, reply: result.reply, blocks: Array.isArray(result.blocks) ? result.blocks : null };
       }
@@ -988,18 +1015,25 @@
       } else {
         friendly = 'Não foi possível concluir a análise agora. Tente novamente.';
       }
-      baiRenderBodyWithError(friendly);
+      if (!silent) baiRenderBodyWithError(friendly);
       return { ok: false, error: 'http-' + resp.status };
     } catch (e) {
       AI_SENDING = false;
       if (timeoutId) clearTimeout(timeoutId);
-      baiRenderBodyWithError('Não foi possível concluir a análise agora. Tente novamente.');
+      if (!silent) baiRenderBodyWithError('Não foi possível concluir a análise agora. Tente novamente.');
       return { ok: false, error: 'exception' };
     }
   }
 
+  // VOICE-UAT-01 — silent:true (see baiSend's own comment above for the
+  // full duplication forensic this fixes): the Realtime bridge's tool
+  // call result is consumed ONLY as function_call_output data for the
+  // Realtime model to speak — portal-ai-realtime.js's own response.done
+  // handler is the SINGLE place that renders this exchange into the
+  // visible transcript (from the real spoken transcript, via
+  // baiAppendRealtimeTurn), exactly once per turn.
   window.baiSendFromRealtime = function (text) {
-    return baiSend(text);
+    return baiSend(text, { silent: true });
   };
 
   // IA-UAT-VOICE-02 — turnos de conversa social (sem chamar

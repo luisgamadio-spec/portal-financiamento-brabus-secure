@@ -252,12 +252,16 @@
     // transcrição de entrada concluída).
     if (evt.type.indexOf('input_audio_transcription') >= 0 && evt.type.indexOf('completed') >= 0) {
       var userText = typeof evt.transcript === 'string' ? evt.transcript.trim() : '';
-      // Só ecoa aqui os turnos que NÃO viraram function_call (esses já
-      // aparecem na transcrição via baiSendFromRealtime, evitando
-      // duplicar a mesma fala do usuário duas vezes na tela).
-      if (userText && !evt._consumedByToolCall) {
-        window._baiPendingUserTranscript = userText;
-      }
+      // VOICE-UAT-01 — this used to also check `!evt._consumedByToolCall`,
+      // a guard that was NEVER actually set anywhere in this file (a
+      // dead check, always true) -- it was never what prevented double-
+      // rendering for a tool-using turn; the real fix is baiSend's own
+      // new `silent` option (portal-ai-ui.js), which stops the tool-
+      // bridge call from pushing its own user+assistant bubbles at all.
+      // This single real transcript IS the only user-turn render for
+      // EVERY turn now (tool-using or social) -- stored here regardless
+      // of outcome, consumed exactly once below in response.done.
+      if (userText) window._baiPendingUserTranscript = userText;
       return;
     }
     if (evt.type === 'response.created') {

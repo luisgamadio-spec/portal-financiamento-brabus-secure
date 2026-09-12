@@ -56,7 +56,21 @@ const CLIENT_SECRET_TTL_SECONDS = 600; // padrão oficial — só precisa sobrev
 // próprio comportamento intocado) — mesmo texto, verbatim, já revisado
 // pelo usuário em portal-ai-voice-studio.js (PROFILES.pt_br_warm).
 const DEFAULT_CONVERSATION_SPEED = 1.25;
-const ACCENT_PROFILE_TEXT = "Fale português do Brasil nativo, neutro e caloroso — como um consultor brasileiro experiente e simpático conversando com um colega de confiança. Ritmo conversacional, natural, com pausas humanas onde fariam sentido, nunca mecânico. Prosódia e pronúncia estáveis do início ao fim, nativas do Brasil, sem sotaque estrangeiro nem marca regional específica. Evite soar como locutor de propaganda ou como um script lido — mantenha a naturalidade de uma conversa real. Números, valores em reais e termos técnicos financeiros pronunciados com clareza e naturalidade.";
+// VOICE-UAT-01 — reforço do texto de sotaque (UAT-VOICE-ACCENT-01 já
+// havia tentado isso uma vez; Human UAT real confirmou que o texto
+// anterior, embora correto em intenção, ainda soava 'MUITO
+// americanizado'). Pesquisa real confirmada (developers.openai.com,
+// comunidade oficial OpenAI): a Realtime API NÃO tem nenhum parâmetro
+// de locale/accent dedicado — o único controle é este texto de
+// instructions mais a própria voice escolhida; técnicas de instrução
+// de accent são documentadamente não confiáveis no estado atual do
+// modelo (mesmo achado relatado por outros desenvolvedores tentando
+// pt-PT vs pt-BR). Este texto foi fortalecido com exemplos concretos de
+// pronúncia numérica (o único lever onde instrução textual realmente
+// ajuda de forma confiável, já que é uma tarefa de geração de texto,
+// não de acústica pura) — gerenciar expectativa: pode reduzir, mas não
+// garante eliminar, o sotaque residual do modelo de voz em si.
+const ACCENT_PROFILE_TEXT = "Fale português do Brasil nativo, neutro e caloroso — como um consultor brasileiro experiente e simpático conversando com um colega de confiança. Ritmo conversacional, natural, com pausas humanas onde fariam sentido, nunca mecânico. Prosódia e pronúncia estáveis do início ao fim, nativas do Brasil, sem sotaque estrangeiro nem marca regional específica. Evite soar como locutor de propaganda ou como um script lido — mantenha a naturalidade de uma conversa real, nunca a cadência e a entonação do inglês aplicadas a palavras em português. Pronuncie valores em reais sempre por extenso, em português brasileiro natural, nunca dígito por dígito e nunca com entonação de número em inglês — por exemplo: R$ 330.000 vira 'trezentos e trinta mil reais'; R$ 3.500 vira 'três mil e quinhentos reais'; R$ 234.704,17 vira 'duzentos e trinta e quatro mil, setecentos e quatro reais e dezessete centavos'. Nunca leia o símbolo R$ como letras separadas nem como 'R cifrão' — é sempre 'reais', dito naturalmente dentro da frase.";
 
 // IA-UAT-VOICE-03 — allowlists para as duas únicas formas de
 // personalização aceitas nesta fase: (1) experimentos controlados de
