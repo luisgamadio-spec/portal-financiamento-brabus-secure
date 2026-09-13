@@ -138,13 +138,19 @@ const CAMILE_USER = {
   status: "NOVOS/SEMINOVOS"
 };
 
-// A second, real, distinct store (matching real Portal store naming
-// conventions used elsewhere in this engagement's own UAT fixtures)
-// used ONLY as the store-scope attack's "somewhere Camile does NOT
-// work" target -- never a fabricated/nonsense name, so the attack
-// tests "wrong store", not "malformed store" (a separate test, see
-// scope-enforcement.test.mjs's own Test I for the malformed case).
+// Two real, distinct stores (matching real Portal store naming
+// conventions used elsewhere in this engagement's own UAT fixtures),
+// neither of which is Camile's own NACOES -- never fabricated/nonsense
+// names. SEC-1C.4: these are no longer "attack" targets for ordinary
+// GROUP_OPERATIONAL_SHARED tools (consultar_resultado/comparar_resultado/
+// consultar_ranking/consultar_operacoes_especiais/
+// analisar_historico_financiamento) -- the Human's own business-rule
+// correction makes cross-store queries on those tools legitimate.
+// OTHER_REAL_STORE is still used as the "not Camile's own store"
+// target for the one tool that DID keep store-scope enforcement
+// (consultar_score_vendedores, MIXED_REQUIRES_FIELD_LEVEL_REVIEW).
 const OTHER_REAL_STORE = "BANDEIRANTES CENTRO";
+const THIRD_REAL_STORE = "EUROPA";
 
 // SEC-1C Section 16 -- two more non-allowlisted profiles, so the
 // outer-gate regression proof covers more than just the pre-existing
@@ -691,6 +697,31 @@ const MODEL_SCRIPT = [
   {
     match: /resultado do departamento Marte/i,
     call: { name: "consultar_resultado", arguments: { period: "current_month", start_date: null, end_date: null, store: null, department: "MARTE" } }
+  },
+
+  // SEC-1C.4 -- the Human's own canonical worked example: a cross-store
+  // comparison between two stores, NEITHER of which is Camile's own
+  // NACOES. comparar_resultado is GROUP_OPERATIONAL_SHARED (store is a
+  // free query dimension on both sides) -- this must now succeed.
+  {
+    match: /compare o resultado de Bandeirantes com Europa/i,
+    call: {
+      name: "comparar_resultado",
+      arguments: {
+        a: { period: "current_month", start_date: null, end_date: null, store: OTHER_REAL_STORE, department: null },
+        b: { period: "current_month", start_date: null, end_date: null, store: THIRD_REAL_STORE, department: null }
+      }
+    }
+  },
+  // SEC-1C.4 -- consultar_score_vendedores deliberately KEEPS store
+  // scope enforcement (MIXED_REQUIRES_FIELD_LEVEL_REVIEW, individual
+  // Score/classification by name) -- used as the adversarial
+  // "spoof + still-restricted request" combination test, since
+  // consultar_resultado's own former store-scope attack is no longer
+  // an attack at all after this wave's correction.
+  {
+    match: /score dos vendedores da loja Bandeirantes Centro/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: OTHER_REAL_STORE, department: null, seller: null, top_n: null, order: null } }
   },
 
   // Sections 7/8/12/13/14 -- the Douglas/compensation battery and the

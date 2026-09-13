@@ -52,6 +52,7 @@ import {
   extractRequestedDepartments,
   extractRequestedStores
 } from "../../supabase/functions/portal-ai-homolog/scope-policy.ts";
+import { TOOL_POLICY } from "../../supabase/functions/portal-ai-homolog/tool-policy.ts";
 
 let pass = 0, fail = 0;
 function check(label, cond, detail) {
@@ -67,18 +68,36 @@ const ALWAYS_GRANTED = async () => true;
 const ALWAYS_DENIED = async () => false;
 
 async function main() {
-  // ================= A/B -- GERENTE, store scope =================
+  // ================= A/B -- SEC-1C.4: GROUP_OPERATIONAL_SHARED tools,
+  // store is a query dimension, never a confidentiality boundary =====
   {
     const gerenteAuth = authority("GERENTE", { store: "NACOES", departments: ["NOVOS"] });
 
-    // A. GERENTE / allowed store -> allowed (all other policy
-    // conditions -- profile in policy, module permission -- also pass)
+    // A. GERENTE / own store -> allowed (all other policy conditions --
+    // profile in policy, module permission -- also pass)
     const rA = await evaluateToolPolicy("consultar_resultado", { period: "CURRENT_MONTH", department: "NOVOS", store: "NACOES" }, gerenteAuth, ALWAYS_GRANTED);
     check("A. GERENTE / own store (NACOES) requested -> ALLOWED", rA.allowed === true, rA);
 
-    // B. GERENTE / different store -> denied BEFORE dispatch
+    // B. SEC-1C.4 correction (was: DENIED, STORE_SCOPE_DENIED, prior to
+    // the Human's own business-rule correction): consultar_resultado is
+    // GROUP_OPERATIONAL_SHARED (tool-policy.ts's own dataClass,
+    // requiresStoreScope now false) -- an ordinary operational/
+    // commercial Group result carries no confidentiality boundary by
+    // store. This is the exact canonical case the Human's own UAT
+    // asked for: "Qual foi o resultado da Bandeirantes?" from a NACOES
+    // caller must succeed, not be denied.
     const rB = await evaluateToolPolicy("consultar_resultado", { period: "CURRENT_MONTH", department: "NOVOS", store: "OUTRA LOJA" }, gerenteAuth, ALWAYS_GRANTED);
-    check("B. GERENTE / different store (OUTRA LOJA) requested -> DENIED, STORE_SCOPE_DENIED", rB.allowed === false && rB.reason === "STORE_SCOPE_DENIED", rB);
+    check("B. GERENTE / different store (OUTRA LOJA) requested for an ordinary operational result -> ALLOWED (SEC-1C.4: store is a query dimension, not a confidentiality boundary, for GROUP_OPERATIONAL_SHARED tools)", rB.allowed === true, rB);
+
+    // B2. SEC-1C.4 Section 15.F -- the widening above must NOT be a
+    // blanket "disable store scope everywhere": consultar_score_vendedores
+    // is classified MIXED_REQUIRES_FIELD_LEVEL_REVIEW (individual Score/
+    // classification by name, the Human's own Section 10 explicitly
+    // unconfirmed boundary) and was deliberately left with
+    // requiresStoreScope: true, unchanged. Same caller, same
+    // out-of-store request, a DIFFERENT tool -- still denied.
+    const rB2 = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month", department: "NOVOS", store: "OUTRA LOJA" }, gerenteAuth, ALWAYS_GRANTED);
+    check("B2. GERENTE / different store requested for consultar_score_vendedores (MIXED, individual Score) -> still DENIED, STORE_SCOPE_DENIED (data classification, not a blanket disable)", rB2.allowed === false && rB2.reason === "STORE_SCOPE_DENIED", rB2);
   }
 
   // ================= C/D -- VENDEDOR NOVOS, department scope, simular_financiamento =================
@@ -160,18 +179,25 @@ async function main() {
     const gerenteAuth = authority("GERENTE", { store: "NACOES", departments: ["NOVOS"] });
 
     // I. malformed store (wrong type entirely -- e.g. the model/an
-    // adversarial payload sends a number instead of a string) -> denied
-    const rI = await evaluateToolPolicy("consultar_resultado", { period: "CURRENT_MONTH", department: "NOVOS", store: 42 }, gerenteAuth, ALWAYS_GRANTED);
-    check("I. malformed store (non-string) -> DENIED, STORE_SCOPE_DENIED (fail closed, never passthrough)", rI.allowed === false && rI.reason === "STORE_SCOPE_DENIED", rI);
+    // adversarial payload sends a number instead of a string) -> denied.
+    // SEC-1C.4: consultar_resultado no longer enforces store scope at
+    // all (GROUP_OPERATIONAL_SHARED), so this malformed-input coverage
+    // moved to consultar_score_vendedores (MIXED, requiresStoreScope
+    // still true, unchanged this Wave) -- proves fail-closed-on-
+    // malformed-input still holds wherever store scope actually applies.
+    const rI = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month", department: "NOVOS", store: 42 }, gerenteAuth, ALWAYS_GRANTED);
+    check("I. malformed store (non-string) on a tool that still enforces store scope -> DENIED, STORE_SCOPE_DENIED (fail closed, never passthrough)", rI.allowed === false && rI.reason === "STORE_SCOPE_DENIED", rI);
 
     // J. unknown/unrecognized department string -> denied (never
     // silently normalized to null and treated as "no request" --
     // that collapse is correct for normalizeDepartment()'s OWN
     // business-defaulting purpose, but wrong for this security layer;
     // see scopeCheckDepartment's own header comment for why the two
-    // are deliberately different functions).
+    // are deliberately different functions). department scope is
+    // UNCHANGED by SEC-1C.4 for every tool, consultar_resultado
+    // included -- this case is still valid, unedited.
     const rJ = await evaluateToolPolicy("consultar_resultado", { period: "CURRENT_MONTH", department: "MARTE", store: "NACOES" }, gerenteAuth, ALWAYS_GRANTED);
-    check("J. unknown department ('MARTE') -> DENIED, DEPARTMENT_SCOPE_DENIED (fail closed, never passthrough)", rJ.allowed === false && rJ.reason === "DEPARTMENT_SCOPE_DENIED", rJ);
+    check("J. unknown department ('MARTE') -> DENIED, DEPARTMENT_SCOPE_DENIED (fail closed, never passthrough; department enforcement unchanged by SEC-1C.4)", rJ.allowed === false && rJ.reason === "DEPARTMENT_SCOPE_DENIED", rJ);
 
     // Direct unit coverage of the two low-level helpers themselves,
     // isolated from evaluateToolPolicy's own tool-lookup/profile logic.
@@ -214,7 +240,9 @@ async function main() {
     check("M. an extra free-text 'justification' field in the tool call cannot override SENSITIVE_TOOL_DENIED", rM.allowed === false && rM.reason === "SENSITIVE_TOOL_DENIED", rM);
   }
 
-  // ================= comparar_resultado -- BOTH sides checked =================
+  // ================= comparar_resultado -- store now a free dimension
+  // on BOTH sides (SEC-1C.4); department still enforced on both sides
+  // (unchanged) =================
   {
     const gerenteAuth = authority("GERENTE", { store: "NACOES", departments: ["NOVOS"] });
     const inScope = { period: "CURRENT_MONTH", department: "NOVOS", store: "NACOES" };
@@ -224,21 +252,53 @@ async function main() {
     const rBoth = await evaluateToolPolicy("comparar_resultado", { a: inScope, b: inScope }, gerenteAuth, ALWAYS_GRANTED);
     check("comparar_resultado: both sides (a, b) in scope -> ALLOWED", rBoth.allowed === true, rBoth);
 
+    // SEC-1C.4 correction (was: DENIED, STORE_SCOPE_DENIED): the
+    // Human's own canonical example, "Compare Bandeirantes e Europa" --
+    // an ANALISTA/GERENTE not native to either store must still succeed,
+    // since comparar_resultado is GROUP_OPERATIONAL_SHARED on both sides.
     const rASide = await evaluateToolPolicy("comparar_resultado", { a: outOfScopeStore, b: inScope }, gerenteAuth, ALWAYS_GRANTED);
-    check("comparar_resultado: side 'a' out of store scope (b is fine) -> DENIED, STORE_SCOPE_DENIED (both sides independently enforced, not just the first arg read)", rASide.allowed === false && rASide.reason === "STORE_SCOPE_DENIED", rASide);
+    check("comparar_resultado: side 'a' requests a different store -> ALLOWED (SEC-1C.4: store is a query dimension on both sides of a comparison, not a confidentiality boundary)", rASide.allowed === true, rASide);
 
+    const rBothOutOfStore = await evaluateToolPolicy("comparar_resultado", { a: outOfScopeStore, b: { period: "CURRENT_MONTH", department: "NOVOS", store: "TERCEIRA LOJA" } }, gerenteAuth, ALWAYS_GRANTED);
+    check("comparar_resultado: BOTH sides request stores different from the caller's own -> ALLOWED ('Compare Bandeirantes e Europa' from a NACOES caller)", rBothOutOfStore.allowed === true, rBothOutOfStore);
+
+    // department scope is UNCHANGED by SEC-1C.4 -- still enforced,
+    // independently, on each side.
     const rBSide = await evaluateToolPolicy("comparar_resultado", { a: inScope, b: outOfScopeDept }, gerenteAuth, ALWAYS_GRANTED);
-    check("comparar_resultado: side 'b' out of department scope (a is fine) -> DENIED, DEPARTMENT_SCOPE_DENIED", rBSide.allowed === false && rBSide.reason === "DEPARTMENT_SCOPE_DENIED", rBSide);
+    check("comparar_resultado: side 'b' out of department scope (a is fine) -> DENIED, DEPARTMENT_SCOPE_DENIED (department enforcement unchanged by SEC-1C.4)", rBSide.allowed === false && rBSide.reason === "DEPARTMENT_SCOPE_DENIED", rBSide);
   }
 
-  // ================= consultar_operacoes_especiais -- store-only scope =================
+  // ================= consultar_ranking -- SEC-1C.4: GROUP_OPERATIONAL_SHARED,
+  // store now a free dimension ("Qual loja teve maior share?") =======
   {
-    // Per TOOL_POLICY: requiresDepartmentScope=false, requiresStoreScope=true.
+    const analistaAuth = authority("ANALISTA", { store: "NACOES", departments: ["NOVOS", "SEMINOVOS"] });
+    const rNoStore = await evaluateToolPolicy("consultar_ranking", { period: "CURRENT_MONTH", dimension: "store", metric: "share", department: null, store: null, top_n: null, order: null, entities: null, plan_filter: null }, analistaAuth, ALWAYS_GRANTED);
+    check("consultar_ranking: group-wide store ranking, no store filter ('Qual loja teve maior share?') -> ALLOWED", rNoStore.allowed === true, rNoStore);
+    const rOtherStoreFilter = await evaluateToolPolicy("consultar_ranking", { period: "CURRENT_MONTH", dimension: "seller", metric: "sales", department: null, store: "OUTRA LOJA", top_n: null, order: null, entities: null, plan_filter: null }, analistaAuth, ALWAYS_GRANTED);
+    check("consultar_ranking: explicit different-store filter -> ALLOWED (SEC-1C.4: ordinary seller/store ranking, not Score/commission)", rOtherStoreFilter.allowed === true, rOtherStoreFilter);
+  }
+
+  // ================= consultar_operacoes_especiais -- SEC-1C.4:
+  // GROUP_OPERATIONAL_SHARED, store now a free dimension =================
+  {
     const analistaAuth = authority("ANALISTA", { store: "NACOES", departments: ["NOVOS", "SEMINOVOS"] });
     const rOk = await evaluateToolPolicy("consultar_operacoes_especiais", { period: "CURRENT_MONTH", tipo: "COPARTICIPADO", store: "NACOES" }, analistaAuth, ALWAYS_GRANTED);
     check("consultar_operacoes_especiais: own store requested -> ALLOWED", rOk.allowed === true, rOk);
+    // SEC-1C.4 correction (was: DENIED, STORE_SCOPE_DENIED): confirmed
+    // by direct code read this Wave that this tool returns masked
+    // operation references + seller name + deal-level figures, never
+    // client identity/CPF/compensation -- an ordinary operations
+    // ledger, GROUP_OPERATIONAL_SHARED.
     const rDenied = await evaluateToolPolicy("consultar_operacoes_especiais", { period: "CURRENT_MONTH", tipo: "COPARTICIPADO", store: "OUTRA LOJA" }, analistaAuth, ALWAYS_GRANTED);
-    check("consultar_operacoes_especiais: different store requested -> DENIED, STORE_SCOPE_DENIED", rDenied.allowed === false && rDenied.reason === "STORE_SCOPE_DENIED", rDenied);
+    check("consultar_operacoes_especiais: different store requested -> ALLOWED (SEC-1C.4: ordinary operations ledger, no compensation/client-identity fields)", rDenied.allowed === true, rDenied);
+  }
+
+  // ================= analisar_historico_financiamento -- SEC-1C.4:
+  // GROUP_OPERATIONAL_SHARED, store now a free dimension =================
+  {
+    const analistaAuth = authority("ANALISTA", { store: "NACOES", departments: ["NOVOS", "SEMINOVOS"] });
+    const rHist = await evaluateToolPolicy("analisar_historico_financiamento", { period: "last_90_days", mode: "summary", department: "NOVOS", store: "OUTRA LOJA", model: null, plan_filter: null, down_payment_min_percent: null, down_payment_max_percent: null, term_months: null, limit: null }, analistaAuth, ALWAYS_GRANTED);
+    check("analisar_historico_financiamento: different store requested -> ALLOWED (SEC-1C.4: confirmed by code read to carry no seller name/PII in any mode, GROUP_OPERATIONAL_SHARED)", rHist.allowed === true, rHist);
   }
 
   // ================= MASTER regression at the FULL evaluateToolPolicy wrapper =================
@@ -260,6 +320,27 @@ async function main() {
       const r = await evaluateToolPolicy(toolName, requestedArgs, masterAuth, ALWAYS_GRANTED);
       check(`MASTER regression: ${toolName} remains ALLOWED regardless of requested scope (module permission granted)`, r.allowed === true, r);
     }
+  }
+
+  // ================= SEC-1C.4 -- data classification is explicit and
+  // machine-checkable (tool-policy.ts's own dataClass field), not just
+  // a comment, and requiresStoreScope is correctly derived per class =====
+  {
+    const GROUP_SHARED = ["consultar_resultado", "comparar_resultado", "consultar_ranking", "consultar_operacoes_especiais", "analisar_historico_financiamento"];
+    for (const name of GROUP_SHARED) {
+      check(`dataClass: ${name} is GROUP_OPERATIONAL_SHARED`, TOOL_POLICY[name].dataClass === "GROUP_OPERATIONAL_SHARED", TOOL_POLICY[name].dataClass);
+      check(`dataClass: ${name} has requiresStoreScope=false`, TOOL_POLICY[name].requiresStoreScope === false, TOOL_POLICY[name].requiresStoreScope);
+    }
+    check("dataClass: consultar_comissoes is SENSITIVE_RESTRICTED", TOOL_POLICY.consultar_comissoes.dataClass === "SENSITIVE_RESTRICTED");
+    check("dataClass: consultar_score_vendedores is MIXED_REQUIRES_FIELD_LEVEL_REVIEW", TOOL_POLICY.consultar_score_vendedores.dataClass === "MIXED_REQUIRES_FIELD_LEVEL_REVIEW");
+    check("dataClass: consultar_score_vendedores KEEPS requiresStoreScope=true (deliberately not widened)", TOOL_POLICY.consultar_score_vendedores.requiresStoreScope === true);
+    check("dataClass: consultar_score_vendedores KEEPS requiresDepartmentScope=true (deliberately not widened)", TOOL_POLICY.consultar_score_vendedores.requiresDepartmentScope === true);
+    for (const name of ["simular_financiamento", "simular_antecipacao", "simular_cash_conversion", "calcular_taxa_financiamento", "iniciar_novo_cliente"]) {
+      check(`dataClass: ${name} is CALCULATION_NO_DATA_AUTHORITY`, TOOL_POLICY[name].dataClass === "CALCULATION_NO_DATA_AUTHORITY", TOOL_POLICY[name].dataClass);
+    }
+    // department scope UNCHANGED for every GROUP_OPERATIONAL_SHARED tool
+    // that had it before (Section 8's own explicit caution).
+    check("dataClass: consultar_resultado KEEPS requiresDepartmentScope=true (department audited/preserved separately from store)", TOOL_POLICY.consultar_resultado.requiresDepartmentScope === true);
   }
 
   console.log(`\n=== SEC-1B: Scope Enforcement Wiring Tests: ${pass}/${pass + fail} ===`);
