@@ -723,6 +723,16 @@ const MODEL_SCRIPT = [
     match: /score dos vendedores da loja Bandeirantes Centro/i,
     call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: OTHER_REAL_STORE, department: null, seller: null, top_n: null, order: null } }
   },
+  // SEC-1C.5 -- consultar_ranking's `model` dimension is the one path
+  // that calls operational_model_metrics_without_spf instead of
+  // operational_metrics (buildModelEntries vs. buildStoreOrSellerEntries,
+  // index.ts) -- exercised here to prove that RPC ALSO now receives
+  // p_group_view:true (the same fix, the same real RPC signature,
+  // confirmed this Wave via pg_get_function_arguments).
+  {
+    match: /qual modelo mais vendeu no grupo/i,
+    call: { name: "consultar_ranking", arguments: { period: "current_month", start_date: null, end_date: null, dimension: "model", metric: "sales", department: null, store: null, top_n: null, order: null, entities: null, plan_filter: null } }
+  },
 
   // Sections 7/8/12/13/14 -- the Douglas/compensation battery and the
   // tool-injection/cross-turn-erosion scenarios all route to the SAME
