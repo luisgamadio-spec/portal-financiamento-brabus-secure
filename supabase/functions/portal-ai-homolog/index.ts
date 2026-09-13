@@ -8056,8 +8056,32 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Usuário não autenticado" }), { status: 401, headers });
     }
 
+    // ---- SEC-1C — controlled homologation activation. This named,
+    // explicit allowlist (and ONLY this allowlist) replaces the prior
+    // single `perfil === 'MASTER'` check below. Every other profile
+    // (VENDEDOR, GERENTE, DIRETOR NOVOS, DIRETOR SEMINOVOS, RH, any
+    // unrecognized/malformed string) still receives the exact same 403
+    // as before this wave -- this is a narrow, explicit widening by
+    // exactly one profile, never a `!== MASTER` removal. MASTER's own
+    // behavior is completely unchanged (still in the set, still the
+    // first/only profile before this wave). portal-realtime-homolog
+    // and portal-voice-homolog are NOT touched by this wave and remain
+    // MASTER-only exactly as before -- this allowlist exists ONLY in
+    // this file (the TEXT gate).
+    const SEC1C_HOMOLOG_ALLOWED_PROFILES = new Set(["MASTER", "ANALISTA"]);
+
     // ---- Gate MASTER (Partes 7-9) — prova server-side via service role,
-    // nunca confia em claim customizado vindo do browser. ----
+    // nunca confia em claim customizado vindo do browser. SEC-1C: o
+    // nome "Gate MASTER" é histórico (Fase IA-2A); o comportamento real
+    // agora é "gate de perfis homologados"
+    // (SEC1C_HOMOLOG_ALLOWED_PROFILES, acima) -- MASTER mantém
+    // exatamente o mesmo tratamento de antes desta Wave; ANALISTA é a
+    // única adição. Uma vez aprovado neste gate, a autoridade real
+    // (departamento/loja/módulo/tool) de ANALISTA continua inteiramente
+    // governada pela camada de tool-policy já endurecida (SEC-1B,
+    // inalterada por esta Wave) -- este gate decide apenas "este perfil
+    // pode alcançar a IA", nunca "o que este perfil pode fazer dentro
+    // dela". ----
     const adminClient = createClient(supabaseUrl, serviceKey);
     const t_masterStart = Date.now();
     const { data: caller, error: callerError } = await adminClient
@@ -8068,7 +8092,8 @@ serve(async (req) => {
       .maybeSingle();
     timings.master_gate_ms = Date.now() - t_masterStart;
 
-    if (callerError || !caller || String(caller.perfil).trim().toUpperCase() !== "MASTER") {
+    const callerProfileNormalized = String(caller?.perfil ?? "").trim().toUpperCase();
+    if (callerError || !caller || !SEC1C_HOMOLOG_ALLOWED_PROFILES.has(callerProfileNormalized)) {
       console.log(JSON.stringify({
         request_id: requestId,
         event: "denied_profile",
