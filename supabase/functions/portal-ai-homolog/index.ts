@@ -5,15 +5,25 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // "Gate MASTER"/tool-call-loop comments below for exactly where and
 // why; docs/IA-3D-TOOL-POLICY.md's own activation plan (steps 1-3)
 // describes this wiring in advance of it existing.
+//
+// SEC-1B — adds a new sibling import from ./scope-policy.ts
+// (evaluateToolPolicy, moved there verbatim this wave so it can be
+// unit-tested directly from Node — see that file's own header
+// comment). tool-policy.ts's own checkDepartmentScope()/
+// checkStoreScope() already existed (IA-3D/IA-3F.1) but were never
+// actually called anywhere (see docs/IA-3D-TOOL-POLICY.md §11 item 4,
+// "Not done") — scope-policy.ts now wires them in for real tool-
+// argument shapes. Every scope check is an unconditional allowed:true
+// no-op for authority.isMaster, so this has zero live behavioral
+// effect while the outer Gate MASTER remains the only reachable path
+// (unchanged this wave — see its own comment further below).
 import {
-  authorizeToolCall,
   isKnownProfile,
-  resolveSimulatorModulePermission,
   type AuthorityEnvelope,
-  type AuthorizeResult,
   type ModulePermissionChecker,
   type Profile
 } from "./tool-policy.ts";
+import { evaluateToolPolicy } from "./scope-policy.ts";
 
 // Fase IA-2A — Brabus F&I Intelligence v0.1, backend MVP.
 //
@@ -7906,30 +7916,11 @@ function toAuthorityEnvelope(scope: any): AuthorityEnvelope | null {
   };
 }
 
-// simular_financiamento's module permission is department-dependent
-// (resolveSimulatorModulePermission), deliberately kept OUT of
-// authorizeToolCall's own signature (Gate: the policy module stays
-// decoupled from any single tool's argument shape) -- this is the one
-// narrow, per-tool follow-up check the activation plan's own step 3
-// describes, applied only when the primary decision already allowed
-// and only for a non-MASTER caller (MASTER already returned
-// allowed:true unconditionally inside authorizeToolCall itself).
-async function evaluateToolPolicy(
-  toolName: string,
-  args: any,
-  authority: AuthorityEnvelope | null,
-  checkModulePermission: ModulePermissionChecker
-): Promise<AuthorizeResult> {
-  const decision = await authorizeToolCall(toolName, authority, checkModulePermission);
-  if (!decision.allowed) return decision;
-  if (toolName === "simular_financiamento" && authority && !authority.isMaster) {
-    const moduleId = resolveSimulatorModulePermission(args?.department);
-    if (!moduleId) return { allowed: false, reason: "MODULE_PERMISSION_REQUIRED", detail: "department" };
-    const granted = await checkModulePermission(moduleId).catch(() => false);
-    if (!granted) return { allowed: false, reason: "MODULE_PERMISSION_DENIED", detail: moduleId };
-  }
-  return decision;
-}
+// evaluateToolPolicy is defined in ./scope-policy.ts (SEC-1B moved it
+// there, verbatim, so it can be unit-tested directly from Node without
+// pulling in this file's own remote/Deno-specific imports — see that
+// file's own header comment) and imported above. This file's only
+// call site is the tool-call loop below, unchanged.
 
 // =========================================================
 // IA-3G.5A -- cold-start forensics. MODULE_LOADED_AT/INSTANCE_ID are
