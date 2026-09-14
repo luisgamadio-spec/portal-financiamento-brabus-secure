@@ -50,14 +50,16 @@ const TEXT_BASE = `http://127.0.0.1:${TEXT_PORT}`;
 const MASTER_TOKEN = "uat-sc-master-token";
 const NON_MASTER_TOKEN = "uat-sc-non-master-token";
 const MASTER_USER = { id: "00000000-0000-4000-8000-0000000000cc", auth_user_id: "00000000-0000-4000-8000-0000000000cc", perfil: "MASTER", ativo: true };
-// SEC-1E -- profile changed from VENDEDOR to GERENTE: VENDEDOR is now a
-// legitimately outer-gate-admitted profile (SEC1C_HOMOLOG_ALLOWED_PROFILES
-// gained VENDEDOR this Wave), so it no longer demonstrates "a non-MASTER
-// profile is rejected" -- this test's actual purpose (prove the profile
-// gate runs BEFORE the shared-core kill-switch check, never after) needs
-// a profile genuinely still outer-gate-blocked. GERENTE remains blocked,
-// unchanged by SEC-1E's explicit, narrow scope (VENDEDOR only).
-const NON_MASTER_USER = { id: "00000000-0000-4000-8000-0000000000dd", auth_user_id: "00000000-0000-4000-8000-0000000000dd", perfil: "GERENTE", ativo: true };
+// SEC-1E -> SEC-1F -- profile changed from VENDEDOR to GERENTE (SEC-1E)
+// then from GERENTE to "DIRETOR NOVOS" (SEC-1F): each time the prior
+// profile became a legitimately outer-gate-admitted one
+// (SEC1C_HOMOLOG_ALLOWED_PROFILES gained VENDEDOR in SEC-1E, GERENTE in
+// SEC-1F), it stopped demonstrating "a non-MASTER profile is rejected"
+// -- this test's actual purpose (prove the profile gate runs BEFORE the
+// shared-core kill-switch check, never after) needs a profile
+// genuinely still outer-gate-blocked. DIRETOR NOVOS remains blocked,
+// unchanged by SEC-1F's explicit, narrow scope (GERENTE only).
+const NON_MASTER_USER = { id: "00000000-0000-4000-8000-0000000000dd", auth_user_id: "00000000-0000-4000-8000-0000000000dd", perfil: "DIRETOR NOVOS", ativo: true };
 
 let pass = 0, fail = 0;
 function check(label, cond, detail) {
@@ -95,7 +97,7 @@ function startMock() {
     if (url.pathname === "/auth/v1/user") {
       const token = (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
       if (token === MASTER_TOKEN) return sendJson(res, 200, { id: MASTER_USER.id, email: "master@uat.invalid", aud: "authenticated", role: "authenticated" });
-      if (token === NON_MASTER_TOKEN) return sendJson(res, 200, { id: NON_MASTER_USER.id, email: "gerente@uat.invalid", aud: "authenticated", role: "authenticated" });
+      if (token === NON_MASTER_TOKEN) return sendJson(res, 200, { id: NON_MASTER_USER.id, email: "diretor-novos@uat.invalid", aud: "authenticated", role: "authenticated" });
       return sendJson(res, 401, { error: "invalid_token", error_description: "JWT expired or invalid" });
     }
     if (url.pathname === "/rest/v1/usuarios") {

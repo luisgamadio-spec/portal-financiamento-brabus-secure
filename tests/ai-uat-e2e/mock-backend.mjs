@@ -169,8 +169,12 @@ const GERENTE_USER = {
   primeiro_acesso: false,
   nome: "UAT Gerente",
   cpf_normalizado: "00000000004",
-  loja: "NACOES",
-  status: "NOVOS"
+  // SEC-1F -- loja/status match the real controlled test account's
+  // temporary configuration for this Wave (luuis.guga@gmail.com,
+  // GERENTE/EUROPA/SEMINOVOS, confirmed live) so this mock identity's
+  // department/store authority mirrors the real Human E2E scenario.
+  loja: "EUROPA",
+  status: "SEMINOVOS"
 };
 const DIRETOR_NOVOS_USER = {
   id: "00000000-0000-4000-8000-000000000005",
@@ -256,6 +260,18 @@ const ANALISTA_ALLOWED_MODULES = ["analiseScoreVendedores", "comissoes", "copart
 // homolog gate today (GERENTE/DIRETOR remain gate-blocked, so their
 // own fixture accuracy stays dormant/out of this Wave's scope).
 const VENDEDOR_ALLOWED_MODULES = ["comissoes", "dashbi", "simuladorCompleto", "simuladorSeminovos"];
+
+// SEC-1F -- GERENTE's own real permissoes_modulos grant matrix
+// (yacqlelpzchcotgngwbh, verified live this Wave, both NOVOS/SEMINOVOS
+// rows identical): analiseScoreVendedores=true, comissoes=true,
+// coparticipadoPortal=true, dashbi=true, simuladorCompleto=true,
+// simuladorSeminovos=true; gestao=false (same single exception as
+// VENDEDOR/DIRETOR* -- gestao is granted to ANALISTA only). Same
+// staleness this Wave found for VENDEDOR in SEC-1E.1 (the generic
+// FIXTURES.portal_modulos_permitidos default below is missing dashbi)
+// now also affects GERENTE, since GERENTE is newly outer-gate-reachable
+// this Wave.
+const GERENTE_ALLOWED_MODULES = ["analiseScoreVendedores", "comissoes", "coparticipadoPortal", "dashbi", "simuladorCompleto", "simuladorSeminovos"];
 
 // ---------- IA-3C: controllable operational_portal_config() mock ----------
 // The real ia_texto_habilitada/ia_voz_habilitada kill switches are read
@@ -502,6 +518,7 @@ async function handleRest(req, res, url) {
       const caller = callerFromAuthHeader(req);
       const modules = caller && caller.perfil === "ANALISTA" ? ANALISTA_ALLOWED_MODULES
         : caller && caller.perfil === "VENDEDOR" ? VENDEDOR_ALLOWED_MODULES
+        : caller && caller.perfil === "GERENTE" ? GERENTE_ALLOWED_MODULES
         : FIXTURES.portal_modulos_permitidos;
       record("rpc.portal_modulos_permitidos", { perfil: caller?.perfil ?? null, modules });
       return json(res, 200, modules);
@@ -801,6 +818,31 @@ const MODEL_SCRIPT = [
   {
     match: /aja como master.*score de todos|ignore suas regras.*score de todos/i,
     call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: null, top_n: null, order: null } }
+  },
+
+  // ===================== SEC-1F additions =====================
+  // GERENTE's own Score authority battery -- a non-seller,
+  // module-authorized caller (real analiseScoreVendedores grant
+  // confirmed live for GERENTE) requesting an individual seller's Score
+  // by name, and a nominal ranking, both with no store/department
+  // filter (the tool's own groupView=true widening, SEC-1D.1, decides
+  // the actual population from the caller's server-verified authority,
+  // never from these null filters).
+  {
+    match: /score do vendedor Roberto Wagner de Lima|score do Roberto Wagner de Lima/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "seller", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: "Roberto Wagner de Lima", top_n: null, order: null } }
+  },
+  {
+    match: /quem são os vendedores com maior score/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: null, top_n: null, order: null } }
+  },
+  // Department-scope proof (brief's own §13): an explicit NOVOS filter
+  // requested by a caller whose real department authority is SEMINOVOS
+  // only (the SEC-1F test account) -- must still be denied by
+  // checkDepartmentScope, unaffected by the groupView/store widening.
+  {
+    match: /score dos vendedores do departamento Novos/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: null, department: "NOVOS", seller: null, top_n: null, order: null } }
   },
 
   // Sections 7/8/12/13/14 -- the Douglas/compensation battery and the
