@@ -8102,7 +8102,49 @@ serve(async (req) => {
     // multi-pass loop) -- a plain count, redundant with
     // openai_pass_ms.length but explicit for telemetry clarity.
     openai_pass_count: number | null;
-  } = { auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [], tools_sent_count: null, tools_sent_count_per_pass: [], input_item_count_per_pass: [], execution_path: null, openai_pass_count: null };
+    // LATENCY-1 -- fills named gaps the Human's latency-oscillation
+    // report asked for, all measured the SAME way (Date.now() deltas
+    // around an already-existing boundary, elapsed milliseconds only,
+    // never content) as every field above. request_validation_ms wraps
+    // the body-parse/limit-check block (Parte 10-11). config_scope_ms
+    // above stays as the already-proven COMBINED duration of the two
+    // parallel RPCs (backward compatible); kill_switch_config_ms/
+    // authority_resolution_ms below split it into its two real
+    // constituents without de-parallelizing either await (each promise
+    // is individually time-wrapped, both still run inside the same
+    // Promise.allSettled). tool_policy_ms is a running total across
+    // every evaluateToolPolicy call this request (see
+    // timedEvaluateToolPolicy below, its only caller) -- a pure-JS,
+    // no-I/O decision function, but timed anyway since "is authority
+    // resolution itself slow" was an explicit open question.
+    // response_assembly_ms wraps the block between the last OpenAI/tool
+    // work finishing and the Response object being constructed.
+    request_validation_ms: number | null;
+    kill_switch_config_ms: number | null;
+    authority_resolution_ms: number | null;
+    tool_policy_ms: number;
+    response_assembly_ms: number | null;
+  } = {
+    auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [], tools_sent_count: null, tools_sent_count_per_pass: [], input_item_count_per_pass: [], execution_path: null, openai_pass_count: null,
+    request_validation_ms: null, kill_switch_config_ms: null, authority_resolution_ms: null, tool_policy_ms: 0, response_assembly_ms: null
+  };
+
+  // LATENCY-1 -- thin timing wrapper, the ONLY change made to how
+  // evaluateToolPolicy (scope-policy.ts, unmodified) is called at any of
+  // its 5 call sites below -- same function, same arguments, same
+  // return value, same await semantics (including inside
+  // Promise.all/.map, where each wrapped call still runs concurrently;
+  // the `timings.tool_policy_ms +=` below is safe without a lock since
+  // Deno/V8 is single-threaded -- no two accumulations can interleave).
+  // Zero effect on authorization outcome.
+  async function timedEvaluateToolPolicy(...args: Parameters<typeof evaluateToolPolicy>): ReturnType<typeof evaluateToolPolicy> {
+    const t = Date.now();
+    try {
+      return await evaluateToolPolicy(...args);
+    } finally {
+      timings.tool_policy_ms += Date.now() - t;
+    }
+  }
 
   if (req.method === "OPTIONS") {
     // IA-3G.5A -- the ONE branch every real browser request hits first
@@ -8239,9 +8281,26 @@ serve(async (req) => {
     let intelligenceEnabled = false;
     let authorityEnvelope: AuthorityEnvelope | null = null;
     const t_configScopeStart = Date.now();
+    // LATENCY-1 -- each RPC wrapped in its own timed IIFE so
+    // kill_switch_config_ms/authority_resolution_ms can be told apart;
+    // both IIFEs still start executing (and therefore both RPCs still
+    // get dispatched) synchronously here, so Promise.allSettled below
+    // still runs them fully in parallel, identical to before this
+    // Wave -- only the per-call duration bookkeeping is new. Each
+    // IIFE's return/throw value is an exact passthrough of the RPC
+    // call's own settled value, so cfgResult/scopeResult keep the
+    // exact same shape callers below already read.
     const [cfgResult, scopeResult] = await Promise.allSettled([
-      userClient.rpc("operational_portal_config"),
-      userClient.rpc("operational_current_scope")
+      (async () => {
+        const t = Date.now();
+        try { return await userClient.rpc("operational_portal_config"); }
+        finally { timings.kill_switch_config_ms = Date.now() - t; }
+      })(),
+      (async () => {
+        const t = Date.now();
+        try { return await userClient.rpc("operational_current_scope"); }
+        finally { timings.authority_resolution_ms = Date.now() - t; }
+      })()
     ]);
     timings.config_scope_ms = Date.now() - t_configScopeStart;
     if (cfgResult.status === "fulfilled" && !cfgResult.value.error) {
@@ -8334,6 +8393,12 @@ serve(async (req) => {
 
     // ---- Body (Parte 10-11) — só lê message/conversation, nunca
     // user_id/perfil/loja/departamento vindos do cliente. ----
+    // LATENCY-1 -- wraps body-stream-read + JSON parse + validation +
+    // conversation trimming (the whole block below, through line ~8410)
+    // in one duration. An early 413/400 return skips setting this, same
+    // as every other stage timing already does for its own early-exit
+    // branches -- no behavior change, error paths were never timed here.
+    const t_validationStart = Date.now();
     const rawBody = await req.text();
     if (new TextEncoder().encode(rawBody).length > MAX_BODY_BYTES) {
       return new Response(JSON.stringify({ error: "Requisição excede o tamanho máximo permitido." }), { status: 413, headers });
@@ -8366,6 +8431,7 @@ serve(async (req) => {
         totalChars -= removed.content.length;
       }
     }
+    timings.request_validation_ms = Date.now() - t_validationStart;
 
     // IA-UAT-FIX-01 — contexto temporal calculado NESTA requisição (nunca
     // cacheado, nunca hardcoded), no calendário de America/Sao_Paulo — ver
@@ -8539,7 +8605,7 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
         down_payment: cashContext.capital, vehicle_year: cashContext.baselineVehicleYear,
         financing_type: "LINEAR", mode: "payment", show_term_comparison: false
       });
-      const policyDecision = await evaluateToolPolicy("simular_financiamento", baselineInput, authorityEnvelope, checkModulePermission);
+      const policyDecision = await timedEvaluateToolPolicy("simular_financiamento", baselineInput, authorityEnvelope, checkModulePermission);
       if (policyDecision.allowed) {
         const t_baselineStart = Date.now();
         const baselineOutput = await toolSimularFinanciamento(userClient, baselineInput);
@@ -8554,7 +8620,7 @@ Use CURRENT_DATE/CURRENT_TIME acima para resolver expressões relativas determin
           toolsUsed.push("simular_financiamento");
           homologCalls.push({ name: "simular_financiamento", args: baselineInput, result: baselineOutput });
 
-          const cashPolicyDecision = await evaluateToolPolicy("simular_cash_conversion", cashArgs, authorityEnvelope, checkModulePermission);
+          const cashPolicyDecision = await timedEvaluateToolPolicy("simular_cash_conversion", cashArgs, authorityEnvelope, checkModulePermission);
           if (cashPolicyDecision.allowed) {
             const t_cashStart = Date.now();
             const cashOutput = await toolSimularCashConversion(userClient, cashArgs);
@@ -8605,7 +8671,7 @@ capital = a entrada já estabelecida para este cliente/cenário (nunca pergunte 
       // behavior -- engine-first never fabricates its own denial
       // response.
       const policyDecisions = await Promise.all(
-        engineFirstInputs.map((simArgs) => evaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission))
+        engineFirstInputs.map((simArgs) => timedEvaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission))
       );
       if (policyDecisions.every((d) => d.allowed)) {
         const engineResults = await Promise.all(engineFirstInputs.map(async (simArgs) => {
@@ -8692,7 +8758,7 @@ Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca ar
         ? buildCommercialSelectionInputs(requiredDownPaymentPlan)
         : buildRequiredDownPaymentSimulationInputs(requiredDownPaymentPlan);
       const rdpPolicyDecisions = await Promise.all(
-        rdpInputs.map((simArgs) => evaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission))
+        rdpInputs.map((simArgs) => timedEvaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission))
       );
       if (rdpPolicyDecisions.every((d) => d.allowed)) {
         // VOICE-UAT-01 -- ONE real dispatch PER requested term (or, for
@@ -8870,7 +8936,7 @@ O usuário pediu explicitamente para ver todas as opções -- por isso, excepcio
           // logged server-side, never raw policy internals in the
           // response itself (Section 24's own "no raw SQL/RPC/policy
           // implementation details" requirement).
-          const policyDecision = await evaluateToolPolicy(call.name, parsedArgs, authorityEnvelope, checkModulePermission);
+          const policyDecision = await timedEvaluateToolPolicy(call.name, parsedArgs, authorityEnvelope, checkModulePermission);
           if (!policyDecision.allowed) {
             console.log(JSON.stringify({
               request_id: requestId,
@@ -8897,7 +8963,19 @@ O usuário pediu explicitamente para ver todas as opções -- por isso, excepcio
     }
     }
 
+    // LATENCY-1 -- from here to the Response constructed below is the
+    // "assembly" phase (final counts, the completed-event log line, the
+    // response body object) -- typically small, but measured rather
+    // than assumed, per the Human's own request to decompose every
+    // named boundary rather than leave any of them implicit.
+    const t_assemblyStart = Date.now();
     timings.openai_pass_count = timings.openai_pass_ms.length; // IA-3J.5 -- explicit, redundant with the array length above for telemetry clarity
+    // LATENCY-1 -- pure derivation from the already-existing
+    // tool_dispatch_ms array (each entry already an actual business
+    // RPC/tool duration) -- no new instrumentation point, just the
+    // aggregate the Human's brief asked for by name.
+    const rpcTotalMs = timings.tool_dispatch_ms.reduce((sum, e) => sum + e.ms, 0);
+    const rpcCount = timings.tool_dispatch_ms.length;
     const latencyMs = Date.now() - startedAt;
     console.log(JSON.stringify({
       request_id: requestId,
@@ -8911,9 +8989,11 @@ O usuário pediu explicitamente para ver todas as opções -- por isso, excepcio
       input_tokens: totalInputTokens,
       output_tokens: totalOutputTokens,
       timings, // IA-3G.4 -- stage durations only, see declaration above
+      rpc_total_ms: rpcTotalMs, rpc_count: rpcCount, // LATENCY-1
       instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, // IA-3G.5A -- cold-start correlation
       client_correlation_id: clientCorrelationId
     }));
+    timings.response_assembly_ms = Date.now() - t_assemblyStart;
 
     return new Response(
       JSON.stringify({
@@ -8950,7 +9030,28 @@ O usuário pediu explicitamente para ver todas as opções -- por isso, excepcio
         // of already-safe metadata instance_id already sets this
         // precedent for: a short enum string and a plain character
         // count, never prompt content, never a tool schema, never PII.
-        _homolog_edge_timing: { handler_entry_epoch_ms: startedAt, response_ready_epoch_ms: Date.now(), instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, latency_ms: latencyMs, stage_ms: timings, prompt_profile: promptProfileLabel, prompt_chars: promptCharsActual }
+        //
+        // LATENCY-1 -- 5 new siblings, same safety class as the two
+        // above (numbers/short enum/booleans only, never content):
+        // rpc_total_ms/rpc_count are the pure derivation computed above
+        // (Phase 5's own named requirement). tool_used is a boolean
+        // (never the tool NAME array _homolog_debug already carries) --
+        // "was a business tool used at all" is the safe signal asked
+        // for here; execution_path inside stage_ms already IS the safe
+        // categorical "which path" identifier (Phase 5's tool_category).
+        // openai_model is the already-public constant (never a response
+        // field that could vary per call). first_token_observable is
+        // always false today -- callOpenAI() (this same file, single
+        // shared boundary for every OpenAI call this request makes)
+        // does `await resp.json()` on a non-streaming Responses API
+        // call; there is no incremental token event to time. Stated
+        // explicitly rather than silently omitted, per the Human's own
+        // "do not label anything first token unless truly observable"
+        // instruction -- this field is NOT a promise to add streaming.
+        _homolog_edge_timing: {
+          handler_entry_epoch_ms: startedAt, response_ready_epoch_ms: Date.now(), instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, latency_ms: latencyMs, stage_ms: timings, prompt_profile: promptProfileLabel, prompt_chars: promptCharsActual,
+          rpc_total_ms: rpcTotalMs, rpc_count: rpcCount, tool_used: toolsUsed.length > 0, openai_model: OPENAI_MODEL, first_token_observable: false
+        }
       }),
       { status: 200, headers }
     );
