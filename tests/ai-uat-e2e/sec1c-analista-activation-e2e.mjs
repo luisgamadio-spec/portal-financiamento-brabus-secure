@@ -158,20 +158,22 @@ async function main() {
     check("A. MASTER: HTTP 200 (unchanged)", masterResult.status === 200, masterResult);
     check("A. MASTER: reaches real dispatch (no policy-denial text)", !JSON.stringify(masterResult.body).includes("não está disponível para o seu perfil"), masterResult.body);
 
-    // SEC-1E -- VENDEDOR is now admitted through the outer homolog gate
-    // (this Wave's own, sole intended product change). This does NOT
-    // grant VENDEDOR consultar_resultado: that tool's allowedProfiles
-    // (tool-policy.ts, SEC-1C.4, unchanged this Wave) never included
-    // VENDEDOR -- the real permissoes_modulos grant for VENDEDOR/gestao
-    // is false (confirmed live this Wave), so this denial is the
-    // correct, canonical, pre-existing restriction, now simply
-    // REACHABLE instead of masked by the outer 403. GERENTE/DIRETOR
-    // NOVOS remain outer-gate blocked, unchanged.
+    // SEC-1E -- VENDEDOR is now admitted through the outer homolog gate.
+    // SEC-1E.1 -- consultar_resultado's tool-policy modulePermission was
+    // corrected from "gestao" (a real but DIFFERENT, narrower module --
+    // "Análise F&I do Grupo", granted only to ANALISTA) to "dashbi" (the
+    // real module the tool's own underlying RPC, operational_metrics,
+    // actually belongs to -- "Análise Geral do Grupo", granted live to
+    // VENDEDOR/ANALISTA/GERENTE/DIRETOR*, confirmed this Wave). VENDEDOR
+    // now correctly ALLOWED -- this is a root-cause correction, not a
+    // widening: the data itself was already classified
+    // GROUP_OPERATIONAL_SHARED in SEC-1C.4, only the module mapping was
+    // wrong. GERENTE/DIRETOR NOVOS remain outer-gate blocked, unchanged.
     const vendedorGateResult = await call(VENDEDOR_TOKEN, "resultado do mês passado");
-    check("B. VENDEDOR: HTTP 200 (outer gate now admits this profile -- SEC-1E)", vendedorGateResult.status === 200, vendedorGateResult);
-    check("B. VENDEDOR: consultar_resultado still correctly denied at the tool-policy layer (real gestao grant is false, unchanged)", JSON.stringify(vendedorGateResult.body).includes("não está disponível para o seu perfil"), vendedorGateResult.body);
-    const vendedorDeniedLogged = countServerEvents((o) => o.event === "denied_tool_policy" && o.tool === "consultar_resultado" && o.reason === "SENSITIVE_TOOL_DENIED");
-    check("B. VENDEDOR: SENSITIVE_TOOL_DENIED logged server-side for consultar_resultado (tool-policy unchanged, not redesigned)", vendedorDeniedLogged > 0, vendedorDeniedLogged);
+    check("B. VENDEDOR: HTTP 200 (outer gate admits this profile -- SEC-1E)", vendedorGateResult.status === 200, vendedorGateResult);
+    check("B. VENDEDOR: consultar_resultado now ALLOWED (SEC-1E.1 -- dashbi module mapping correction, real grant confirmed live)", !JSON.stringify(vendedorGateResult.body).includes("não está disponível para o seu perfil"), vendedorGateResult.body);
+    const vendedorDispatchLogged = countServerEvents((o) => o.event === "completed" && Array.isArray(o.tools_used) && o.tools_used.includes("consultar_resultado") && o.user_id === "00000000-0000-4000-8000-000000000002");
+    check("B. VENDEDOR: consultar_resultado real dispatch occurred (not a policy denial)", vendedorDispatchLogged > 0, vendedorDispatchLogged);
 
     for (const [label, token] of [["GERENTE", GERENTE_TOKEN], ["DIRETOR NOVOS", DIRETOR_NOVOS_TOKEN]]) {
       const r = await call(token, "resultado do mês passado");

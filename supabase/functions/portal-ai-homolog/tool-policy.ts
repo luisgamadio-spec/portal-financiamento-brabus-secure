@@ -192,19 +192,43 @@ export const TOOL_POLICY: Record<string, ToolPolicyEntry> = {
   // kind. requiresStoreScope: false -- the Human's own canonical
   // example ("Qual foi o resultado da Bandeirantes?") is exactly this
   // tool with an out-of-caller's-store filter.
+  //
+  // SEC-1E.1 -- modulePermission corrected from "gestao" to "dashbi".
+  // Root cause of the VENDEDOR Human E2E denial ("resultado da Europa"
+  // -> "não disponível para o seu perfil"): toolConsultarResultado's
+  // fetchMetricsRows (index.ts) calls the RPC operational_metrics --
+  // the EXACT SAME RPC the real Portal's own "Análise Geral do Grupo"
+  // module calls (assets/js/adapters/dashbi-real-provider.js, confirmed
+  // by direct read this Wave: `callRpc('operational_metrics', ...)`),
+  // whose real modulos_portal id is `dashbi`, NOT `gestao` (a
+  // DIFFERENT, narrower real module -- "Análise F&I do Grupo",
+  // confirmed live this Wave: permissoes_modulos grants gestao=true to
+  // ANALISTA only, but dashbi=true to ANALISTA/GERENTE/DIRETOR_NOVOS/
+  // DIRETOR_SEMINOVOS/VENDEDOR, false only for RH). "gestao" was simply
+  // the wrong module for these RPC-backed tools from SEC-1C.4 onward --
+  // this corrects the mapping to match the RPC these tools actually
+  // call, it does not invent a new capability or grant anything new in
+  // permissoes_modulos. allowedProfiles gains VENDEDOR to match.
+  // operational_metrics's own server-side re-verification (SEC-1C.5's
+  // p_group_view fix, unchanged) already lists VENDEDOR (alongside
+  // ANALISTA) as a profile eligible for full group-wide widening once
+  // dashbi is confirmed -- this correction is what finally lets a real
+  // VENDEDOR caller reach that already-built, already-safe path.
   consultar_resultado: {
-    domain: "gestao", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "GROUP_OPERATIONAL_SHARED",
-    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "DIRETOR_NOVOS", "DIRETOR_SEMINOVOS"],
-    modulePermission: "gestao", requiresDepartmentScope: true, requiresStoreScope: false
+    domain: "dashbi", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "GROUP_OPERATIONAL_SHARED",
+    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "VENDEDOR", "DIRETOR_NOVOS", "DIRETOR_SEMINOVOS"],
+    modulePermission: "dashbi", requiresDepartmentScope: true, requiresStoreScope: false
   },
   // GROUP_OPERATIONAL_SHARED -- toolCompararResultado wraps two
   // toolConsultarResultado calls + deltas between them; same fields,
-  // same absence of individual/compensation data. "Compare Bandeirantes
-  // e Europa" is exactly this tool with two out-of-caller's-store sides.
+  // same absence of individual/compensation data, same underlying RPC
+  // (operational_metrics) -- same SEC-1E.1 correction as above, for the
+  // identical reason. "Compare Bandeirantes e Europa" is exactly this
+  // tool with two out-of-caller's-store sides.
   comparar_resultado: {
-    domain: "gestao", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "GROUP_OPERATIONAL_SHARED",
-    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "DIRETOR_NOVOS", "DIRETOR_SEMINOVOS"],
-    modulePermission: "gestao", requiresDepartmentScope: true, requiresStoreScope: false
+    domain: "dashbi", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "GROUP_OPERATIONAL_SHARED",
+    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "VENDEDOR", "DIRETOR_NOVOS", "DIRETOR_SEMINOVOS"],
+    modulePermission: "dashbi", requiresDepartmentScope: true, requiresStoreScope: false
   },
   // GROUP_OPERATIONAL_SHARED -- toolConsultarRanking's store/model/plan
   // dimensions return the same aggregate fields as consultar_resultado,
@@ -216,10 +240,21 @@ export const TOOL_POLICY: Record<string, ToolPolicyEntry> = {
   // or Score/classification (that is consultar_score_vendedores's own,
   // separate, deliberately-unwidened tool). "Qual loja teve maior
   // share?" is exactly this tool's store dimension.
+  //
+  // SEC-1E.1 -- same "gestao" -> "dashbi" correction as consultar_
+  // resultado above, for the identical root cause: EVERY dimension of
+  // this tool (buildStoreOrSellerEntries/buildPlanEntries via
+  // fetchMetricsRows, buildModelEntries via fetchModelRows) is sourced
+  // from operational_metrics or operational_model_metrics_without_spf
+  // -- the same two dashbi-gated, p_group_view-aware RPCs, confirmed by
+  // direct read this Wave. Leaving this tool mapped to "gestao" while
+  // correcting consultar_resultado would have produced an arbitrary,
+  // inconsistent outcome (VENDEDOR could ask for a store's result but
+  // not for a store ranking of the exact same underlying data).
   consultar_ranking: {
-    domain: "gestao", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "GROUP_OPERATIONAL_SHARED",
-    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "DIRETOR_NOVOS", "DIRETOR_SEMINOVOS"],
-    modulePermission: "gestao", requiresDepartmentScope: true, requiresStoreScope: false
+    domain: "dashbi", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "GROUP_OPERATIONAL_SHARED",
+    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "VENDEDOR", "DIRETOR_NOVOS", "DIRETOR_SEMINOVOS"],
+    modulePermission: "dashbi", requiresDepartmentScope: true, requiresStoreScope: false
   },
   // GROUP_OPERATIONAL_SHARED -- toolConsultarOperacoesEspeciais returns
   // per-operation {reference (already masked at the source, e.g.
@@ -343,15 +378,24 @@ export const TOOL_POLICY: Record<string, ToolPolicyEntry> = {
   // "nunca recebe nem repassa nome de vendedor, CPF, cliente, telefone,
   // e-mail ou chassi completo", matching the code exactly.
   analisar_historico_financiamento: {
-    // No dedicated modulo_id exists for "Histórico" in the real
-    // catalog. Mapped to `gestao` as the closest existing analytical
-    // permission (same underlying data domain as consultar_resultado's
-    // own group). Flagged, not asserted as a proven 1:1 correspondence
-    // -- a Human/product decision should confirm this mapping before
-    // this tool is ever wired live (Debt, Section 41).
-    domain: "gestao (inferred mapping, unconfirmed)", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "GROUP_OPERATIONAL_SHARED",
+    // SEC-1E.1 -- the SEC-1C.4 mapping below ("gestao", flagged then as
+    // an unconfirmed inference, Debt Section 41) is corrected here to
+    // its real, confirmed module: fetchHistData (index.ts) calls
+    // fetchScoreCoparticipatedData -- the SAME RPC used by
+    // consultar_score_vendedores and consultar_operacoes_especiais --
+    // whose own live SQL gates entry exclusively on
+    // `portal_modulos_permitidos() ? 'analiseScoreVendedores'` (verified
+    // by direct pg_get_functiondef read this Wave). This is NOT a
+    // dataClass change (still GROUP_OPERATIONAL_SHARED -- this tool's
+    // own returned fields remain aggregate-only, no seller name, per
+    // the audit above, unchanged) and does not alter its outcome for
+    // VENDEDOR (real analiseScoreVendedores grant is false for
+    // VENDEDOR, confirmed live in SEC-1D -- this tool correctly stays
+    // denied, now for the module its own RPC actually enforces, rather
+    // than for an unrelated, merely-similarly-shaped module).
+    domain: "analiseScoreVendedores", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "GROUP_OPERATIONAL_SHARED",
     allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "DIRETOR_NOVOS", "DIRETOR_SEMINOVOS"],
-    modulePermission: "gestao", requiresDepartmentScope: true, requiresStoreScope: false
+    modulePermission: "analiseScoreVendedores", requiresDepartmentScope: true, requiresStoreScope: false
   },
   simular_antecipacao: {
     domain: "simuladores", operation: "SIMULATION", sensitivity: "LOW", dataClass: "CALCULATION_NO_DATA_AUTHORITY",

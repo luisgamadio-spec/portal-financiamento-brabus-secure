@@ -245,6 +245,18 @@ function scopeForUser(user) {
 // FIXTURES.portal_modulos_permitidos below unchanged.
 const ANALISTA_ALLOWED_MODULES = ["analiseScoreVendedores", "comissoes", "coparticipadoPortal", "dashbi", "gestao", "simuladorCompleto", "simuladorSeminovos"];
 
+// SEC-1E.1 -- VENDEDOR's own real permissoes_modulos grant matrix
+// (yacqlelpzchcotgngwbh, verified live this Wave, both NOVOS/SEMINOVOS
+// rows identical): dashbi=true, comissoes=true, simuladorCompleto=true,
+// simuladorSeminovos=true; gestao=false, coparticipadoPortal=false,
+// analiseScoreVendedores=false. The pre-existing generic
+// FIXTURES.portal_modulos_permitidos default (below) is missing dashbi
+// -- accurate for none of the "everyone else" callers it was silently
+// standing in for, but only VENDEDOR is reachable through the outer
+// homolog gate today (GERENTE/DIRETOR remain gate-blocked, so their
+// own fixture accuracy stays dormant/out of this Wave's scope).
+const VENDEDOR_ALLOWED_MODULES = ["comissoes", "dashbi", "simuladorCompleto", "simuladorSeminovos"];
+
 // ---------- IA-3C: controllable operational_portal_config() mock ----------
 // The real ia_texto_habilitada/ia_voz_habilitada kill switches are read
 // via userClient.rpc("operational_portal_config"), never a direct table
@@ -488,7 +500,9 @@ async function handleRest(req, res, url) {
     }
     if (name === "portal_modulos_permitidos") {
       const caller = callerFromAuthHeader(req);
-      const modules = caller && caller.perfil === "ANALISTA" ? ANALISTA_ALLOWED_MODULES : FIXTURES.portal_modulos_permitidos;
+      const modules = caller && caller.perfil === "ANALISTA" ? ANALISTA_ALLOWED_MODULES
+        : caller && caller.perfil === "VENDEDOR" ? VENDEDOR_ALLOWED_MODULES
+        : FIXTURES.portal_modulos_permitidos;
       record("rpc.portal_modulos_permitidos", { perfil: caller?.perfil ?? null, modules });
       return json(res, 200, modules);
     }
@@ -534,6 +548,15 @@ function lastFunctionCallOutput(input) {
 const MODEL_SCRIPT = [
   {
     match: /resultado do mês passado/i,
+    call: { name: "consultar_resultado", arguments: { period: "previous_month", start_date: null, end_date: null, store: null, department: null } }
+  },
+  // SEC-1E.1 -- brief's own §19.C exact wording ("resultado do Grupo"),
+  // distinct string from the default "resultado do mês passado" match
+  // above (this one has "do Grupo" between "resultado" and "no mês
+  // passado", so it does not match that regex) -- same call shape
+  // (store:null = Group-consolidated), added for wording fidelity.
+  {
+    match: /resultado do Grupo/i,
     call: { name: "consultar_resultado", arguments: { period: "previous_month", start_date: null, end_date: null, store: null, department: null } }
   },
   {
@@ -683,6 +706,12 @@ const MODEL_SCRIPT = [
   {
     match: /resultado da loja Bandeirantes Centro/i,
     call: { name: "consultar_resultado", arguments: { period: "current_month", start_date: null, end_date: null, store: OTHER_REAL_STORE, department: null } }
+  },
+  // SEC-1E.1 -- a plain, standalone Europa query (brief's own §19.A
+  // worked example), distinct from the Bandeirantes Centro entry above.
+  {
+    match: /resultado da loja Europa/i,
+    call: { name: "consultar_resultado", arguments: { period: "previous_month", start_date: null, end_date: null, store: THIRD_REAL_STORE, department: null } }
   },
 
   // Section 11 -- department scope: NOVOS/SEMINOVOS (both legitimately
