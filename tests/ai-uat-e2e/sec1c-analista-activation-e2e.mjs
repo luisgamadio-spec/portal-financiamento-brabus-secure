@@ -158,9 +158,24 @@ async function main() {
     check("A. MASTER: HTTP 200 (unchanged)", masterResult.status === 200, masterResult);
     check("A. MASTER: reaches real dispatch (no policy-denial text)", !JSON.stringify(masterResult.body).includes("não está disponível para o seu perfil"), masterResult.body);
 
-    for (const [label, token] of [["VENDEDOR", VENDEDOR_TOKEN], ["GERENTE", GERENTE_TOKEN], ["DIRETOR NOVOS", DIRETOR_NOVOS_TOKEN]]) {
+    // SEC-1E -- VENDEDOR is now admitted through the outer homolog gate
+    // (this Wave's own, sole intended product change). This does NOT
+    // grant VENDEDOR consultar_resultado: that tool's allowedProfiles
+    // (tool-policy.ts, SEC-1C.4, unchanged this Wave) never included
+    // VENDEDOR -- the real permissoes_modulos grant for VENDEDOR/gestao
+    // is false (confirmed live this Wave), so this denial is the
+    // correct, canonical, pre-existing restriction, now simply
+    // REACHABLE instead of masked by the outer 403. GERENTE/DIRETOR
+    // NOVOS remain outer-gate blocked, unchanged.
+    const vendedorGateResult = await call(VENDEDOR_TOKEN, "resultado do mês passado");
+    check("B. VENDEDOR: HTTP 200 (outer gate now admits this profile -- SEC-1E)", vendedorGateResult.status === 200, vendedorGateResult);
+    check("B. VENDEDOR: consultar_resultado still correctly denied at the tool-policy layer (real gestao grant is false, unchanged)", JSON.stringify(vendedorGateResult.body).includes("não está disponível para o seu perfil"), vendedorGateResult.body);
+    const vendedorDeniedLogged = countServerEvents((o) => o.event === "denied_tool_policy" && o.tool === "consultar_resultado" && o.reason === "SENSITIVE_TOOL_DENIED");
+    check("B. VENDEDOR: SENSITIVE_TOOL_DENIED logged server-side for consultar_resultado (tool-policy unchanged, not redesigned)", vendedorDeniedLogged > 0, vendedorDeniedLogged);
+
+    for (const [label, token] of [["GERENTE", GERENTE_TOKEN], ["DIRETOR NOVOS", DIRETOR_NOVOS_TOKEN]]) {
       const r = await call(token, "resultado do mês passado");
-      check(`B. ${label}: HTTP 403 (outer gate still rejects, not activated this wave)`, r.status === 403, r);
+      check(`B. ${label}: HTTP 403 (outer gate still rejects -- not activated this wave, per SEC-1E's explicit scope)`, r.status === 403, r);
     }
 
     // ============================================================
