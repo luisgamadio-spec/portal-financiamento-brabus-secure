@@ -449,9 +449,16 @@ interface CoparticipatedSaleRow {
 async function fetchScoreCoparticipatedData(
   userClient: any,
   start: string,
-  end: string
+  end: string,
+  // SEC-1D.1 -- groupView defaults to false so fetchHistData's own,
+  // unmodified call site (2 args, Coparticipado/Histórico semantics,
+  // explicitly out of scope this Wave) is completely unaffected.
+  // toolConsultarScoreVendedores (the only caller that ever passes
+  // true) is the single Score-specific call site -- see its own call
+  // below for exactly when true is used.
+  groupView: boolean = false
 ): Promise<{ sales: CoparticipatedSaleRow[]; finance: CoparticipatedFinanceRow[] }> {
-  const { data, error } = await userClient.rpc("operational_score_coparticipated_data", { p_start: start, p_end: end });
+  const { data, error } = await userClient.rpc("operational_score_coparticipated_data", { p_start: start, p_end: end, p_group_view: groupView });
   if (error) {
     throw new ToolError("Não consegui consultar o Score agora.");
   }
@@ -1387,7 +1394,24 @@ const SCORE_SELLER_MATCH_MAX = 5;
 
 async function toolConsultarScoreVendedores(userClient: any, args: ScoreInput) {
   const period = await resolvePeriod(userClient, args.period, args.start_date, args.end_date);
-  const { sales: rawSales, finance: rawFins } = await fetchScoreCoparticipatedData(userClient, period.start_date, period.end_date);
+  // SEC-1D.1 -- group-view population is requested for every mode
+  // EXCEPT "own": mode="own" is reached only by a seller-identity
+  // caller (tool-policy layer's SCORE_SELLER_SCOPE_DENIED gate,
+  // scope-policy.ts, already enforces this before dispatchTool is ever
+  // reached) whose own RPC branch (is_seller AND u.id=v_user_id) is
+  // structurally unaffected by p_group_view either way -- passing
+  // false here is simply the explicit, honest value, never a
+  // meaningful restriction. Every other mode ("ranking"/"seller") is
+  // reachable ONLY by a caller the SAME policy layer has already
+  // confirmed holds the real analiseScoreVendedores module grant
+  // (MASTER/ANALISTA/GERENTE/authorized DIRETOR) -- requesting the full
+  // population here lets the RPC's own server-side-verified identity
+  // (never a client-supplied value) decide exactly how much that
+  // grants, per profile (own-store only where the RPC's eligibility
+  // still restricts it, full cross-store where it doesn't -- see the
+  // RPC's own migration comments).
+  const groupView = args.mode !== "own";
+  const { sales: rawSales, finance: rawFins } = await fetchScoreCoparticipatedData(userClient, period.start_date, period.end_date, groupView);
 
   let sales: ScoreSaleFact[] = rawSales.map((r) => ({
     vendedor: r.seller || "", loja: r.store || "", dept: scoreDept(r.department), familia: scoreFamily(r.model)

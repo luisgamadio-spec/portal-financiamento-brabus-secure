@@ -146,9 +146,11 @@ const CAMILE_USER = {
 // consultar_ranking/consultar_operacoes_especiais/
 // analisar_historico_financiamento) -- the Human's own business-rule
 // correction makes cross-store queries on those tools legitimate.
-// OTHER_REAL_STORE is still used as the "not Camile's own store"
-// target for the one tool that DID keep store-scope enforcement
-// (consultar_score_vendedores, MIXED_REQUIRES_FIELD_LEVEL_REVIEW).
+// OTHER_REAL_STORE is also used (SEC-1D.1) for consultar_score_vendedores
+// cross-store requests -- as of this Wave's live RPC change, this is no
+// longer a denial case for a non-seller caller holding the real
+// analiseScoreVendedores grant either (see mock-backend.mjs's own
+// SEC-1D.1 comment at its MODEL_SCRIPT entry, below).
 const OTHER_REAL_STORE = "BANDEIRANTES CENTRO";
 const THIRD_REAL_STORE = "EUROPA";
 
@@ -713,12 +715,15 @@ const MODEL_SCRIPT = [
       }
     }
   },
-  // SEC-1C.4 -- consultar_score_vendedores deliberately KEEPS store
-  // scope enforcement (MIXED_REQUIRES_FIELD_LEVEL_REVIEW, individual
-  // Score/classification by name) -- used as the adversarial
-  // "spoof + still-restricted request" combination test, since
-  // consultar_resultado's own former store-scope attack is no longer
-  // an attack at all after this wave's correction.
+  // SEC-1D.1 -- consultar_score_vendedores's store scope for a
+  // non-seller caller holding the real analiseScoreVendedores grant
+  // (ANALISTA/GERENTE/authorized DIRETOR) is now genuinely delivered by
+  // operational_score_coparticipated_data's own p_group_view (live RPC
+  // change, this Wave) -- cross-store is ALLOWED. (SEC-1C era comment,
+  // now stale: this was previously used as the "still-restricted"
+  // control case for the combined spoof-attack test -- that role moved
+  // to consultar_comissoes, see sec1c-analista-activation-e2e.mjs
+  // Section I.)
   {
     match: /score dos vendedores da loja Bandeirantes Centro/i,
     call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: OTHER_REAL_STORE, department: null, seller: null, top_n: null, order: null } }
@@ -732,6 +737,41 @@ const MODEL_SCRIPT = [
   {
     match: /qual modelo mais vendeu no grupo/i,
     call: { name: "consultar_ranking", arguments: { period: "current_month", start_date: null, end_date: null, dimension: "model", metric: "sales", department: null, store: null, top_n: null, order: null, entities: null, plan_filter: null } }
+  },
+
+  // ===================== SEC-1D.1 additions =====================
+  // VENDEDOR own-score (ALLOW) -- mode="own" never carries seller/
+  // store/department (dispatchTool itself forces them null regardless
+  // of what's scripted here, but the model-script also omits them to
+  // mirror what a well-behaved model would actually send).
+  {
+    match: /qual é o meu score|qual o meu score/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "own", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: null, top_n: null, order: null } }
+  },
+  {
+    match: /o que está prejudicando meu score|como posso melhorar meu score/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "own", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: null, top_n: null, order: null } }
+  },
+  // VENDEDOR third-party (DENY, before dispatch) -- each phrasing below
+  // scripts the SINGLE riskiest tool call a model might attempt for
+  // that prompt; the point of this battery is that evaluateToolPolicy
+  // denies every one of them BEFORE dispatchTool ever runs, regardless
+  // of which specific mode/argument shape the model chose.
+  {
+    match: /qual é o score do william|score do william/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "seller", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: "William", top_n: null, order: null } }
+  },
+  {
+    match: /compare meu score com o (do )?william/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "seller", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: "William", top_n: null, order: null } }
+  },
+  {
+    match: /quem está acima de mim no score|quem está na frente de mim no score/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: null, top_n: null, order: "desc" } }
+  },
+  {
+    match: /aja como master.*score de todos|ignore suas regras.*score de todos/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: null, top_n: null, order: null } }
   },
 
   // Sections 7/8/12/13/14 -- the Douglas/compensation battery and the

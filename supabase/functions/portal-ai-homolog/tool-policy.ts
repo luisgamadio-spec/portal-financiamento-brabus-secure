@@ -245,20 +245,41 @@ export const TOOL_POLICY: Record<string, ToolPolicyEntry> = {
   // evaluateToolPolicy, scope-policy.ts, BEFORE dispatchTool) denies
   // every other mode for an isSeller caller, so this allowedProfiles
   // change alone grants no third-party Score visibility at all.
-  // requiresDepartmentScope/requiresStoreScope are UNCHANGED (both
-  // true): ANALISTA/GERENTE cross-store Score (the Human's contract)
-  // is NOT implemented this Wave -- operational_score_coparticipated_data
-  // has no p_group_view-equivalent parameter and structurally restricts
-  // a non-director/non-master/non-seller caller's eligible_sellers to
-  // their own loja (confirmed by direct SQL read, SEC-1D) -- classified
-  // SEC1D_SCORE_RPC_CHANGE_REQUIRED in this Wave's own report; widening
-  // requiresStoreScope here without the RPC change would let the policy
-  // layer ALLOW a cross-store request that the RPC then silently
-  // returns EMPTY for (not a security bug, but a false "sem dados"
-  // answer) -- left at its stricter existing value deliberately.
+  // SEC-1D.1 -- DIRETOR_NOVOS/DIRETOR_SEMINOVOS also added (SEC-1D had
+  // deliberately left them out, pending exactly this Wave's RPC-level
+  // confirmation). Their own individual/cross-store Score boundary is
+  // decided by the SAME real analiseScoreVendedores grant as any other
+  // non-seller profile (DIRETOR_NOVOS=true, DIRETOR_SEMINOVOS=false in
+  // the real permissoes_modulos table, confirmed live this Wave and
+  // deliberately NOT changed) -- adding them here grants nothing by
+  // itself; DIRETOR_SEMINOVOS still hits MODULE_PERMISSION_DENIED.
+  // DIRETOR_NOVOS's cross-store reach is additionally bounded by
+  // requiresDepartmentScope (unchanged, true) and, independently, by
+  // operational_score_coparticipated_data's own v_is_director branch,
+  // which already restricted them to their own department's sellers
+  // (confirmed live, unaffected by p_group_view either way).
+  // SEC-1D.1 -- requiresStoreScope is now false (was true in SEC-1D).
+  // operational_score_coparticipated_data gained p_group_view this
+  // Wave (live RPC change, authorized and applied -- see this Wave's
+  // own report): a non-seller caller holding the real
+  // analiseScoreVendedores grant (ANALISTA/GERENTE/authorized DIRETOR/
+  // MASTER) now genuinely receives cross-store Score data from the RPC
+  // itself when the tool requests it (toolConsultarScoreVendedores sets
+  // groupView = mode !== "own") -- store really is a query dimension
+  // for THEM now, same as GROUP_OPERATIONAL_SHARED tools. This does
+  // NOT weaken the VENDEDOR boundary: a seller-identity caller is
+  // blocked from every mode except "own" by the INDEPENDENT,
+  // unconditional SCORE_SELLER_SCOPE_DENIED check in evaluateToolPolicy
+  // (scope-policy.ts), which runs before this flag is ever consulted --
+  // and for mode="own" itself, extractRequestedStores() already returns
+  // [] (scope-policy.ts), so this flag has zero effect on that path
+  // either way. requiresDepartmentScope stays true: department
+  // genuinely IS still an authority boundary here (DIRETOR_NOVOS's
+  // v_departments=['NOVOS'] only, confirmed live this Wave to exclude
+  // SEMINOVOS even under p_group_view=true) -- never conflate the two.
   consultar_score_vendedores: {
     domain: "analiseScoreVendedores", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "SCORE_CONTROLLED_PERFORMANCE",
-    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "VENDEDOR"],
+    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "VENDEDOR", "DIRETOR_NOVOS", "DIRETOR_SEMINOVOS"],
     // mode-dependent, like simular_financiamento's own modulePermission
     // field immediately below in this table: "own" (VENDEDOR) needs no
     // module grant at all (gated by the isSeller identity bit instead);
@@ -266,7 +287,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyEntry> = {
     // grant. authorizeToolCall (this file) unconditionally treats this
     // tool's effective modulePermission as null; the actual per-mode
     // check happens in evaluateToolPolicy (scope-policy.ts).
-    modulePermission: null, requiresDepartmentScope: true, requiresStoreScope: true
+    modulePermission: null, requiresDepartmentScope: true, requiresStoreScope: false
   },
   // ---- Gate 22 finding: consultar_comissoes is deliberately NARROWER
   // than a literal `comissoes` module-permission mirror would produce.

@@ -89,15 +89,22 @@ async function main() {
     const rB = await evaluateToolPolicy("consultar_resultado", { period: "CURRENT_MONTH", department: "NOVOS", store: "OUTRA LOJA" }, gerenteAuth, ALWAYS_GRANTED);
     check("B. GERENTE / different store (OUTRA LOJA) requested for an ordinary operational result -> ALLOWED (SEC-1C.4: store is a query dimension, not a confidentiality boundary, for GROUP_OPERATIONAL_SHARED tools)", rB.allowed === true, rB);
 
-    // B2. SEC-1C.4 Section 15.F -- the widening above must NOT be a
-    // blanket "disable store scope everywhere": consultar_score_vendedores
-    // is classified MIXED_REQUIRES_FIELD_LEVEL_REVIEW (individual Score/
-    // classification by name, the Human's own Section 10 explicitly
-    // unconfirmed boundary) and was deliberately left with
-    // requiresStoreScope: true, unchanged. Same caller, same
-    // out-of-store request, a DIFFERENT tool -- still denied.
+    // B2. SEC-1D.1 correction (was: DENIED, STORE_SCOPE_DENIED, in
+    // SEC-1D -- that Wave deliberately left consultar_score_vendedores's
+    // requiresStoreScope=true pending exactly the RPC change this Wave
+    // applied live). consultar_score_vendedores is now
+    // SCORE_CONTROLLED_PERFORMANCE with requiresStoreScope=false: the
+    // Human's own contract ("ANALISTA/GERENTE/DIRETOR: ... cross-store
+    // Score allowed") is backed by a REAL RPC change this Wave
+    // (operational_score_coparticipated_data gained p_group_view,
+    // applied and verified live) -- store is now a genuine query
+    // dimension for a non-seller caller holding the real
+    // analiseScoreVendedores grant, same as GROUP_OPERATIONAL_SHARED
+    // tools. The VENDEDOR identity boundary is unaffected: it is
+    // enforced by the INDEPENDENT SCORE_SELLER_SCOPE_DENIED check
+    // (Section SEC-1D below), never by this flag.
     const rB2 = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month", department: "NOVOS", store: "OUTRA LOJA" }, gerenteAuth, ALWAYS_GRANTED);
-    check("B2. GERENTE / different store requested for consultar_score_vendedores (MIXED, individual Score) -> still DENIED, STORE_SCOPE_DENIED (data classification, not a blanket disable)", rB2.allowed === false && rB2.reason === "STORE_SCOPE_DENIED", rB2);
+    check("B2. GERENTE / different store requested for consultar_score_vendedores -> ALLOWED (SEC-1D.1: RPC change landed, store is now a query dimension for an authorized non-seller caller)", rB2.allowed === true, rB2);
   }
 
   // ================= C/D -- VENDEDOR NOVOS, department scope, simular_financiamento =================
@@ -180,13 +187,17 @@ async function main() {
 
     // I. malformed store (wrong type entirely -- e.g. the model/an
     // adversarial payload sends a number instead of a string) -> denied.
-    // SEC-1C.4: consultar_resultado no longer enforces store scope at
-    // all (GROUP_OPERATIONAL_SHARED), so this malformed-input coverage
-    // moved to consultar_score_vendedores (MIXED, requiresStoreScope
-    // still true, unchanged this Wave) -- proves fail-closed-on-
-    // malformed-input still holds wherever store scope actually applies.
-    const rI = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month", department: "NOVOS", store: 42 }, gerenteAuth, ALWAYS_GRANTED);
-    check("I. malformed store (non-string) on a tool that still enforces store scope -> DENIED, STORE_SCOPE_DENIED (fail closed, never passthrough)", rI.allowed === false && rI.reason === "STORE_SCOPE_DENIED", rI);
+    // SEC-1D.1: after this Wave's RPC change + Score store-policy
+    // correction, NO tool in TOOL_POLICY has requiresStoreScope=true
+    // any more (every tool's store boundary is now either absent by
+    // data classification -- GROUP_OPERATIONAL_SHARED -- or delegated
+    // to the RPC + a dedicated identity check -- Score) -- so there is
+    // no live tool left to route a malformed-store-type case THROUGH
+    // evaluateToolPolicy's generic loop. The underlying fail-closed
+    // behavior itself is unchanged and proven directly here instead
+    // (scopeCheckStore is the exact function that loop calls):
+    const rI = scopeCheckStore(42, gerenteAuth);
+    check("I. malformed store (non-string) -> scopeCheckStore itself still fails closed, DENIED/STORE_SCOPE_DENIED (never passthrough) -- proven directly now that no tool routes this through evaluateToolPolicy's generic loop", rI.allowed === false && rI.reason === "STORE_SCOPE_DENIED", rI);
 
     // J. unknown/unrecognized department string -> denied (never
     // silently normalized to null and treated as "no request" --
@@ -338,7 +349,7 @@ async function main() {
     // tool-policy.ts's own updated comment for why it is neither
     // GROUP_OPERATIONAL_SHARED nor SENSITIVE_RESTRICTED).
     check("dataClass: consultar_score_vendedores is SCORE_CONTROLLED_PERFORMANCE (SEC-1D)", TOOL_POLICY.consultar_score_vendedores.dataClass === "SCORE_CONTROLLED_PERFORMANCE");
-    check("dataClass: consultar_score_vendedores KEEPS requiresStoreScope=true (ANALISTA/GERENTE cross-store Score still blocked -- SEC1D_SCORE_RPC_CHANGE_REQUIRED, see this Wave's report)", TOOL_POLICY.consultar_score_vendedores.requiresStoreScope === true);
+    check("dataClass: consultar_score_vendedores requiresStoreScope=false (SEC-1D.1: the RPC change landed live this Wave; ANALISTA/GERENTE/authorized DIRETOR cross-store Score is now genuinely delivered by the RPC, not merely allowed-on-paper)", TOOL_POLICY.consultar_score_vendedores.requiresStoreScope === false);
     check("dataClass: consultar_score_vendedores KEEPS requiresDepartmentScope=true", TOOL_POLICY.consultar_score_vendedores.requiresDepartmentScope === true);
     check("dataClass: consultar_score_vendedores now includes VENDEDOR in allowedProfiles (own-score only, enforced by the SCORE_SELLER_SCOPE_DENIED mode gate below, not by this list alone)", TOOL_POLICY.consultar_score_vendedores.allowedProfiles.includes("VENDEDOR"));
     for (const name of ["simular_financiamento", "simular_antecipacao", "simular_cash_conversion", "calcular_taxa_financiamento", "iniciar_novo_cliente"]) {
@@ -416,6 +427,30 @@ async function main() {
     check("SEC-1D: MASTER requesting mode='own' -> DENIED too (correctness guard: MASTER isn't a seller, so 'own' would mislabel the RPC's full group result as 'Você mesmo' -- MASTER keeps full access via mode='ranking'/'seller' instead, proven below)", masterOwn.allowed === false && masterOwn.reason === "SCORE_SELLER_SCOPE_DENIED", masterOwn);
     const masterRanking = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month" }, masterAuth2, ALWAYS_DENIED);
     check("SEC-1D regression: MASTER / mode='ranking' -> still ALLOWED unconditionally, even with the module permission callback denying (MASTER bypasses it entirely, as before this Wave)", masterRanking.allowed === true, masterRanking);
+  }
+
+  // ================= SEC-1D.1 -- DIRETOR Score authority: DIRETOR_NOVOS
+  // individual/cross-store ALLOW (real analiseScoreVendedores grant =
+  // true), DIRETOR_SEMINOVOS DENY (real grant = false, no permission
+  // matrix change), cross-department bypass attempt still DENIED. =====
+  {
+    const diretorNovosAuth = authority("DIRETOR_NOVOS", { store: null, departments: ["NOVOS"] });
+    const diretorSeminovosAuth = authority("DIRETOR_SEMINOVOS", { store: null, departments: ["SEMINOVOS"] });
+
+    const dnIndividual = await evaluateToolPolicy("consultar_score_vendedores", { mode: "seller", period: "current_month", seller: "Qualquer Vendedor", department: "NOVOS" }, diretorNovosAuth, ALWAYS_GRANTED);
+    check("SEC-1D.1 DIRETOR_NOVOS: individual seller Score (NOVOS, real grant=true) -> ALLOWED", dnIndividual.allowed === true, dnIndividual);
+
+    const dnRanking = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month", department: "NOVOS" }, diretorNovosAuth, ALWAYS_GRANTED);
+    check("SEC-1D.1 DIRETOR_NOVOS: cross-store ranking (NOVOS) -> ALLOWED (store is not a boundary for this profile either)", dnRanking.allowed === true, dnRanking);
+
+    const dnSeminovos = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month", department: "SEMINOVOS" }, diretorNovosAuth, ALWAYS_GRANTED);
+    check("SEC-1D.1 DIRETOR_NOVOS: requesting SEMINOVOS (outside own department authority) -> DENIED, DEPARTMENT_SCOPE_DENIED (department remains a real boundary, never bypassed by p_group_view)", dnSeminovos.allowed === false && dnSeminovos.reason === "DEPARTMENT_SCOPE_DENIED", dnSeminovos);
+
+    const dsIndividual = await evaluateToolPolicy("consultar_score_vendedores", { mode: "seller", period: "current_month", seller: "Qualquer Vendedor", department: "SEMINOVOS" }, diretorSeminovosAuth, ALWAYS_DENIED);
+    check("SEC-1D.1 DIRETOR_SEMINOVOS: individual seller Score -> DENIED, MODULE_PERMISSION_DENIED (real analiseScoreVendedores grant is false, unchanged -- never silently granted)", dsIndividual.allowed === false && dsIndividual.reason === "MODULE_PERMISSION_DENIED", dsIndividual);
+
+    const dnOwn = await evaluateToolPolicy("consultar_score_vendedores", { mode: "own", period: "current_month" }, diretorNovosAuth, ALWAYS_GRANTED);
+    check("SEC-1D.1 DIRETOR_NOVOS: mode='own' -> DENIED (a director is not a seller identity; same correctness guard as MASTER above)", dnOwn.allowed === false && dnOwn.reason === "SCORE_SELLER_SCOPE_DENIED", dnOwn);
   }
 
   console.log(`\n=== SEC-1B: Scope Enforcement Wiring Tests: ${pass}/${pass + fail} ===`);

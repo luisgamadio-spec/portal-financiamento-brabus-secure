@@ -249,16 +249,25 @@ async function main() {
     check("G. cross-store comparison (Bandeirantes x Europa, neither is Camile's NACOES): HTTP 200, real dispatch occurred", compareResult.status === 200 && afterCompareBusiness.length > beforeCompareBusiness.length, { status: compareResult.status, before: beforeCompareBusiness.length, after: afterCompareBusiness.length });
     check("G. comparison reaches real dispatch (no denial text)", !JSON.stringify(compareResult.body).includes("não está disponível para o seu perfil"), compareResult.body);
 
-    // consultar_score_vendedores deliberately KEEPS store scope --
-    // proves the widening above is a data-classification decision, not
-    // a blanket "ANALISTA can see any store now" removal.
+    // SEC-1D.1: consultar_score_vendedores cross-store is NOW ALLOWED.
+    // SEC-1D left this tool deliberately unwidened (its own RPC,
+    // operational_score_coparticipated_data, had no group-view
+    // mechanism); THIS Wave applied the live RPC change (p_group_view)
+    // and corrected requiresStoreScope accordingly -- ANALISTA's
+    // cross-store Score is now genuinely delivered by the RPC itself,
+    // not merely allowed-on-paper at the policy layer. Replaces the
+    // former "still denied" control case.
     const beforeScoreLog = await log();
     const beforeScoreBusiness = businessRpcNames(beforeScoreLog);
     const scoreAttack = await call(CAMILE_TOKEN, "score dos vendedores da loja Bandeirantes Centro");
-    const afterScoreBusiness = businessRpcNames(await log());
-    check("G. consultar_score_vendedores cross-store request (MIXED, individual Score) -> zero new dispatch (still denied)", afterScoreBusiness.length === beforeScoreBusiness.length, { before: beforeScoreBusiness.length, after: afterScoreBusiness.length });
+    const afterScoreLog = await log();
+    const afterScoreBusiness = businessRpcNames(afterScoreLog);
+    const newScoreBusiness = afterScoreBusiness.slice(beforeScoreBusiness.length);
+    check("G. consultar_score_vendedores cross-store request (SEC-1D.1: RPC change landed) -> HTTP 200, real dispatch occurred", scoreAttack.status === 200 && newScoreBusiness.length > 0, { status: scoreAttack.status, newScoreBusiness });
     const scoreDenyLogged = countServerEvents((o) => o.event === "denied_tool_policy" && o.tool === "consultar_score_vendedores" && o.reason === "STORE_SCOPE_DENIED");
-    check("G. STORE_SCOPE_DENIED logged for consultar_score_vendedores (deliberately not widened)", scoreDenyLogged > 0, scoreDenyLogged);
+    check("G. STORE_SCOPE_DENIED is NOT logged for this request (no longer a scope violation)", scoreDenyLogged === 0, scoreDenyLogged);
+    const scoreRpcEntries = afterScoreLog.filter((e) => e.kind === "rpc" && e.detail?.name === "operational_score_coparticipated_data").slice(beforeScoreLog.filter((e) => e.kind === "rpc" && e.detail?.name === "operational_score_coparticipated_data").length);
+    check("G. operational_score_coparticipated_data call includes p_group_view:true for this cross-store Score request (SEC-1D.1)", scoreRpcEntries.length > 0 && scoreRpcEntries.every((e) => e.detail.params?.p_group_view === true), scoreRpcEntries);
 
     // ============================================================
     // H. Department scope (Section 11/21.G)
@@ -295,18 +304,22 @@ async function main() {
     check("I. effective authority AFTER spoofed body fields is STILL ANALISTA (never MASTER)", spoofedScopeEntry?.detail?.perfil === "ANALISTA", spoofedScopeEntry);
     check("I. effective store AFTER spoofed body fields is STILL NACOES (never TODAS/other store)", spoofedScopeEntry?.detail?.store === "NACOES", spoofedScopeEntry);
 
-    // Combine the spoof with an actual still-restricted out-of-scope
-    // request: prove the MASTER-shaped body claim does not unlock a
-    // request that remains genuinely denied. (consultar_resultado's
-    // own former "store-scope attack" is SEC-1C.4 no longer a
-    // violation at all -- see Section G above -- so this combined
-    // check now targets consultar_score_vendedores, the one tool that
-    // deliberately kept store-scope enforcement.)
+    // Combine the spoof with an actual still-restricted request: prove
+    // the MASTER-shaped body claim does not unlock a request that
+    // remains genuinely denied. (consultar_resultado's own former
+    // "store-scope attack" is SEC-1C.4 no longer a violation at all --
+    // see Section G above -- and consultar_score_vendedores's own
+    // cross-store case is ALSO no longer restricted as of SEC-1D.1 --
+    // so this combined check now targets consultar_comissoes, which
+    // remains MASTER/RH-only regardless of store and is completely
+    // unaffected by either Wave's widening.)
     const beforeSpoofAttackLog = await log();
     const beforeSpoofAttackBusiness = businessRpcNames(beforeSpoofAttackLog);
-    const spoofedAttack = await call(CAMILE_TOKEN, "score dos vendedores da loja Bandeirantes Centro", [], { isMaster: true, perfil: "MASTER" });
+    const spoofedAttack = await call(CAMILE_TOKEN, "Qual é o salário do analista Douglas?", [], { isMaster: true, perfil: "MASTER" });
     const afterSpoofAttackBusiness = businessRpcNames(await log());
-    check("I. spoofed isMaster=true does NOT unlock a still-restricted request (consultar_score_vendedores cross-store) -- still zero new dispatch", afterSpoofAttackBusiness.length === beforeSpoofAttackBusiness.length, { before: beforeSpoofAttackBusiness.length, after: afterSpoofAttackBusiness.length });
+    check("I. spoofed isMaster=true does NOT unlock a still-restricted request (consultar_comissoes) -- still zero new dispatch", afterSpoofAttackBusiness.length === beforeSpoofAttackBusiness.length, { before: beforeSpoofAttackBusiness.length, after: afterSpoofAttackBusiness.length });
+    const spoofComissoesDenyLogged = countServerEvents((o) => o.event === "denied_tool_policy" && o.tool === "consultar_comissoes" && o.reason === "SENSITIVE_TOOL_DENIED");
+    check("I. SENSITIVE_TOOL_DENIED logged for consultar_comissoes despite the isMaster=true spoof", spoofComissoesDenyLogged > 0, spoofComissoesDenyLogged);
 
     // ============================================================
     // K. Cross-turn erosion (Section 14/21.J)
