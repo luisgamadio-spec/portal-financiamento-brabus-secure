@@ -8154,33 +8154,39 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Usuário não autenticado" }), { status: 401, headers });
     }
 
-    // ---- SEC-1C/SEC-1E/SEC-1F — controlled homologation activation.
-    // This named, explicit allowlist (and ONLY this allowlist) replaces
-    // the original single `perfil === 'MASTER'` check below. Every
-    // other profile (DIRETOR NOVOS, DIRETOR SEMINOVOS, RH, any
+    // ---- SEC-1C/SEC-1E/SEC-1F/SEC-1G — controlled homologation
+    // activation. This named, explicit allowlist (and ONLY this
+    // allowlist) replaces the original single `perfil === 'MASTER'`
+    // check below. Every other profile (DIRETOR SEMINOVOS, RH, any
     // unrecognized/malformed string) still receives the exact same 403
     // as before -- this is a narrow, explicit widening by exactly one
-    // more profile (GERENTE, SEC-1F), never a `!== MASTER` removal and
-    // never a blanket "any profile" change. MASTER/ANALISTA/VENDEDOR's
-    // own behavior is completely unchanged. portal-realtime-homolog and
-    // portal-voice-homolog are NOT touched by this wave and remain
-    // MASTER-only exactly as before -- this allowlist exists ONLY in
-    // this file (the TEXT gate).
-    const SEC1C_HOMOLOG_ALLOWED_PROFILES = new Set(["MASTER", "ANALISTA", "VENDEDOR", "GERENTE"]);
+    // more profile (the real, live-verified stored representation
+    // "DIRETOR NOVOS" -- WITH a space, `public.usuarios.perfil`'s own
+    // canonical value, confirmed by direct read of the one real active
+    // Director row this Wave; this gate compares the raw stored value
+    // via only `.trim().toUpperCase()`, never the space->underscore
+    // conversion toAuthorityEnvelope()/portal_modulos_permitidos() do
+    // further downstream -- SEC-1G), never a `!== MASTER` removal and
+    // never a blanket "any profile" change. MASTER/ANALISTA/VENDEDOR/
+    // GERENTE's own behavior is completely unchanged.
+    // portal-realtime-homolog and portal-voice-homolog are NOT touched
+    // by this wave and remain MASTER-only exactly as before -- this
+    // allowlist exists ONLY in this file (the TEXT gate).
+    const SEC1C_HOMOLOG_ALLOWED_PROFILES = new Set(["MASTER", "ANALISTA", "VENDEDOR", "GERENTE", "DIRETOR NOVOS"]);
 
     // ---- Gate MASTER (Partes 7-9) — prova server-side via service role,
     // nunca confia em claim customizado vindo do browser. SEC-1C/SEC-1E/
-    // SEC-1F: o nome "Gate MASTER" é histórico (Fase IA-2A); o
+    // SEC-1F/SEC-1G: o nome "Gate MASTER" é histórico (Fase IA-2A); o
     // comportamento real agora é "gate de perfis homologados"
     // (SEC1C_HOMOLOG_ALLOWED_PROFILES, acima) -- MASTER/ANALISTA/
-    // VENDEDOR mantêm exatamente o mesmo tratamento de antes desta
-    // Wave; GERENTE é a única adição (SEC-1F). Uma vez aprovado neste
-    // gate, a autoridade real (departamento/loja/módulo/tool/Score) de
-    // GERENTE continua inteiramente governada pela camada de
-    // tool-policy já endurecida e já provada (SEC-1B/SEC-1D/SEC-1D.1/
-    // SEC-1E.1, inalterada por esta Wave) -- este gate decide apenas
-    // "este perfil pode alcançar a IA", nunca "o que este perfil pode
-    // fazer dentro dela". ----
+    // VENDEDOR/GERENTE mantêm exatamente o mesmo tratamento de antes
+    // desta Wave; DIRETOR NOVOS é a única adição (SEC-1G). Uma vez
+    // aprovado neste gate, a autoridade real (departamento/loja/módulo/
+    // tool/Score) de DIRETOR NOVOS continua inteiramente governada pela
+    // camada de tool-policy já endurecida e já provada (SEC-1B/SEC-1D/
+    // SEC-1D.1/SEC-1E.1/SEC-1F.2, inalterada por esta Wave) -- este
+    // gate decide apenas "este perfil pode alcançar a IA", nunca "o que
+    // este perfil pode fazer dentro dela". ----
     const adminClient = createClient(supabaseUrl, serviceKey);
     const t_masterStart = Date.now();
     const { data: caller, error: callerError } = await adminClient

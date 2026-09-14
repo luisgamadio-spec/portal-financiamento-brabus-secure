@@ -273,6 +273,18 @@ const VENDEDOR_ALLOWED_MODULES = ["comissoes", "dashbi", "simuladorCompleto", "s
 // this Wave.
 const GERENTE_ALLOWED_MODULES = ["analiseScoreVendedores", "comissoes", "coparticipadoPortal", "dashbi", "simuladorCompleto", "simuladorSeminovos"];
 
+// SEC-1G -- DIRETOR_NOVOS's own real permissoes_modulos grant matrix
+// (yacqlelpzchcotgngwbh, verified live this Wave, single "TODOS"
+// departamento row per modulo -- Director permission does not split by
+// department the way VENDEDOR/GERENTE rows do): analiseScoreVendedores
+// =true, comissoes=true, coparticipadoPortal=true, dashbi=true,
+// simuladorCompleto=true, simuladorSeminovos=true; gestao=false (same
+// single exception as every other non-ANALISTA profile). Same
+// staleness this Wave found for GERENTE in SEC-1F (the generic
+// FIXTURES.portal_modulos_permitidos default below is missing dashbi)
+// now also affects DIRETOR_NOVOS, newly outer-gate-reachable this Wave.
+const DIRETOR_NOVOS_ALLOWED_MODULES = ["analiseScoreVendedores", "comissoes", "coparticipadoPortal", "dashbi", "simuladorCompleto", "simuladorSeminovos"];
+
 // ---------- IA-3C: controllable operational_portal_config() mock ----------
 // The real ia_texto_habilitada/ia_voz_habilitada kill switches are read
 // via userClient.rpc("operational_portal_config"), never a direct table
@@ -519,6 +531,7 @@ async function handleRest(req, res, url) {
       const modules = caller && caller.perfil === "ANALISTA" ? ANALISTA_ALLOWED_MODULES
         : caller && caller.perfil === "VENDEDOR" ? VENDEDOR_ALLOWED_MODULES
         : caller && caller.perfil === "GERENTE" ? GERENTE_ALLOWED_MODULES
+        : caller && caller.perfil === "DIRETOR NOVOS" ? DIRETOR_NOVOS_ALLOWED_MODULES
         : FIXTURES.portal_modulos_permitidos;
       record("rpc.portal_modulos_permitidos", { perfil: caller?.perfil ?? null, modules });
       return json(res, 200, modules);
@@ -843,6 +856,28 @@ const MODEL_SCRIPT = [
   {
     match: /score dos vendedores do departamento Novos/i,
     call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: null, department: "NOVOS", seller: null, top_n: null, order: null } }
+  },
+
+  // ===================== SEC-1G additions =====================
+  // DIRETOR NOVOS's own individual-seller Score test -- Agatha
+  // Rodrigues (BANDEIRANTES/NOVOS, real, active, live-verified this
+  // Wave to be inside a real DIRETOR NOVOS's eligible Score population,
+  // via the RPC's own structural v_is_director bypass, unchanged).
+  {
+    match: /score do vendedor Agatha Rodrigues|score da Agatha Rodrigues/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "seller", period: "current_month", start_date: null, end_date: null, store: null, department: null, seller: "Agatha Rodrigues", top_n: null, order: null } }
+  },
+  // Department-scope proof, mirrored from SEC-1F's own NOVOS-side test:
+  // an explicit SEMINOVOS filter requested by a caller whose real
+  // department authority is NOVOS only (the SEC-1G test account) --
+  // must be denied by checkDepartmentScope, same unchanged policy
+  // layer, unaffected by v_is_director's own RPC-level cross-store
+  // bypass (that bypass is store-only, never department -- department_
+  // match is evaluated before it in the RPC's own SQL, confirmed by
+  // direct read, SEC-1D).
+  {
+    match: /score dos vendedores do departamento Seminovos/i,
+    call: { name: "consultar_score_vendedores", arguments: { mode: "ranking", period: "current_month", start_date: null, end_date: null, store: null, department: "SEMINOVOS", seller: null, top_n: null, order: null } }
   },
 
   // Sections 7/8/12/13/14 -- the Douglas/compensation battery and the

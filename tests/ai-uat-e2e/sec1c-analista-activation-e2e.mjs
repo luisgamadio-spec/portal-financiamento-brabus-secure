@@ -175,20 +175,26 @@ async function main() {
     const vendedorDispatchLogged = countServerEvents((o) => o.event === "completed" && Array.isArray(o.tools_used) && o.tools_used.includes("consultar_resultado") && o.user_id === "00000000-0000-4000-8000-000000000002");
     check("B. VENDEDOR: consultar_resultado real dispatch occurred (not a policy denial)", vendedorDispatchLogged > 0, vendedorDispatchLogged);
 
-    // SEC-1F -- GERENTE is now admitted through the outer homolog gate
-    // (this Wave's own, sole intended product change). Group-operational
-    // access follows the SAME SEC-1E.1 dashbi-mapping correction already
-    // proven for VENDEDOR (GERENTE's real dashbi grant is true, live,
-    // unmodified) -- so this must now be ALLOWED too, not denied. DIRETOR
-    // NOVOS remains outer-gate blocked, unchanged.
+    // SEC-1F -- GERENTE admitted through the outer homolog gate.
+    // Group-operational access follows the SAME SEC-1E.1 dashbi-mapping
+    // correction already proven for VENDEDOR (GERENTE's real dashbi
+    // grant is true, live, unmodified) -- so this must be ALLOWED, not
+    // denied.
     const gerenteGateResult = await call(GERENTE_TOKEN, "resultado do mês passado");
     check("B. GERENTE: HTTP 200 (outer gate admits this profile -- SEC-1F)", gerenteGateResult.status === 200, gerenteGateResult);
     check("B. GERENTE: consultar_resultado ALLOWED (SEC-1E.1's dashbi mapping correction, real grant confirmed live)", !JSON.stringify(gerenteGateResult.body).includes("não está disponível para o seu perfil"), gerenteGateResult.body);
     const gerenteDispatchLogged = countServerEvents((o) => o.event === "completed" && Array.isArray(o.tools_used) && o.tools_used.includes("consultar_resultado") && o.user_id === "00000000-0000-4000-8000-000000000004");
     check("B. GERENTE: consultar_resultado real dispatch occurred (not a policy denial)", gerenteDispatchLogged > 0, gerenteDispatchLogged);
 
+    // SEC-1G -- DIRETOR NOVOS is now admitted through the outer homolog
+    // gate (this Wave's own, sole intended product change). Same
+    // dashbi-mapping correction, DIRETOR_NOVOS's real dashbi grant is
+    // also true, live, unmodified -- so this must be ALLOWED too.
     const diretorGateResult = await call(DIRETOR_NOVOS_TOKEN, "resultado do mês passado");
-    check("B. DIRETOR NOVOS: HTTP 403 (outer gate still rejects -- not activated this wave, per SEC-1F's explicit scope)", diretorGateResult.status === 403, diretorGateResult);
+    check("B. DIRETOR NOVOS: HTTP 200 (outer gate admits this profile -- SEC-1G)", diretorGateResult.status === 200, diretorGateResult);
+    check("B. DIRETOR NOVOS: consultar_resultado ALLOWED (SEC-1E.1's dashbi mapping correction, real grant confirmed live)", !JSON.stringify(diretorGateResult.body).includes("não está disponível para o seu perfil"), diretorGateResult.body);
+    const diretorDispatchLogged = countServerEvents((o) => o.event === "completed" && Array.isArray(o.tools_used) && o.tools_used.includes("consultar_resultado") && o.user_id === "00000000-0000-4000-8000-000000000005");
+    check("B. DIRETOR NOVOS: consultar_resultado real dispatch occurred (not a policy denial)", diretorDispatchLogged > 0, diretorDispatchLogged);
 
     // ============================================================
     // C. Camile (ANALISTA) reaches TEXT AI (Section 21.A, Q1)

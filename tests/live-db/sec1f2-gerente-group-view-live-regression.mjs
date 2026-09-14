@@ -17,7 +17,7 @@
 // (Incident P1 Group-View Authorization Escalation's own "6 personas
 // reais, impersonação via request.jwt.claims, SELECT-only, nenhuma
 // escrita" methodology) -- a transaction that sets request.jwt.claims
-// to the real, controlled GERENTE test account's auth_user_id, calls
+// to a real GERENTE employee's auth_user_id, calls
 // the real live RPC, asserts on the real returned data, then ALWAYS
 // ROLLBACKs (read-only by construction, regardless of pass/fail).
 //
@@ -34,11 +34,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const PROJECT_REF = "yacqlelpzchcotgngwbh";
-// The controlled, Human-approved homologation test account
-// (luuis.guga@gmail.com), temporarily configured GERENTE/EUROPA/
-// SEMINOVOS since SEC-1F -- read-only impersonation only, never
-// written to by this file.
-const GERENTE_AUTH_UID = "82f08638-a339-4ff9-beee-bf49d92480ad";
+// SEC-1G -- repointed from the shared, rotating controlled test
+// account (luuis.guga@gmail.com -- GERENTE only during its own SEC-1F/
+// SEC-1F.2 window, transitioned to DIRETOR NOVOS in SEC-1G, and
+// eventually rolled back to VENDEDOR) to a REAL, PERMANENT GERENTE
+// employee (FELIPE ALEXANDRE VITORINO, EUROPA/SEMINOVOS -- the exact
+// same store/department the original SEC-1F.2 proof used), so this
+// regression guard keeps working regardless of which profile the
+// shared test fixture currently holds. Read-only impersonation only,
+// never written to by this file, exactly as before.
+const GERENTE_AUTH_UID = "9e36974d-13df-44c9-9009-be83c747c030";
 const PERIOD_START = "2026-08-01";
 const PERIOD_END = "2026-08-31";
 
@@ -75,7 +80,7 @@ SELECT auth.uid() AS impersonated_uid, public.operational_current_scope() AS sco
 ROLLBACK;
 `);
   const sanityRow = sanity.rows?.[0];
-  check("0. impersonated auth.uid() matches the controlled GERENTE test account", sanityRow?.impersonated_uid === GERENTE_AUTH_UID, sanityRow);
+  check("0. impersonated auth.uid() matches the real GERENTE employee identity", sanityRow?.impersonated_uid === GERENTE_AUTH_UID, sanityRow);
   check("0. effective scope resolves to profile=GERENTE, store=EUROPA, departments=[SEMINOVOS]",
     sanityRow?.scope?.profile === "GERENTE" && sanityRow?.scope?.store === "EUROPA" && JSON.stringify(sanityRow?.scope?.departments) === JSON.stringify(["SEMINOVOS"]),
     sanityRow?.scope);
