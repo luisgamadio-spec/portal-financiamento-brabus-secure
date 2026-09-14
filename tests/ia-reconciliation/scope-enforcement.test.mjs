@@ -60,8 +60,8 @@ function check(label, cond, detail) {
   else { fail++; console.log(`[FAIL] ${label}${detail !== undefined ? " -- " + JSON.stringify(detail) : ""}`); }
 }
 
-function authority(profile, { store = null, departments = [], isMaster = false } = {}) {
-  return { profile, store, departments, isMaster };
+function authority(profile, { store = null, departments = [], isMaster = false, isSeller = false } = {}) {
+  return { profile, store, departments, isMaster, isSeller };
 }
 
 const ALWAYS_GRANTED = async () => true;
@@ -332,15 +332,90 @@ async function main() {
       check(`dataClass: ${name} has requiresStoreScope=false`, TOOL_POLICY[name].requiresStoreScope === false, TOOL_POLICY[name].requiresStoreScope);
     }
     check("dataClass: consultar_comissoes is SENSITIVE_RESTRICTED", TOOL_POLICY.consultar_comissoes.dataClass === "SENSITIVE_RESTRICTED");
-    check("dataClass: consultar_score_vendedores is MIXED_REQUIRES_FIELD_LEVEL_REVIEW", TOOL_POLICY.consultar_score_vendedores.dataClass === "MIXED_REQUIRES_FIELD_LEVEL_REVIEW");
-    check("dataClass: consultar_score_vendedores KEEPS requiresStoreScope=true (deliberately not widened)", TOOL_POLICY.consultar_score_vendedores.requiresStoreScope === true);
-    check("dataClass: consultar_score_vendedores KEEPS requiresDepartmentScope=true (deliberately not widened)", TOOL_POLICY.consultar_score_vendedores.requiresDepartmentScope === true);
+    // SEC-1D: the Human's own Score contract resolved the formerly-
+    // unconfirmed MIXED_REQUIRES_FIELD_LEVEL_REVIEW classification into
+    // its own dedicated SCORE_CONTROLLED_PERFORMANCE class (see
+    // tool-policy.ts's own updated comment for why it is neither
+    // GROUP_OPERATIONAL_SHARED nor SENSITIVE_RESTRICTED).
+    check("dataClass: consultar_score_vendedores is SCORE_CONTROLLED_PERFORMANCE (SEC-1D)", TOOL_POLICY.consultar_score_vendedores.dataClass === "SCORE_CONTROLLED_PERFORMANCE");
+    check("dataClass: consultar_score_vendedores KEEPS requiresStoreScope=true (ANALISTA/GERENTE cross-store Score still blocked -- SEC1D_SCORE_RPC_CHANGE_REQUIRED, see this Wave's report)", TOOL_POLICY.consultar_score_vendedores.requiresStoreScope === true);
+    check("dataClass: consultar_score_vendedores KEEPS requiresDepartmentScope=true", TOOL_POLICY.consultar_score_vendedores.requiresDepartmentScope === true);
+    check("dataClass: consultar_score_vendedores now includes VENDEDOR in allowedProfiles (own-score only, enforced by the SCORE_SELLER_SCOPE_DENIED mode gate below, not by this list alone)", TOOL_POLICY.consultar_score_vendedores.allowedProfiles.includes("VENDEDOR"));
     for (const name of ["simular_financiamento", "simular_antecipacao", "simular_cash_conversion", "calcular_taxa_financiamento", "iniciar_novo_cliente"]) {
       check(`dataClass: ${name} is CALCULATION_NO_DATA_AUTHORITY`, TOOL_POLICY[name].dataClass === "CALCULATION_NO_DATA_AUTHORITY", TOOL_POLICY[name].dataClass);
     }
     // department scope UNCHANGED for every GROUP_OPERATIONAL_SHARED tool
     // that had it before (Section 8's own explicit caution).
     check("dataClass: consultar_resultado KEEPS requiresDepartmentScope=true (department audited/preserved separately from store)", TOOL_POLICY.consultar_resultado.requiresDepartmentScope === true);
+  }
+
+  // ================= SEC-1D -- Score authority: VENDEDOR own-score
+  // ALLOW, VENDEDOR third-party DENY (adversarial), ANALISTA/GERENTE/
+  // MASTER regression unaffected. Tested at the internal policy/
+  // tool-call boundary (evaluateToolPolicy direct call) -- the outer
+  // homolog gate (index.ts, unchanged this Wave) still blocks VENDEDOR/
+  // GERENTE/DIRETOR from reaching this code live; this is the dormant-
+  // but-correct pattern this file already documents at its own header
+  // (same as every other non-MASTER scope-enforcement proof here). =====
+  {
+    const vendedorScoreAuth = authority("VENDEDOR", { store: "NACOES", departments: ["NOVOS"], isSeller: true });
+    const analistaAuth2 = authority("ANALISTA", { store: "NACOES", departments: ["NOVOS", "SEMINOVOS"] });
+    const gerenteAuth2 = authority("GERENTE", { store: "NACOES", departments: ["NOVOS"] });
+    const masterAuth2 = authority("MASTER", { isMaster: true, store: "QUALQUER LOJA", departments: ["NOVOS", "SEMINOVOS"] });
+
+    // ---- VENDEDOR own-score: 2 ALLOW cases ----
+    const own1 = await evaluateToolPolicy("consultar_score_vendedores", { mode: "own", period: "current_month" }, vendedorScoreAuth, ALWAYS_GRANTED);
+    check("SEC-1D VENDEDOR-own #1: mode='own' + ALWAYS_GRANTED -> ALLOWED", own1.allowed === true, own1);
+    const own2 = await evaluateToolPolicy("consultar_score_vendedores", { mode: "own", period: "current_month" }, vendedorScoreAuth, ALWAYS_DENIED);
+    check("SEC-1D VENDEDOR-own #2: mode='own' still ALLOWED even though the real analiseScoreVendedores module grant is DENIED (own-score needs no such grant -- gated by isSeller identity only)", own2.allowed === true, own2);
+
+    // ---- VENDEDOR third-party: 8 DENY cases ----
+    const thirdPartyCases = [
+      ["direct name query (mode='seller', seller='William')", { mode: "seller", period: "current_month", seller: "William" }],
+      ["direct name query for a DIFFERENT store too (combined attack)", { mode: "seller", period: "current_month", seller: "William", store: "EUROPA" }],
+      ["nominal ranking request (mode='ranking')", { mode: "ranking", period: "current_month", top_n: 10 }],
+      ["nominal ranking ascending ('quem está na faixa Baixo')", { mode: "ranking", period: "current_month", order: "asc" }],
+      ["seller mode naming the caller's OWN name -- mode is still not 'own', still denied (mode is the boundary, never the name)", { mode: "seller", period: "current_month", seller: "Eu Mesmo" }],
+      ["prompt-injection-style client hint ignored -- forged isMaster on top of a real isSeller envelope is a different module's concern (tool-policy.ts's own documented boundary); this module still denies the NON-forged isSeller envelope's seller-mode request", { mode: "seller", period: "current_month", seller: "Qualquer Um" }],
+      ["comparison-shaped request via ranking + entities-like store filter", { mode: "ranking", period: "current_month", store: "NACOES", department: "NOVOS" }],
+      ["mode missing entirely (malformed/omitted) -> fails closed, never defaults to an allowed mode", { period: "current_month" }]
+    ];
+    for (const [label, args] of thirdPartyCases) {
+      const r = await evaluateToolPolicy("consultar_score_vendedores", args, vendedorScoreAuth, ALWAYS_GRANTED);
+      check(`SEC-1D VENDEDOR third-party DENY: ${label}`, r.allowed === false && r.reason === "SCORE_SELLER_SCOPE_DENIED", r);
+    }
+
+    // Data-before-model proof companion (dispatch-zero pattern): every
+    // DENY case above returns allowed:false from evaluateToolPolicy,
+    // the exact function index.ts's own tool-call loop checks BEFORE
+    // ever calling dispatchTool() -- see policy-dispatch-integration.mjs
+    // (ai-uat-e2e) for the live-HTTP version of this same proof.
+
+    // ---- Client-body spoof: forged isMaster/isSeller on the envelope
+    // itself is out of THIS module's scope (tool-policy.ts's own
+    // documented boundary, Gate 38) -- but prove the inverse forgery
+    // (isSeller forced FALSE while profile is still VENDEDOR) is not a
+    // way to smuggle a ranking/seller-mode call through either, since
+    // the allowedProfiles gate is independent of isSeller.
+    const forgedNonSeller = { ...vendedorScoreAuth, isSeller: false };
+    const forgedResult = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month" }, forgedNonSeller, ALWAYS_DENIED);
+    check("SEC-1D VENDEDOR third-party DENY: isSeller forged false -> still denied, this time by the real analiseScoreVendedores module permission (ALWAYS_DENIED), never by defaulting to ALLOWED", forgedResult.allowed === false && forgedResult.reason === "MODULE_PERMISSION_DENIED", forgedResult);
+
+    // ---- mode='own' is meaningless for a non-seller identity: denied,
+    // never silently answered with someone else's store-wide pool ----
+    const analistaOwn = await evaluateToolPolicy("consultar_score_vendedores", { mode: "own", period: "current_month" }, analistaAuth2, ALWAYS_GRANTED);
+    check("SEC-1D: ANALISTA requesting mode='own' -> DENIED, SCORE_SELLER_SCOPE_DENIED (no personal Score record exists for a non-seller identity)", analistaOwn.allowed === false && analistaOwn.reason === "SCORE_SELLER_SCOPE_DENIED", analistaOwn);
+
+    // ---- ANALISTA/GERENTE/MASTER regression: existing same-store
+    // ranking/seller behavior (SEC-1C.4-era) is completely unaffected ----
+    const analistaRanking = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month", department: "NOVOS", store: "NACOES" }, analistaAuth2, ALWAYS_GRANTED);
+    check("SEC-1D regression: ANALISTA / own-store ranking -> still ALLOWED", analistaRanking.allowed === true, analistaRanking);
+    const gerenteSeller = await evaluateToolPolicy("consultar_score_vendedores", { mode: "seller", period: "current_month", seller: "Qualquer Vendedor", store: "NACOES" }, gerenteAuth2, ALWAYS_GRANTED);
+    check("SEC-1D regression: GERENTE / own-store seller lookup -> still ALLOWED", gerenteSeller.allowed === true, gerenteSeller);
+    const masterOwn = await evaluateToolPolicy("consultar_score_vendedores", { mode: "own", period: "current_month" }, masterAuth2, ALWAYS_GRANTED);
+    check("SEC-1D: MASTER requesting mode='own' -> DENIED too (correctness guard: MASTER isn't a seller, so 'own' would mislabel the RPC's full group result as 'Você mesmo' -- MASTER keeps full access via mode='ranking'/'seller' instead, proven below)", masterOwn.allowed === false && masterOwn.reason === "SCORE_SELLER_SCOPE_DENIED", masterOwn);
+    const masterRanking = await evaluateToolPolicy("consultar_score_vendedores", { mode: "ranking", period: "current_month" }, masterAuth2, ALWAYS_DENIED);
+    check("SEC-1D regression: MASTER / mode='ranking' -> still ALLOWED unconditionally, even with the module permission callback denying (MASTER bypasses it entirely, as before this Wave)", masterRanking.allowed === true, masterRanking);
   }
 
   console.log(`\n=== SEC-1B: Scope Enforcement Wiring Tests: ${pass}/${pass + fail} ===`);

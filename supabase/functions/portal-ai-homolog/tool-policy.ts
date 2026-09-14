@@ -64,6 +64,14 @@ export interface AuthorityEnvelope {
   store: string | null;
   departments: Department[];
   isMaster: boolean;
+  // SEC-1D — added: operational_current_scope()'s own real SQL already
+  // returns is_seller (true only for profile === 'VENDEDOR'); this field
+  // threads that existing, server-verified bit through to the
+  // tool-policy layer for the first time, so a seller-profile caller's
+  // OWN identity can be authoritatively distinguished from a
+  // third-party request without inventing a second permission model or
+  // trusting any client/model-supplied name.
+  isSeller: boolean;
 }
 
 export type ReasonCode =
@@ -76,7 +84,14 @@ export type ReasonCode =
   | "MODULE_PERMISSION_CHECK_FAILED"
   | "DEPARTMENT_SCOPE_DENIED"
   | "STORE_SCOPE_DENIED"
-  | "SENSITIVE_TOOL_DENIED";
+  | "SENSITIVE_TOOL_DENIED"
+  // SEC-1D — a seller-profile caller requested a Score mode other than
+  // "own" (i.e. mode='seller' naming anyone — including themselves by
+  // name — or mode='ranking'/nominal comparison). Distinct from
+  // STORE_SCOPE_DENIED/DEPARTMENT_SCOPE_DENIED: this is an identity/mode
+  // boundary, not a store or department boundary, and applies even when
+  // no store/department was requested at all.
+  | "SCORE_SELLER_SCOPE_DENIED";
 
 export type Operation = "READ_ANALYTICS" | "SIMULATION" | "SESSION_CONTROL";
 export type Sensitivity = "LOW" | "MEDIUM" | "HIGH";
@@ -98,12 +113,23 @@ export type Sensitivity = "LOW" | "MEDIUM" | "HIGH";
 //   SENSITIVE_RESTRICTED           -- individual compensation/payroll
 //     data (consultar_comissoes only) -- allowedProfiles alone already
 //     excludes every profile but MASTER/RH; scope flags are moot.
-//   MIXED_REQUIRES_FIELD_LEVEL_REVIEW -- returns an individual-level,
-//     non-compensation datum (consultar_score_vendedores's per-seller
-//     score/classification) whose own confidentiality boundary the
-//     Human explicitly flagged as unconfirmed (SEC-1C.4 §10) --
-//     scope enforcement (department AND store) is kept exactly as it
-//     already was, deliberately not widened.
+//   SCORE_CONTROLLED_PERFORMANCE   -- SEC-1D: the Human's own resolution
+//     of the formerly-unconfirmed MIXED_REQUIRES_FIELD_LEVEL_REVIEW
+//     class. consultar_score_vendedores's per-seller Score/classification
+//     is controlled PERFORMANCE information -- not identical to salary/
+//     payroll (SENSITIVE_RESTRICTED), but not ordinary Group operational
+//     data either (GROUP_OPERATIONAL_SHARED), because a VENDEDOR's own
+//     boundary is narrower than that class would allow (own Score only,
+//     never a named third party, never a ranking/comparison that could
+//     reveal or let a third-party Score be inferred) while ANALISTA/
+//     GERENTE/DIRETOR's boundary is wider (individual/cross-store/
+//     ranking/comparison, once the RPC gap documented in this Wave's own
+//     report is closed). Never collapsed into either neighboring class.
+//   MIXED_REQUIRES_FIELD_LEVEL_REVIEW -- retained as a type member for
+//     any FUTURE tool whose confidentiality boundary is not yet
+//     confirmed; no tool is classified this way as of SEC-1D (the one
+//     prior occupant, consultar_score_vendedores, was reclassified
+//     above now that the Human has confirmed its boundary).
 //   CALCULATION_NO_DATA_AUTHORITY  -- a deterministic calculator over
 //     caller-supplied numbers, no stored/queried Group or individual
 //     data at all (the four simular_*/calcular_* tools) -- scope
@@ -111,6 +137,7 @@ export type Sensitivity = "LOW" | "MEDIUM" | "HIGH";
 export type DataClass =
   | "GROUP_OPERATIONAL_SHARED"
   | "SENSITIVE_RESTRICTED"
+  | "SCORE_CONTROLLED_PERFORMANCE"
   | "MIXED_REQUIRES_FIELD_LEVEL_REVIEW"
   | "CALCULATION_NO_DATA_AUTHORITY";
 
@@ -207,24 +234,39 @@ export const TOOL_POLICY: Record<string, ToolPolicyEntry> = {
     allowedProfiles: ["MASTER", "ANALISTA", "GERENTE"], // DIRETOR_SEMINOVOS/VENDEDOR/RH: real permissoes_modulos row is false for coparticipadoPortal (Coparticipado is NOVOS-only by product design, per simular_financiamento's own tool description)
     modulePermission: "coparticipadoPortal", requiresDepartmentScope: false, requiresStoreScope: false
   },
-  // SEC-1C.4 -- MIXED_REQUIRES_FIELD_LEVEL_REVIEW, deliberately NOT
-  // widened. toolConsultarScoreVendedores returns each seller's Score
-  // (a computed 0-100 figure) and classification ("Alto Desempenho"
-  // etc.) by name -- an individual PERFORMANCE EVALUATION, a
-  // categorically different (and, per the Human's own Section 10,
-  // explicitly flagged-as-uncertain) confidentiality class from plain
-  // operational sales/production figures. The correct individual-Score
-  // authority boundary (own score vs. any seller's score, same-store
-  // vs. cross-store) was NOT proven this Wave -- classified
-  // SCORE_AUTHORITY_REQUIRES_BUSINESS_CONFIRMATION in this Wave's own
-  // report; department/store scope enforcement kept EXACTLY as it
-  // already was (both true), the stricter existing behavior, per the
-  // brief's own explicit instruction to never widen sensitive score
-  // access speculatively.
+  // SEC-1D -- SCORE_CONTROLLED_PERFORMANCE, per the Human's own
+  // confirmed Score contract (replacing SEC-1C.4's placeholder
+  // MIXED_REQUIRES_FIELD_LEVEL_REVIEW). toolConsultarScoreVendedores
+  // returns each seller's Score (0-1000) and classification by name -- a
+  // PERFORMANCE EVALUATION, neither plain operational data nor payroll.
+  // VENDEDOR is now in allowedProfiles for the FIRST time (previously
+  // SENSITIVE_TOOL_DENIED outright) -- but ONLY to reach mode="own":
+  // the dedicated SCORE_SELLER_SCOPE_DENIED check below (evaluated in
+  // evaluateToolPolicy, scope-policy.ts, BEFORE dispatchTool) denies
+  // every other mode for an isSeller caller, so this allowedProfiles
+  // change alone grants no third-party Score visibility at all.
+  // requiresDepartmentScope/requiresStoreScope are UNCHANGED (both
+  // true): ANALISTA/GERENTE cross-store Score (the Human's contract)
+  // is NOT implemented this Wave -- operational_score_coparticipated_data
+  // has no p_group_view-equivalent parameter and structurally restricts
+  // a non-director/non-master/non-seller caller's eligible_sellers to
+  // their own loja (confirmed by direct SQL read, SEC-1D) -- classified
+  // SEC1D_SCORE_RPC_CHANGE_REQUIRED in this Wave's own report; widening
+  // requiresStoreScope here without the RPC change would let the policy
+  // layer ALLOW a cross-store request that the RPC then silently
+  // returns EMPTY for (not a security bug, but a false "sem dados"
+  // answer) -- left at its stricter existing value deliberately.
   consultar_score_vendedores: {
-    domain: "analiseScoreVendedores", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "MIXED_REQUIRES_FIELD_LEVEL_REVIEW",
-    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE"], // same real-matrix basis as coparticipadoPortal
-    modulePermission: "analiseScoreVendedores", requiresDepartmentScope: true, requiresStoreScope: true
+    domain: "analiseScoreVendedores", operation: "READ_ANALYTICS", sensitivity: "MEDIUM", dataClass: "SCORE_CONTROLLED_PERFORMANCE",
+    allowedProfiles: ["MASTER", "ANALISTA", "GERENTE", "VENDEDOR"],
+    // mode-dependent, like simular_financiamento's own modulePermission
+    // field immediately below in this table: "own" (VENDEDOR) needs no
+    // module grant at all (gated by the isSeller identity bit instead);
+    // every other mode still needs the real analiseScoreVendedores
+    // grant. authorizeToolCall (this file) unconditionally treats this
+    // tool's effective modulePermission as null; the actual per-mode
+    // check happens in evaluateToolPolicy (scope-policy.ts).
+    modulePermission: null, requiresDepartmentScope: true, requiresStoreScope: true
   },
   // ---- Gate 22 finding: consultar_comissoes is deliberately NARROWER
   // than a literal `comissoes` module-permission mirror would produce.
@@ -378,6 +420,17 @@ export async function authorizeToolCall(
 
   const modulePermission =
     toolName === "simular_financiamento" ? null /* resolved by caller per-args via resolveSimulatorModulePermission before calling this, if desired -- kept out of this function's own signature to avoid coupling policy to one tool's argument shape */
+    // SEC-1D -- consultar_score_vendedores's real module grant
+    // (analiseScoreVendedores) is false for VENDEDOR in the canonical
+    // permissoes_modulos matrix (confirmed by direct read this Wave) --
+    // that grant answers "can this person use the Score ANALYSIS
+    // module" (ranking/any-seller lookup), a different question from
+    // "may a seller see their OWN score" (mode='own', gated purely by
+    // the isSeller identity bit, never by this module). Resolved
+    // per-args (mode) by evaluateToolPolicy (scope-policy.ts) instead,
+    // exactly like simular_financiamento immediately above -- kept out
+    // of this function's signature for the same reason.
+    : toolName === "consultar_score_vendedores" ? null
     : entry.modulePermission;
 
   if (modulePermission) {

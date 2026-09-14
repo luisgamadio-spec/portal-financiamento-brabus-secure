@@ -96,10 +96,17 @@ export function extractRequestedDepartments(toolName: string, args: any): unknow
       return [args?.a?.department, args?.b?.department];
     case "consultar_resultado":
     case "consultar_ranking":
-    case "consultar_score_vendedores":
     case "analisar_historico_financiamento":
     case "simular_financiamento":
       return [args?.department];
+    case "consultar_score_vendedores":
+      // SEC-1D -- mode="own" has no requested-department DIMENSION at
+      // all (it's an identity lookup, not a filtered query); dispatchTool
+      // itself forces department to null for this mode regardless, so
+      // nothing is actually narrowed by skipping this check here -- it
+      // only avoids a spurious DEPARTMENT_SCOPE_DENIED if a model/prompt
+      // attaches an unrelated department value alongside mode="own".
+      return args?.mode === "own" ? [] : [args?.department];
     default:
       return [];
   }
@@ -111,10 +118,12 @@ export function extractRequestedStores(toolName: string, args: any): unknown[] {
       return [args?.a?.store, args?.b?.store];
     case "consultar_resultado":
     case "consultar_ranking":
-    case "consultar_score_vendedores":
     case "consultar_operacoes_especiais":
     case "analisar_historico_financiamento":
       return [args?.store];
+    case "consultar_score_vendedores":
+      // SEC-1D -- same reasoning as extractRequestedDepartments above.
+      return args?.mode === "own" ? [] : [args?.store];
     default:
       return [];
   }
@@ -153,6 +162,58 @@ export async function evaluateToolPolicy(
     if (!moduleId) return { allowed: false, reason: "MODULE_PERMISSION_REQUIRED", detail: "department" };
     const granted = await checkModulePermission(moduleId).catch(() => false);
     if (!granted) return { allowed: false, reason: "MODULE_PERMISSION_DENIED", detail: moduleId };
+  }
+
+  // SEC-1D -- Score identity/mode boundary. The Human-approved Score
+  // contract: a VENDEDOR (isSeller) may see ONLY their own Score
+  // (mode="own"), never a named third party or a ranking/comparison
+  // that could reveal or let a third-party Score be inferred
+  // (mode="seller"/"ranking", whoever the name argument is -- "prompt is
+  // not security": the model could be induced to pass the caller's OWN
+  // name as a mode="seller" argument, and this check would still apply,
+  // since it keys on the MODE, never on whether the requested name
+  // happens to match the caller). This runs BEFORE the
+  // analiseScoreVendedores module-permission check below (identity is a
+  // sharper, more fundamental boundary than capability) and BEFORE
+  // dispatchTool (AUTH BEFORE PROTECTED RETRIEVAL -- evaluateToolPolicy
+  // always runs before dispatchTool, see index.ts's own tool-call loop).
+  // MASTER already returned allowed:true unconditionally inside
+  // authorizeToolCall and never reaches this block.
+  if (toolName === "consultar_score_vendedores" && authority) {
+    const mode = args?.mode;
+    // mode="own" is meaningless for a non-seller identity -- including
+    // MASTER. MASTER is not excluded from this ONE check (unlike every
+    // other check in this file, which exempts MASTER as global
+    // authority): MASTER already has full Score visibility via
+    // mode="ranking"/"seller" (unaffected below), and letting MASTER
+    // reach mode="own" would not leak anything MASTER can't already
+    // see -- but toolConsultarScoreVendedores's own "own" branch
+    // (index.ts) returns the RPC's FULL result set unfiltered for a
+    // master caller (the RPC's own v_is_master bypass), which would be
+    // mislabeled "Você mesmo" instead of the single real identity the
+    // label promises. A correctness guard, not a security one: denied
+    // rather than silently answered with the wrong shape of data.
+    if (!authority.isSeller && mode === "own") {
+      return { allowed: false, reason: "SCORE_SELLER_SCOPE_DENIED", detail: "mode" };
+    }
+    if (!authority.isMaster) {
+      if (authority.isSeller && mode !== "own") {
+        return { allowed: false, reason: "SCORE_SELLER_SCOPE_DENIED", detail: "mode" };
+      }
+      if (mode !== "own") {
+        // Every mode except "own" still requires the real, canonical
+        // analiseScoreVendedores module grant -- tool-policy.ts's
+        // authorizeToolCall deliberately nulls this tool's static
+        // modulePermission (mirroring simular_financiamento) so
+        // mode="own" can be reached by a VENDEDOR caller (real grant:
+        // false) without ever touching the ranking/seller-lookup
+        // capability; this is where that same check now actually
+        // happens for every other mode, unchanged in effect from
+        // before this Wave.
+        const granted = await checkModulePermission("analiseScoreVendedores").catch(() => false);
+        if (!granted) return { allowed: false, reason: "MODULE_PERMISSION_DENIED", detail: "analiseScoreVendedores" };
+      }
+    }
   }
 
   // SEC-1B — Finding 1 (department/store scope enforcement), now
