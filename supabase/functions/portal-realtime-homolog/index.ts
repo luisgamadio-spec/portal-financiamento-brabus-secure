@@ -147,8 +147,35 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Conversa por voz ainda não está configurada neste ambiente." }), { status: 503, headers: jsonHeaders });
     }
 
-    // Mesmo gate MASTER-only de portal-ai-homolog/portal-voice-homolog —
-    // Realtime nunca é um atalho de autorização.
+    // VOICE-SEC-1 -- converged onto the EXACT SAME outer profile
+    // allowlist portal-ai-homolog's own SEC1C_HOMOLOG_ALLOWED_PROFILES
+    // already uses (copied literally, never imported -- this file's own
+    // header comment already documents WHY: each function stays
+    // independently auditable, no cross-function Deno import graph).
+    // This is deliberately still just the FIRST gate ("can this profile
+    // even reach a Realtime session at all") -- it grants zero business
+    // authority by itself. Every real data decision (Group operational
+    // scope, Score department/store scope, salary/PII protection,
+    // prompt-injection resistance) is made EXCLUSIVELY by portal-ai-
+    // homolog's own already-hardened, already-Human-approved pipeline,
+    // reached identically for both surfaces: this function's own
+    // REALTIME_TOOLS array (above) exposes exactly one generic,
+    // business-logic-free tool (consultar_portal_intelligence); the
+    // browser's own trusted bridge (assets/js/intelligence/
+    // intelligence-voice.js, V2 repo, read this Wave) relays that tool
+    // call to portal-ai-homolog using the SAME real session token this
+    // gate already verified, via the SAME sendRealText() Text itself
+    // calls -- there is no second authorization model to converge here,
+    // only this one outer allowlist. "DIRETOR NOVOS" (the literal
+    // stored public.usuarios.perfil value, WITH a space -- confirmed
+    // live, SEC-1G) is the profile string, not the internally-
+    // normalized "DIRETOR_NOVOS" toAuthorityEnvelope()/
+    // portal_modulos_permitidos() use downstream inside portal-ai-
+    // homolog -- this gate, like portal-ai-homolog's own, only ever
+    // does `.trim().toUpperCase()`, never the space->underscore
+    // conversion. RH and "DIRETOR SEMINOVOS" remain excluded, exactly
+    // matching portal-ai-homolog's own current Text gate.
+    const VOICESEC1_ALLOWED_PROFILES = new Set(["MASTER", "ANALISTA", "VENDEDOR", "GERENTE", "DIRETOR NOVOS"]);
     const authHeader = req.headers.get("Authorization") || "";
     const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
     const { data: authData, error: authError } = await userClient.auth.getUser();
@@ -164,7 +191,8 @@ Deno.serve(async (req) => {
       .eq("ativo", true)
       .maybeSingle();
 
-    if (callerError || !caller || String(caller.perfil).trim().toUpperCase() !== "MASTER") {
+    const callerProfileNormalized = String(caller?.perfil ?? "").trim().toUpperCase();
+    if (callerError || !caller || !VOICESEC1_ALLOWED_PROFILES.has(callerProfileNormalized)) {
       console.log(JSON.stringify({ request_id: requestId, event: "denied_profile", perfil: caller?.perfil ?? null }));
       return new Response(JSON.stringify({ error: "Conversa por voz ainda não está disponível para este perfil." }), { status: 403, headers: jsonHeaders });
     }

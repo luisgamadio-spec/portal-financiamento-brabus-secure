@@ -43,6 +43,30 @@ const NON_MASTER_TOKEN = "uat-rt-non-master-token";
 const MASTER_USER = { id: "00000000-0000-4000-8000-0000000000aa", auth_user_id: "00000000-0000-4000-8000-0000000000aa", perfil: "MASTER", ativo: true };
 const NON_MASTER_USER = { id: "00000000-0000-4000-8000-0000000000bb", auth_user_id: "00000000-0000-4000-8000-0000000000bb", perfil: "VENDEDOR", ativo: true };
 
+// VOICE-SEC-1 -- one fixture per profile in portal-realtime-homolog's
+// own newly-widened VOICESEC1_ALLOWED_PROFILES (mirrors portal-ai-
+// homolog's SEC1C_HOMOLOG_ALLOWED_PROFILES, the Text contract this
+// Wave converges Voice onto, unchanged) plus one still-blocked control
+// (DIRETOR SEMINOVOS, a distinct literal string from "DIRETOR NOVOS",
+// never added to either allowlist).
+const ANALISTA_TOKEN = "uat-rt-analista-token";
+const GERENTE_TOKEN = "uat-rt-gerente-token";
+const DIRETOR_NOVOS_TOKEN = "uat-rt-diretor-novos-token";
+const DIRETOR_SEMINOVOS_TOKEN = "uat-rt-diretor-seminovos-token";
+const ANALISTA_USER = { id: "00000000-0000-4000-8000-0000000000cc", auth_user_id: "00000000-0000-4000-8000-0000000000cc", perfil: "ANALISTA", ativo: true };
+const GERENTE_USER = { id: "00000000-0000-4000-8000-0000000000dd", auth_user_id: "00000000-0000-4000-8000-0000000000dd", perfil: "GERENTE", ativo: true };
+const DIRETOR_NOVOS_USER = { id: "00000000-0000-4000-8000-0000000000ee", auth_user_id: "00000000-0000-4000-8000-0000000000ee", perfil: "DIRETOR NOVOS", ativo: true };
+const DIRETOR_SEMINOVOS_USER = { id: "00000000-0000-4000-8000-0000000000ff", auth_user_id: "00000000-0000-4000-8000-0000000000ff", perfil: "DIRETOR SEMINOVOS", ativo: true };
+const USERS_BY_TOKEN = {
+  [MASTER_TOKEN]: MASTER_USER,
+  [NON_MASTER_TOKEN]: NON_MASTER_USER,
+  [ANALISTA_TOKEN]: ANALISTA_USER,
+  [GERENTE_TOKEN]: GERENTE_USER,
+  [DIRETOR_NOVOS_TOKEN]: DIRETOR_NOVOS_USER,
+  [DIRETOR_SEMINOVOS_TOKEN]: DIRETOR_SEMINOVOS_USER
+};
+const ALL_USERS = Object.values(USERS_BY_TOKEN);
+
 let pass = 0, fail = 0;
 function check(label, cond, detail) {
   if (cond) { pass++; console.log(`[PASS] ${label}`); }
@@ -76,14 +100,13 @@ function startMock() {
 
     if (url.pathname === "/auth/v1/user") {
       const token = (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
-      if (token === MASTER_TOKEN) return sendJson(res, 200, { id: MASTER_USER.id, email: "master@uat.invalid", aud: "authenticated", role: "authenticated" });
-      if (token === NON_MASTER_TOKEN) return sendJson(res, 200, { id: NON_MASTER_USER.id, email: "vendedor@uat.invalid", aud: "authenticated", role: "authenticated" });
+      const user = USERS_BY_TOKEN[token];
+      if (user) return sendJson(res, 200, { id: user.id, email: "uat@uat.invalid", aud: "authenticated", role: "authenticated" });
       return sendJson(res, 401, { error: "invalid_token", error_description: "JWT expired or invalid" });
     }
     if (url.pathname === "/rest/v1/usuarios") {
       const isSingle = (req.headers["accept"] || "").includes("vnd.pgrst.object");
-      const wantsNonMaster = url.search.includes(NON_MASTER_USER.auth_user_id);
-      const row = wantsNonMaster ? NON_MASTER_USER : MASTER_USER;
+      const row = ALL_USERS.find((u) => url.search.includes(u.auth_user_id)) || MASTER_USER;
       return sendJson(res, 200, isSingle ? row : [row]);
     }
     const rpcMatch = url.pathname.match(/^\/rest\/v1\/rpc\/([a-z_]+)$/);
@@ -168,8 +191,17 @@ async function main() {
     const badAuth = await call("garbage-not-a-real-token", {});
     check("invalid JWT -> 401", badAuth.status === 401, badAuth);
 
-    const nonMaster = await call(NON_MASTER_TOKEN, {});
-    check("valid JWT, non-MASTER (VENDEDOR) -> 403", nonMaster.status === 403, nonMaster);
+    // VOICE-SEC-1 -- the outer gate converged onto Text's own
+    // SEC1C_HOMOLOG_ALLOWED_PROFILES: all 5 Human-approved profiles now
+    // succeed (200, real mint); a still-blocked profile (DIRETOR
+    // SEMINOVOS) still gets 403, proving this is a real, narrow
+    // allowlist widening, never a blanket "any profile" change.
+    for (const [label, token] of [["VENDEDOR", NON_MASTER_TOKEN], ["ANALISTA", ANALISTA_TOKEN], ["GERENTE", GERENTE_TOKEN], ["DIRETOR NOVOS", DIRETOR_NOVOS_TOKEN]]) {
+      const r = await call(token, {});
+      check(`valid JWT, ${label} (Human-approved Text profile) -> 200, real mint (VOICE-SEC-1 convergence)`, r.status === 200 && typeof r.json?.value === "string", r);
+    }
+    const stillBlocked = await call(DIRETOR_SEMINOVOS_TOKEN, {});
+    check("valid JWT, DIRETOR SEMINOVOS (not yet Text-approved) -> still 403, unchanged", stillBlocked.status === 403, stillBlocked);
 
     // ---------- §12/§15 Voice kill switch, server-enforced ----------
     voiceEnabled = false;
@@ -194,6 +226,21 @@ async function main() {
     // ---------- §65's own allowlist -- a bogus voice override must never pass through raw ----------
     const badVoice = await call(MASTER_TOKEN, { voice: "definitely-not-an-allowed-voice; DROP TABLE usuarios;" });
     check("bogus voice override is rejected/ignored (allowlist enforced), never echoed back as given", badVoice.status === 200 && badVoice.json?.applied?.voice !== "definitely-not-an-allowed-voice; DROP TABLE usuarios;", badVoice.json);
+
+    // ---------- VOICE-SEC-1 §7 -- client cannot request MASTER capability
+    // through session creation. This function only ever reads voice/
+    // speed/eagerness/reasoning_effort/mode/profile_text from the body
+    // (each through its own allowlist) -- perfil/isMaster/store/
+    // departments overrides are simply never read at all, so a real
+    // VENDEDOR caller sending them cannot become MASTER by construction;
+    // proven here by confirming the mint still succeeds as a normal
+    // session (never a 200 with some elevated/different shape) and that
+    // the mock (standing in for portal-ai-homolog downstream) never even
+    // enters this test's own scope -- the spoof simply has no field to
+    // land on. ----
+    const spoofBody = { perfil: "MASTER", profile: "MASTER", isMaster: true, store: "TODAS", loja: "TODAS", departments: ["TODOS"], department: "TODOS" };
+    const spoofed = await call(NON_MASTER_TOKEN, spoofBody);
+    check("VENDEDOR + client-body MASTER/store/department spoof -> still a normal, non-elevated mint (200, no trace of the spoofed fields)", spoofed.status === 200 && typeof spoofed.json?.value === "string" && !("perfil" in (spoofed.json || {})) && !("isMaster" in (spoofed.json || {})), spoofed.json);
   } finally {
     cleanup();
   }

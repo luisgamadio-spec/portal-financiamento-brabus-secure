@@ -74,8 +74,19 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Voz ainda não está configurada neste ambiente." }), { status: 503, headers: jsonHeaders });
     }
 
-    // ---- MESMO gate MASTER-only de portal-ai-homolog — voz nunca
-    // bypassa autorização (Etapa 27 do brief). ----
+    // ---- VOICE-SEC-1 -- converged onto the EXACT SAME outer profile
+    // allowlist portal-ai-homolog's own SEC1C_HOMOLOG_ALLOWED_PROFILES /
+    // portal-realtime-homolog's own VOICESEC1_ALLOWED_PROFILES already
+    // use (copied literally, never imported -- see this file's own
+    // header comment for why). This function has zero business logic
+    // (pure STT/TTS proxy, confirmed this Wave by direct read of its
+    // full source -- no SYSTEM_PROMPT, no tools, no RPC call beyond the
+    // kill-switch read below) and is confirmed, this Wave, NOT called
+    // by the current V2 frontend at all (assets/js/intelligence/
+    // intelligence-voice.js only ever calls portal-realtime-homolog);
+    // widened here purely for consistency with the other two homolog
+    // gates, not because any live path currently depends on it. ----
+    const VOICESEC1_ALLOWED_PROFILES = new Set(["MASTER", "ANALISTA", "VENDEDOR", "GERENTE", "DIRETOR NOVOS"]);
     const authHeader = req.headers.get("Authorization") || "";
     const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
     const { data: authData, error: authError } = await userClient.auth.getUser();
@@ -91,7 +102,8 @@ Deno.serve(async (req) => {
       .eq("ativo", true)
       .maybeSingle();
 
-    if (callerError || !caller || String(caller.perfil).trim().toUpperCase() !== "MASTER") {
+    const callerProfileNormalized = String(caller?.perfil ?? "").trim().toUpperCase();
+    if (callerError || !caller || !VOICESEC1_ALLOWED_PROFILES.has(callerProfileNormalized)) {
       console.log(JSON.stringify({ request_id: requestId, event: "denied_profile", perfil: caller?.perfil ?? null }));
       return new Response(JSON.stringify({ error: "Voz ainda não está disponível para este perfil." }), { status: 403, headers: jsonHeaders });
     }
