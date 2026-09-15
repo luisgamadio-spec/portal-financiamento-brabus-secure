@@ -7933,7 +7933,15 @@ const CASH_SYNTHESIS_PROFILE = [
 // Cliente OpenAI (Responses API) — timeout + 1 retry em falha transitória
 // (Partes 47-48).
 // =========================================================
-async function callOpenAI(apiKey: string, input: any[], tools: any[], attempt = 0): Promise<any> {
+// LATENCY-2C -- `retryTracker` is the ONLY addition: an optional
+// mutable counter the caller may pass in (a fresh { count: 0 } per
+// OpenAI pass) to observe how many times THIS call retried, without
+// changing retry conditions/timeout/backoff/model/request body in any
+// way -- every existing caller that omits it behaves identically to
+// before this Wave (retryTracker stays undefined, the `if
+// (retryTracker)` guard below is simply never true). Never exposes the
+// transient response body/status to the caller -- only a count.
+async function callOpenAI(apiKey: string, input: any[], tools: any[], attempt = 0, retryTracker?: { count: number }): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), OPENAI_CALL_TIMEOUT_MS);
   try {
@@ -7954,8 +7962,9 @@ async function callOpenAI(apiKey: string, input: any[], tools: any[], attempt = 
     if (!resp.ok) {
       const transient = resp.status === 429 || resp.status >= 500;
       if (transient && attempt < OPENAI_MAX_RETRIES) {
+        if (retryTracker) retryTracker.count++;
         await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-        return callOpenAI(apiKey, input, tools, attempt + 1);
+        return callOpenAI(apiKey, input, tools, attempt + 1, retryTracker);
       }
       const bodyText = await resp.text().catch(() => "");
       throw new Error(`OpenAI respondeu ${resp.status}: ${bodyText.slice(0, 300)}`);
@@ -8124,9 +8133,18 @@ serve(async (req) => {
     authority_resolution_ms: number | null;
     tool_policy_ms: number;
     response_assembly_ms: number | null;
+    // LATENCY-2C -- one entry pushed per OpenAI pass (same indices as
+    // openai_pass_ms above), the retry COUNT for that specific pass
+    // (0 when it succeeded on the first attempt). Closes the exact gap
+    // LATENCY-2B found: elapsed ms already included any retry+backoff,
+    // but whether one occurred was invisible. callOpenAI() itself is
+    // unchanged (same conditions/timeout/backoff/model) -- this only
+    // observes it.
+    openai_retry_count_per_pass: number[];
   } = {
     auth_ms: null, master_gate_ms: null, config_scope_ms: null, openai_pass_ms: [], tool_dispatch_ms: [], tools_sent_count: null, tools_sent_count_per_pass: [], input_item_count_per_pass: [], execution_path: null, openai_pass_count: null,
-    request_validation_ms: null, kill_switch_config_ms: null, authority_resolution_ms: null, tool_policy_ms: 0, response_assembly_ms: null
+    request_validation_ms: null, kill_switch_config_ms: null, authority_resolution_ms: null, tool_policy_ms: 0, response_assembly_ms: null,
+    openai_retry_count_per_pass: []
   };
 
   // LATENCY-1 -- thin timing wrapper, the ONLY change made to how
@@ -8649,8 +8667,10 @@ capital = a entrada já estabelecida para este cliente/cenário (nunca pergunte 
             timings.tools_sent_count_per_pass.push(synthesisTools.length);
             timings.input_item_count_per_pass.push(input.length);
             const t_openaiStart = Date.now();
-            const response = await callOpenAI(openaiKey, input, synthesisTools);
+            const retryTracker = { count: 0 };
+            const response = await callOpenAI(openaiKey, input, synthesisTools, 0, retryTracker);
             timings.openai_pass_ms.push(Date.now() - t_openaiStart);
+            timings.openai_retry_count_per_pass.push(retryTracker.count);
             totalInputTokens += response?.usage?.input_tokens ?? 0;
             totalOutputTokens += response?.usage?.output_tokens ?? 0;
             lastModel = response?.model ?? OPENAI_MODEL;
@@ -8736,8 +8756,10 @@ Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca ar
         timings.tools_sent_count_per_pass.push(synthesisTools.length);
         timings.input_item_count_per_pass.push(input.length);
         const t_openaiStart = Date.now();
-        const response = await callOpenAI(openaiKey, input, synthesisTools);
+        const retryTracker = { count: 0 };
+        const response = await callOpenAI(openaiKey, input, synthesisTools, 0, retryTracker);
         timings.openai_pass_ms.push(Date.now() - t_openaiStart);
+        timings.openai_retry_count_per_pass.push(retryTracker.count);
         totalInputTokens += response?.usage?.input_tokens ?? 0;
         totalOutputTokens += response?.usage?.output_tokens ?? 0;
         lastModel = response?.model ?? OPENAI_MODEL;
@@ -8844,8 +8866,10 @@ O usuário pediu explicitamente para ver todas as opções -- por isso, excepcio
         timings.tools_sent_count_per_pass.push(synthesisTools.length);
         timings.input_item_count_per_pass.push(input.length);
         const t_openaiStart = Date.now();
-        const response = await callOpenAI(openaiKey, input, synthesisTools);
+        const retryTracker = { count: 0 };
+        const response = await callOpenAI(openaiKey, input, synthesisTools, 0, retryTracker);
         timings.openai_pass_ms.push(Date.now() - t_openaiStart);
+        timings.openai_retry_count_per_pass.push(retryTracker.count);
         totalInputTokens += response?.usage?.input_tokens ?? 0;
         totalOutputTokens += response?.usage?.output_tokens ?? 0;
         lastModel = response?.model ?? OPENAI_MODEL;
@@ -8881,8 +8905,10 @@ O usuário pediu explicitamente para ver todas as opções -- por isso, excepcio
       timings.input_item_count_per_pass.push(input.length);
 
       const t_openaiStart = Date.now();
-      const response = await callOpenAI(openaiKey, input, passTools);
+      const retryTracker = { count: 0 };
+      const response = await callOpenAI(openaiKey, input, passTools, 0, retryTracker);
       timings.openai_pass_ms.push(Date.now() - t_openaiStart);
+      timings.openai_retry_count_per_pass.push(retryTracker.count);
       totalInputTokens += response?.usage?.input_tokens ?? 0;
       totalOutputTokens += response?.usage?.output_tokens ?? 0;
       lastModel = response?.model ?? OPENAI_MODEL;
@@ -8976,6 +9002,10 @@ O usuário pediu explicitamente para ver todas as opções -- por isso, excepcio
     // aggregate the Human's brief asked for by name.
     const rpcTotalMs = timings.tool_dispatch_ms.reduce((sum, e) => sum + e.ms, 0);
     const rpcCount = timings.tool_dispatch_ms.length;
+    // LATENCY-2C -- pure derivation from the new per-pass array above,
+    // same pattern as rpcTotalMs/rpcCount immediately above.
+    const openaiRetryCountTotal = timings.openai_retry_count_per_pass.reduce((sum, n) => sum + n, 0);
+    const openaiRetryOccurred = openaiRetryCountTotal > 0;
     const latencyMs = Date.now() - startedAt;
     console.log(JSON.stringify({
       request_id: requestId,
@@ -8990,6 +9020,7 @@ O usuário pediu explicitamente para ver todas as opções -- por isso, excepcio
       output_tokens: totalOutputTokens,
       timings, // IA-3G.4 -- stage durations only, see declaration above
       rpc_total_ms: rpcTotalMs, rpc_count: rpcCount, // LATENCY-1
+      openai_retry_count: openaiRetryCountTotal, openai_retry_occurred: openaiRetryOccurred, // LATENCY-2C
       instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, // IA-3G.5A -- cold-start correlation
       client_correlation_id: clientCorrelationId
     }));
@@ -9048,9 +9079,13 @@ O usuário pediu explicitamente para ver todas as opções -- por isso, excepcio
         // explicitly rather than silently omitted, per the Human's own
         // "do not label anything first token unless truly observable"
         // instruction -- this field is NOT a promise to add streaming.
+        // LATENCY-2C -- 2 more siblings, same safety class (plain
+        // number + boolean, pure derivation from the new per-pass
+        // array in stage_ms, never a response body/error detail).
         _homolog_edge_timing: {
           handler_entry_epoch_ms: startedAt, response_ready_epoch_ms: Date.now(), instance_id: INSTANCE_ID, instance_age_ms: instanceAgeMs, latency_ms: latencyMs, stage_ms: timings, prompt_profile: promptProfileLabel, prompt_chars: promptCharsActual,
-          rpc_total_ms: rpcTotalMs, rpc_count: rpcCount, tool_used: toolsUsed.length > 0, openai_model: OPENAI_MODEL, first_token_observable: false
+          rpc_total_ms: rpcTotalMs, rpc_count: rpcCount, tool_used: toolsUsed.length > 0, openai_model: OPENAI_MODEL, first_token_observable: false,
+          openai_retry_count: openaiRetryCountTotal, openai_retry_occurred: openaiRetryOccurred
         }
       }),
       { status: 200, headers }
