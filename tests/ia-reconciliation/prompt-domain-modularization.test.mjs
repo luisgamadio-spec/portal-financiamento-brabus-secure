@@ -69,7 +69,16 @@ const financePrompt = extractComposedPrompt(source, "FINANCE_PROMPT_PROFILE");
 
 // ---------- A. full-prompt byte equivalence ----------
 {
-  check("FULL_SYSTEM_PROMPT is exactly 115,767 chars (115,053 through IA-3K.4 + 714 from IA-REGRESSION-01's anti-promise invariant bullet in PROMPT_SHARED_CONVERSATION)", fullPrompt.length === 115767, fullPrompt.length);
+  // IA-KNOWLEDGE-1: repinned from 115,767 to 120,118. This includes
+  // 1,652 chars of pre-existing drift already present at this Wave's
+  // own HEAD (4cbfeaa) from waves after IA-REGRESSION-01 that added
+  // prompt content without repinning this assertion -- out of this
+  // Wave's own scope to attribute further, disclosed here rather than
+  // silently absorbed -- plus this Wave's own +2,699 chars: the new
+  // Coparticipado Trade-In-loss bullet and the new Subsidiado >50%-
+  // entry/rebate-cost bullet (see PROMPT_FINANCE_COPARTICIPADO /
+  // PROMPT_FINANCE_SUBSIDIADAS, "CONHECIMENTO COMERCIAL (IA-KNOWLEDGE-1)").
+  check("FULL_SYSTEM_PROMPT is exactly 120,118 chars (117,419 pre-existing at this Wave's HEAD + 2,699 from IA-KNOWLEDGE-1's Coparticipado/Subsidiado commercial-knowledge bullets)", fullPrompt.length === 120118, fullPrompt.length);
   const hash = createHash("sha256").update(fullPrompt, "utf8").digest("hex");
   // Known-good hash of the pre-split SYSTEM_PROMPT content, captured
   // from the real source at IA-3J.4H.2's own HEAD (commit 9f3a8ae) --

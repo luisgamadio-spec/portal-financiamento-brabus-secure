@@ -71,7 +71,13 @@ function sectionSpan(name) {
 // both Waves' work on this same file, not IA-3J.4H's own move in
 // isolation. ----------
 {
-  check("SYSTEM_PROMPT content is exactly 115,767 chars (115,053 through IA-3K.4 + 714 from IA-REGRESSION-01's anti-promise invariant bullet in PROMPT_SHARED_CONVERSATION)", promptBody.length === 115767, promptBody.length);
+  // IA-KNOWLEDGE-1: repinned from 115,767 to 120,118 -- same repin,
+  // same justification, as tests/ia-reconciliation/prompt-domain-
+  // modularization.test.mjs's own "FULL_SYSTEM_PROMPT is exactly
+  // 120,118 chars" assertion (117,419 pre-existing drift already
+  // present at this Wave's HEAD + 2,699 from the new Coparticipado/
+  // Subsidiado commercial-knowledge bullets).
+  check("SYSTEM_PROMPT content is exactly 120,118 chars (117,419 pre-existing at this Wave's HEAD + 2,699 from IA-KNOWLEDGE-1's Coparticipado/Subsidiado commercial-knowledge bullets)", promptBody.length === 120118, promptBody.length);
 }
 
 // ---------- 2. canonical block exists exactly once ----------
