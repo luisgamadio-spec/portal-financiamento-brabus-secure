@@ -80,6 +80,14 @@ const extractBalloonCountConstraintFn = "export " + extractFunction(source, "ext
 const financeExplanationOnlyReConst = "export " + extractConst(source, "FINANCE_EXPLANATION_ONLY_RE");
 const financeExplicitMutationVerbReConst = "export " + extractConst(source, "FINANCE_EXPLICIT_MUTATION_VERB_RE");
 const isFinanceExplanationOnlyFn = "export " + extractFunction(source, "isFinanceExplanationOnly");
+// IA-CAPLOCK8 -- resolveStatefulRequiredDownPaymentPlan is now a thin
+// projection of ONE cumulative, turn-by-turn-folded state.
+const cumulativeFinanceStateInterface = "export " + extractInterface(source, "CumulativeFinanceState");
+const financeStateSignalReConst = "export " + extractConst(source, "FINANCE_STATE_SIGNAL_RE");
+const termDelegationReConst = "export " + extractConst(source, "TERM_DELEGATION_RE");
+const emptyCumulativeFinanceStateFn = "export " + extractFunction(source, "emptyCumulativeFinanceState");
+const applyFinanceTurnDeltaFn = "export " + extractFunction(source, "applyFinanceTurnDelta");
+const computeCumulativeFinanceStateFn = "export " + extractFunction(source, "computeCumulativeFinanceState");
 
 const modText = [
   "// AUTO-EXTRACTED at test time -- do not hand-edit.",
@@ -92,6 +100,8 @@ const modText = [
   buildSelectionInputsFn, commercialProposalInterface, selectProposalsFn,
   balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
   financeExplanationOnlyReConst, financeExplicitMutationVerbReConst, isFinanceExplanationOnlyFn,
+  cumulativeFinanceStateInterface, financeStateSignalReConst, termDelegationReConst,
+  emptyCumulativeFinanceStateFn, applyFinanceTurnDeltaFn, computeCumulativeFinanceStateFn,
 ].join("\n\n");
 const tmpDir = mkdtempSync(join(tmpdir(), "ia-uat04-"));
 const modPath = join(tmpDir, "extracted.ts");
@@ -193,7 +203,20 @@ const plan4 = resolveStatefulRequiredDownPaymentPlan(conv1, TURN4);
 check("[A6] turn 4 ('Agora quero Balão.', pure override) resolves -- hasGoalSignal extended to recognize 'balão' alone", plan4 !== null, plan4);
 if (plan4) {
   check("[A6] turn 4: vehicleValue/targetPayment still inherited", plan4.vehicleValue === 330000 && plan4.targetPayment === 3500, plan4);
-  check("[A6] turn 4: financingTypeOverride = BALAO_ONLY, no term named (back to open recommendation, just Balão-scoped)", plan4.financingTypeOverride === "BALAO_ONLY" && plan4.termMonthsList === null, plan4);
+  check("[A6] turn 4: financingTypeOverride = BALAO_ONLY", plan4.financingTypeOverride === "BALAO_ONLY", plan4);
+  // IA-CAPLOCK8 -- turn 4 ("Agora quero Balão.") only ever changed
+  // financing-type; it never mentioned term at all. Turn 3's own
+  // explicit term (48) is an UNNAMED constraint from turn 4's own
+  // perspective and must PERSIST (Part D: "Update ONLY constraints
+  // explicitly changed... Unnamed constraints persist... This applies
+  // to... term... financing mode"), never silently reset just because a
+  // different field changed. This assertion is the corrected, CAPLOCK8-
+  // mandated behavior -- the pre-CAPLOCK8 implementation could never
+  // carry term/financingType/balloon constraints across more than one
+  // hop at all (historicalVehicle only ever tracked department/
+  // vehicleValue/vehicleYear/targetPayment), so this exact case was
+  // never actually exercised as "accumulate across 2+ hops" before.
+  check("[A6] turn 4: term (48, established in turn 3, never mentioned in turn 4) PERSISTS -- an unnamed constraint, never silently reset by an unrelated mutation", JSON.stringify(plan4.termMonthsList) === JSON.stringify([48]), plan4);
 }
 
 // ---- A7. never invents a target that was never stated anywhere ----

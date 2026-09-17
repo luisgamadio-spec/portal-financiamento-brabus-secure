@@ -6489,6 +6489,14 @@ interface FinanceEngineFirstPlan {
   targetPayment: number | null;
   termMonths: number | null;
   scenario: FinanceEngineFirstScenario;
+  // IA-CAPLOCK8 -- optional (never set by the stateless extractFinance
+  // EngineFirstPlan, which has no balloon-count concept at all): only
+  // resolveStatefulFinancePlan's own cumulative-state projection sets
+  // these, for a Human who established a Balão count constraint BEFORE
+  // or AFTER down_payment became known (Part H's objective-transition
+  // case). Read via `?? null` wherever consumed, never assumed present.
+  balloonCountMax?: number | null;
+  balloonCountExact?: number | null;
 }
 
 // A Brazilian-formatted money token as raw text -- "R$ 180.000",
@@ -6690,7 +6698,11 @@ function buildEngineFirstSimulationInputs(plan: FinanceEngineFirstPlan): Simulat
   const base: Partial<SimulationInput> = {
     department: plan.department, vehicle_value: plan.vehicleValue, down_payment: plan.downPayment,
     vehicle_year: plan.vehicleYear, target_payment: plan.targetPayment, term_months: plan.termMonths,
-    show_term_comparison: false
+    show_term_comparison: false,
+    // IA-CAPLOCK8 -- carries a Human-established Balão count constraint
+    // into this dispatch too (only meaningful for the BALAO branch
+    // below; harmless on the LINEAR one, which ignores these fields).
+    balloon_count_ceiling: plan.balloonCountMax ?? null, balloon_count_exact: plan.balloonCountExact ?? null,
   };
   const inputs: SimulationInput[] = [];
   if (plan.scenario === "BALAO_ONLY" || plan.scenario === "BOTH_BALAO_AND_LINEAR") {
@@ -6752,7 +6764,10 @@ const LINEAR_ONLY_EXCLUSION_RE = /s(?:o|ó)mente linear|s(?:o|ó)\s+linear|sem b
 // new numbers) -- so it is treated as an exclusion here, unlike
 // LINEAR_ONLY_EXCLUSION_RE's own stricter "somente/sem" requirement
 // (intentionally left untouched, shared with the other plan type).
-const BALAO_ONLY_EXCLUSION_RE = /s(?:o|ó)mente bal[ãa]o|s(?:o|ó)\s+bal[ãa]o|apenas bal[ãa]o|sem linear|n[ãa]o quero linear|nenhum linear|quero bal[ãa]o/i;
+// IA-CAPLOCK8 -- "volta (para/pra) balão" added: a real mode-transition
+// phrasing (BALÃO -> LINEAR -> back to BALÃO) that no prior alternation
+// covered ("quero balão" alone doesn't fire on this exact wording).
+const BALAO_ONLY_EXCLUSION_RE = /s(?:o|ó)mente bal[ãa]o|s(?:o|ó)\s+bal[ãa]o|apenas bal[ãa]o|sem linear|n[ãa]o quero linear|nenhum linear|quero bal[ãa]o|volta(?:r)?\s+(?:para|pra)\s+bal[ãa]o/i;
 
 // IA-UAT-04 -- explicit bypass of the new 3-proposal commercial cap
 // ("mostre todas as opções") -- deterministic detector, never left for
@@ -6790,92 +6805,240 @@ function isFinanceExplanationOnly(message: string): boolean {
   return FINANCE_EXPLANATION_ONLY_RE.test(message) && !FINANCE_EXPLICIT_MUTATION_VERB_RE.test(message);
 }
 
+// =========================================================
+// IA-CAPLOCK8 -- cumulative financial conversation state.
+//
+// CAPLOCK7's own disclosed limitation: resolveStatefulFinancePlan/
+// resolveStatefulRequiredDownPaymentPlan each reconstructed state from
+// ONE historical anchor (the single most recent self-sufficient
+// message), never accumulating turn-by-turn -- a mutation made in an
+// intermediate turn ("muda o carro para R$170 mil") was silently lost
+// the instant a LATER turn's own independent backward scan found an
+// earlier, unrelated self-sufficient message instead.
+//
+// CumulativeFinanceState is a single, plan-shape-agnostic
+// representation folded across every real user turn in the
+// conversation, oldest to newest, ending with the current message --
+// never a single-anchor lookup. Each turn contributes only the fields
+// it explicitly states (never invents, never resurrects an older
+// value the Human didn't just repeat); an explanation-only turn
+// (CAPLOCK7's own guarantee) contributes nothing at all. The two
+// existing plan types (FinanceEngineFirstPlan / RequiredDownPaymentPlan)
+// become PROJECTIONS of this one state, chosen by whether down_payment
+// is currently known -- never two independently-reconstructed shapes.
+// =========================================================
+interface CumulativeFinanceState {
+  department: SimDepartment | null;
+  vehicleValue: number | null;
+  vehicleYear: number | null;
+  downPayment: number | null;
+  targetPayment: number | null;
+  // null covers BOTH "never discussed" and "explicitly re-delegated"
+  // (TERM_DELEGATION_RE resets this back to null) -- both projections
+  // already treat null identically (evaluate/dispatch every valid
+  // term), so no separate delegation flag is needed.
+  termMonthsList: number[] | null;
+  financingTypeOverride: "LINEAR_ONLY" | "BALAO_ONLY" | null;
+  allOptionsRequested: boolean;
+  balloonCountMax: number | null;
+  balloonCountExact: number | null;
+}
+
+// Broader than either pre-existing per-function hasGoalSignal check --
+// union of both, plus "carro"/"veículo"/"prazo" (vehicle-only and
+// term-delegation-only mutations carried neither "entrada" nor
+// "parcela" nor "balão", and were the exact turns CAPLOCK7 disclosed
+// as silently lost).
+const FINANCE_STATE_SIGNAL_RE = /bal[ãa]o|bal[õo]es|residual|\blinear\b|parcela|compar|recomenda|chegar o mais perto|baixar a parcela|\bentrada\b|meses|\bmes\b|\bx\b|carro|ve[ií]culo|prazo/i;
+// "pode escolher o prazo de novo" / "você escolhe o prazo" -- an
+// explicit RE-delegation, clearing any previously fixed term (Part F).
+const TERM_DELEGATION_RE = /voc[eê]\s+escolhe\s+o\s+prazo|escolh(?:e|er)\s+o\s+prazo|prazo\s+pode\s+variar|qualquer\s+prazo/i;
+
+function emptyCumulativeFinanceState(): CumulativeFinanceState {
+  return {
+    department: null, vehicleValue: null, vehicleYear: null, downPayment: null, targetPayment: null,
+    termMonthsList: null,
+    financingTypeOverride: null, allOptionsRequested: false,
+    balloonCountMax: null, balloonCountExact: null,
+  };
+}
+
+// Applies ONE turn's own explicit deltas onto `state` -- returns a NEW
+// object, never mutates the input, never invents a field the turn
+// didn't itself state. `isFirstTurn` (true only while no vehicle is
+// established yet) relaxes vehicle-value detection to the same "first
+// remaining money mention" heuristic extractFinanceEngineFirstPlan/
+// extractRequiredDownPaymentPlan already use for a fresh, self-
+// sufficient turn; once a vehicle is known, only an EXPLICIT "carro/
+// veículo" restatement can change it (IA-CAPLOCK7's own fix, applied
+// at every fold step here, not just a single historical-anchor case).
+function applyFinanceTurnDelta(state: CumulativeFinanceState, turnMessage: string, isFirstTurn: boolean): CumulativeFinanceState {
+  const next: CumulativeFinanceState = { ...state };
+  let working = turnMessage;
+
+  // -- target payment (narrow pattern, safe on every turn) --
+  const targetMatch = new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*parcela`, "i").exec(working)
+    || new RegExp(`parcela[^\\d]{0,25}(${BR_MONEY_TOKEN_RE_SRC})`, "i").exec(working);
+  if (targetMatch) {
+    const t = parseBRMoneyToken(targetMatch[1]);
+    if (t !== null) { next.targetPayment = t; working = maskSpan(working, targetMatch.index, targetMatch.index + targetMatch[0].length); }
+  }
+
+  // -- down payment: explicit absolute value, or (only when a down
+  // payment is already known) a mais/menos relative delta on it --
+  const downMatch = new RegExp(`entrada[^\\d]{0,15}(${BR_MONEY_TOKEN_RE_SRC})`, "i").exec(working)
+    || new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*entrada`, "i").exec(working);
+  if (downMatch) {
+    const d = parseBRMoneyToken(downMatch[1]);
+    if (d !== null) { next.downPayment = d; working = maskSpan(working, downMatch.index, downMatch.index + downMatch[0].length); }
+  } else if (next.downPayment !== null) {
+    const deltaPlus = new RegExp(`mais\\s*(${BR_MONEY_TOKEN_RE_SRC})\\s*(?:de|na)?\\s*entrada`, "i").exec(working);
+    const deltaMinus = new RegExp(`menos\\s*(${BR_MONEY_TOKEN_RE_SRC})\\s*(?:de|na)?\\s*entrada`, "i").exec(working);
+    if (deltaPlus) {
+      const d = parseBRMoneyToken(deltaPlus[1]);
+      if (d !== null) next.downPayment = next.downPayment + d;
+    } else if (deltaMinus) {
+      const d = parseBRMoneyToken(deltaMinus[1]);
+      if (d !== null) next.downPayment = Math.max(0, next.downPayment - d);
+    }
+  }
+
+  // -- department / vehicle year: established once, first turn that sets it --
+  if (next.department === null) {
+    if (/\bseminovo|\busado\b/i.test(turnMessage)) {
+      next.department = "SEMINOVOS";
+      const yearMatch = /\b(19|20)\d{2}\b/.exec(working);
+      if (yearMatch) { next.vehicleYear = Number(yearMatch[0]); working = maskSpan(working, yearMatch.index, yearMatch.index + yearMatch[0].length); }
+    } else {
+      next.department = "NOVOS";
+    }
+  }
+
+  // -- vehicle value: explicit "carro/veículo" restatement always wins;
+  // the broader "first remaining money" heuristic only applies while
+  // no vehicle is established yet (isFirstTurn) -- never overwrites an
+  // already-known vehicle from an unrelated money mention elsewhere in
+  // a later turn.
+  const ownVehicleMatch = new RegExp(`(?:carro|ve[ií]culo)[^\\d]{0,20}(${BR_MONEY_TOKEN_RE_SRC})`, "i").exec(working);
+  if (ownVehicleMatch) {
+    const v = parseBRMoneyToken(ownVehicleMatch[1]);
+    if (v !== null && v > 0) next.vehicleValue = v;
+  } else if (isFirstTurn) {
+    const vehicleMatch = new RegExp(VEHICLE_VALUE_RE_SRC, "i").exec(working);
+    const v = vehicleMatch ? parseBRMoneyToken(vehicleMatch[0]) : null;
+    if (v !== null && v > 0) next.vehicleValue = v;
+  }
+
+  // -- term: resolveTermMonthsList already covers explicit list, single
+  // term (with meses/mes/x suffix), AND the bare "só/apenas <N>"
+  // fallback (BARE_TERM_OVERRIDE_RE) -- reused verbatim, never
+  // reimplemented. A re-delegation phrase (Part F) resets back to null
+  // (open/delegated), identical in effect to "never discussed yet".
+  const validTerms = simPrazosFor(next.department ?? "NOVOS");
+  const resolvedTerms = resolveTermMonthsList(turnMessage, validTerms);
+  if (resolvedTerms) {
+    next.termMonthsList = resolvedTerms;
+  } else if (TERM_DELEGATION_RE.test(turnMessage)) {
+    next.termMonthsList = null;
+  }
+
+  // -- financing-type override + balloon count: REPLACE semantics (Part F/G), never merge into a contradictory pair --
+  const overrides = extractCommercialOverrides(turnMessage);
+  if (overrides.financingTypeOverride !== null) {
+    next.financingTypeOverride = overrides.financingTypeOverride;
+    if (overrides.financingTypeOverride === "LINEAR_ONLY") {
+      // Part G -- switching to LINEAR clears Balloon-only constraints that no longer apply.
+      next.balloonCountMax = null; next.balloonCountExact = null;
+    }
+  }
+  if (overrides.allOptionsRequested) next.allOptionsRequested = true;
+
+  const balloonCount = extractBalloonCountConstraint(turnMessage);
+  if (balloonCount.balloonCountMax !== null || balloonCount.balloonCountExact !== null) {
+    next.balloonCountMax = balloonCount.balloonCountMax;
+    next.balloonCountExact = balloonCount.balloonCountExact;
+  }
+
+  return next;
+}
+
+// Folds every real user turn (oldest to newest, current message last)
+// into ONE CumulativeFinanceState, never a single historical anchor.
+// Explanation-only turns (CAPLOCK7) contribute nothing. A client
+// boundary resets the fold entirely -- never inherits anything from
+// before it, matching CLIENT_BOUNDARY_RE's existing, unchanged
+// semantics. Returns null when the current message carries no finance
+// signal at all, or when no vehicle value is established by the end of
+// the fold (both plan-shape projections require one).
+function computeCumulativeFinanceState(
+  conversation: Array<{ role: string; content: string }>,
+  message: string
+): CumulativeFinanceState | null {
+  if (isFinanceExplanationOnly(message)) return null;
+  // IA-CAPLOCK8 -- mirrors the union of BOTH pre-existing per-function
+  // hasGoalSignal gates exactly, including the override/bypass regexes
+  // (a pure "Mostra só Linear."/"E só em 48?" follow-up carries no
+  // parcela/entrada/meses/balão token of its own at all -- only these
+  // narrower alternations recognize it).
+  const hasSignal = FINANCE_STATE_SIGNAL_RE.test(message)
+    || LINEAR_ONLY_EXCLUSION_RE.test(message) || BALAO_ONLY_EXCLUSION_RE.test(message)
+    || ALL_COMMERCIAL_OPTIONS_RE.test(message) || BARE_TERM_OVERRIDE_RE.test(message);
+  if (!hasSignal) return null;
+
+  const turns: string[] = [];
+  for (const turn of conversation) {
+    if (turn.role !== "user") continue;
+    if (CLIENT_BOUNDARY_RE.test(turn.content)) { turns.length = 0; continue; }
+    turns.push(turn.content);
+  }
+  if (CLIENT_BOUNDARY_RE.test(message)) turns.length = 0; // the current message itself is a fresh boundary
+  turns.push(message);
+
+  let state: CumulativeFinanceState | null = null;
+  for (const turnText of turns) {
+    if (isFinanceExplanationOnly(turnText)) continue;
+    const wasEmpty = state === null;
+    state = applyFinanceTurnDelta(state ?? emptyCumulativeFinanceState(), turnText, wasEmpty);
+  }
+  return state && state.vehicleValue !== null ? state : null;
+}
+
 function resolveStatefulFinancePlan(
   conversation: Array<{ role: string; content: string }>,
   message: string
 ): FinanceEngineFirstPlan | null {
-  // IA-CAPLOCK7 -- checked BEFORE even the direct/stateless extraction:
-  // an explanation-only turn must never have its own quoted amounts
-  // misread as a new vehicle_value/target_payment (extractFinanceEngine
-  // FirstPlan's own "first remaining money mention" rule has no
-  // question-intent awareness). Falling through to null here means this
-  // turn reaches the model-governed fallback loop instead, preserving
-  // canonical state untouched -- never a silent engine-first dispatch
-  // built from a quoted display figure.
-  if (isFinanceExplanationOnly(message)) return null;
+  // IA-CAPLOCK8 -- projects the ONE cumulative, turn-by-turn-folded
+  // state (never a single historical anchor -- see computeCumulative
+  // FinanceState's own header) into this plan type's shape. Requires
+  // down_payment to be known; when it isn't, this plan type structurally
+  // cannot represent the request (RequiredDownPaymentPlan's own job).
+  const state = computeCumulativeFinanceState(conversation, message);
+  if (!state || state.downPayment === null || state.department === null) return null;
 
-  const direct = extractFinanceEngineFirstPlan(message);
-  if (direct) return applyLinearOnlyExclusion(direct, message);
+  const scenario: FinanceEngineFirstScenario =
+    state.financingTypeOverride === "LINEAR_ONLY" ? "LINEAR_ONLY"
+    : state.financingTypeOverride === "BALAO_ONLY" ? "BALAO_ONLY"
+    // IA-CAPLOCK8 -- cumulative state defaults to considering BOTH
+    // engines absent an explicit exclusion (matching RequiredDownPayment
+    // Plan's own established default philosophy), never the single-
+    // message extractor's own stricter "LINEAR unless Balão positively
+    // named" default -- appropriate once multiple turns are folded,
+    // where narrowing to LINEAR without an explicit signal would
+    // silently exclude Balão from a conversation that never asked for that.
+    : "BOTH_BALAO_AND_LINEAR";
 
-  // A client-boundary signal in THIS message itself ("agora outro
-  // cliente, quero uma parcela perto de R$X") must never inherit the
-  // previous client's vehicle/entrada just because the same turn also
-  // asks a financial question -- checked BEFORE any history lookback,
-  // never only against historical turns.
-  if (CLIENT_BOUNDARY_RE.test(message)) return null;
+  // This shape only supports a single scalar term (dispatches one
+  // toolSimularFinanciamento call); a 2+-term list isn't representable
+  // here (that's RequiredDownPaymentPlan's own capability) -- a single-
+  // element list projects to that one term, null/multi both mean
+  // "evaluate every valid term", the tool's own existing behavior.
+  const termMonths = state.termMonthsList !== null && state.termMonthsList.length === 1 ? state.termMonthsList[0] : null;
 
-  // Only attempt the history fallback when THIS message itself carries
-  // a finance goal/modality signal -- otherwise this isn't a finance
-  // follow-up at all, and reaching into history would be inventing an
-  // intent the user never expressed this turn.
-  const hasGoalSignal = /bal[ãa]o|bal[õo]es|residual|\blinear\b|parcela|compar|recomenda|chegar o mais perto|baixar a parcela|entrada/i.test(message);
-  if (!hasGoalSignal) return null;
-
-  let historicalPlan: FinanceEngineFirstPlan | null = null;
-  for (let i = conversation.length - 1; i >= 0; i--) {
-    const turn = conversation[i];
-    if (turn.role !== "user") continue;
-    if (CLIENT_BOUNDARY_RE.test(turn.content)) break; // never cross a client boundary
-    const p = extractFinanceEngineFirstPlan(turn.content);
-    if (p) { historicalPlan = p; break; }
-  }
-  if (!historicalPlan) return null;
-
-  // If THIS message already restates an absolute down payment, it
-  // takes priority over history -- omit history's own entrada from the
-  // synthetic text below so the extractor finds only the current one.
-  const hasOwnDownPayment = new RegExp(`entrada[^\\d]{0,15}(${BR_MONEY_TOKEN_RE_SRC})`, "i").test(message)
-    || new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*entrada`, "i").test(message);
-
-  let effectiveDownPayment: number | null = hasOwnDownPayment ? null : historicalPlan.downPayment;
-  if (!hasOwnDownPayment) {
-    const deltaPlus = new RegExp(`mais\\s*(${BR_MONEY_TOKEN_RE_SRC})\\s*(?:de|na)?\\s*entrada`, "i").exec(message);
-    const deltaMinus = new RegExp(`menos\\s*(${BR_MONEY_TOKEN_RE_SRC})\\s*(?:de|na)?\\s*entrada`, "i").exec(message);
-    if (deltaPlus) {
-      const d = parseBRMoneyToken(deltaPlus[1]);
-      if (d !== null) effectiveDownPayment = historicalPlan.downPayment + d;
-    } else if (deltaMinus) {
-      const d = parseBRMoneyToken(deltaMinus[1]);
-      if (d !== null) effectiveDownPayment = Math.max(0, historicalPlan.downPayment - d);
-    }
-  }
-
-  const seminovoClause = historicalPlan.department === "SEMINOVOS"
-    ? ` Veículo seminovo, ano ${historicalPlan.vehicleYear}.`
-    : "";
-  const entradaClause = effectiveDownPayment !== null ? ` Entrada de R$ ${effectiveDownPayment}.` : "";
-  // IA-CAPLOCK7 -- if THIS message already states its own new vehicle
-  // value ("muda o valor do carro para R$170 mil"), it takes priority
-  // over history, mirroring hasOwnDownPayment's own established pattern
-  // above: the historical vehicle clause is omitted so extractFinanceEngine
-  // FirstPlan's own "first remaining money mention" rule finds the
-  // Human's NEW value instead of being permanently shadowed by the old
-  // one always appearing first in the synthetic text. Absent that
-  // explicit signal, the historical vehicle value is inherited exactly
-  // as before -- this never affects any follow-up that doesn't restate
-  // the vehicle.
-  const hasOwnVehicleValue = new RegExp(`(?:carro|ve[ií]culo)[^\\d]{0,20}(${BR_MONEY_TOKEN_RE_SRC})`, "i").test(message);
-  const vehicleClause = hasOwnVehicleValue ? "" : `Cliente comprando um veículo de R$ ${historicalPlan.vehicleValue}.`;
-  // Historical facts come FIRST (clean, single, unambiguous mentions) so
-  // the stateless extractor's own leftmost-match regexes always resolve
-  // vehicle/entrada/department from here; the raw current message comes
-  // AFTER, so its own target/term/scenario signals (and any restated
-  // entrada, handled above) are the ones actually picked up for those
-  // fields -- no extraction rule inside extractFinanceEngineFirstPlan is
-  // duplicated or reimplemented here.
-  const historicalFactsText = `${vehicleClause}${entradaClause}${seminovoClause}`;
-  const resolved = extractFinanceEngineFirstPlan(`${historicalFactsText} ${message}`);
-  return resolved ? applyLinearOnlyExclusion(resolved, message) : null;
+  return {
+    department: state.department, vehicleValue: state.vehicleValue!, downPayment: state.downPayment,
+    vehicleYear: state.vehicleYear, targetPayment: state.targetPayment, termMonths,
+    scenario, balloonCountMax: state.balloonCountMax, balloonCountExact: state.balloonCountExact,
+  };
 }
 
 function applyLinearOnlyExclusion(plan: FinanceEngineFirstPlan, message: string): FinanceEngineFirstPlan {
@@ -7241,68 +7404,21 @@ function resolveStatefulRequiredDownPaymentPlan(
   conversation: Array<{ role: string; content: string }>,
   message: string
 ): RequiredDownPaymentPlan | null {
-  // IA-CAPLOCK7 -- the real Human UAT defect this Wave fixes: this
-  // plan type's OWN direct extraction (extractRequiredDownPaymentPlan)
-  // has the exact same "first remaining money mention = vehicle value"
-  // heuristic, and its own "parcela[^\d]{0,25}(money)" target-payment
-  // scan -- both blind to question intent. A message like "...de onde
-  // vieram os R$111.806,14?" (quoting the assistant's own prior figure
-  // while asking about it) was extracted as vehicleValue=111806.14,
-  // targetPayment=1806.14, then dispatched as a genuine new engine
-  // calculation, producing real (but contaminated-base) result cards.
-  // Checked first, before direct extraction ever runs, so canonical
-  // state is never touched by an explanation-only turn.
-  if (isFinanceExplanationOnly(message)) return null;
-
-  const direct = extractRequiredDownPaymentPlan(message);
-  if (direct) return direct;
-
-  if (CLIENT_BOUNDARY_RE.test(message)) return null;
-  // IA-UAT-04 -- extended to also recognize a pure override/refinement
-  // turn with no new number of its own at all (Section 9: "Mostra só
-  // Linear.", "Agora quero Balão.") -- these carry no parcela/entrada/
-  // meses token, only an override phrase, so the ORIGINAL regex alone
-  // would reject them before ever reaching the inheritance logic below.
-  const hasGoalSignal = /parcela|\blinear\b|\bentrada\b|meses|\bmes\b|\bx\b|bal[ãa]o|bal[õo]es/i.test(message)
-    || LINEAR_ONLY_EXCLUSION_RE.test(message) || BALAO_ONLY_EXCLUSION_RE.test(message)
-    || ALL_COMMERCIAL_OPTIONS_RE.test(message) || BARE_TERM_OVERRIDE_RE.test(message);
-  if (!hasGoalSignal) return null;
-
-  // Reuse resolveStatefulFinancePlan's own vehicle/department lookback
-  // (never a second history-scanning implementation) for whichever
-  // fields are missing in THIS message. IA-UAT-04 -- target payment MAY
-  // now also be inherited (never invented: only from a REAL prior
-  // target-bearing turn, found in the SAME backward scan as the
-  // vehicle, so the two never come from two different historical
-  // moments) when this message is a pure override/refinement with no
-  // target number of its own -- still REQUIRES a vehicle/value to exist
-  // somewhere in history, exactly as before.
-  const targetMatch = new RegExp(`(${BR_MONEY_TOKEN_RE_SRC})\\s*de\\s*parcela`, "i").exec(message)
-    || new RegExp(`parcela[^\\d]{0,25}(${BR_MONEY_TOKEN_RE_SRC})`, "i").exec(message);
-  let targetPayment = targetMatch ? parseBRMoneyToken(targetMatch[1]) : null;
-  if (targetMatch && targetPayment === null) return null; // a malformed target token was stated -- never silently fall back to an unrelated historical one
-
-  let historicalVehicle: { department: SimDepartment; vehicleValue: number; vehicleYear: number | null; targetPayment: number | null } | null = null;
-  for (let i = conversation.length - 1; i >= 0; i--) {
-    const turn = conversation[i];
-    if (turn.role !== "user") continue;
-    if (CLIENT_BOUNDARY_RE.test(turn.content)) break;
-    const p = extractFinanceEngineFirstPlan(turn.content) || extractRequiredDownPaymentPlan(turn.content);
-    if (p) { historicalVehicle = { department: p.department, vehicleValue: p.vehicleValue, vehicleYear: p.vehicleYear, targetPayment: p.targetPayment }; break; }
-  }
-  if (!historicalVehicle) return null;
-
-  if (targetPayment === null) {
-    if (historicalVehicle.targetPayment === null) return null; // never invent a target that was never stated anywhere in this conversation
-    targetPayment = historicalVehicle.targetPayment;
-  }
-
-  const validTerms = simPrazosFor(historicalVehicle.department);
-  const termMonthsList = resolveTermMonthsList(message, validTerms);
+  // IA-CAPLOCK8 -- projects the ONE cumulative, turn-by-turn-folded
+  // state (never a single historical anchor) into this plan type's
+  // shape. Requires a target payment and requires down_payment to be
+  // UNKNOWN -- the moment a down payment becomes known (this turn or
+  // any earlier one, per Part H's objective-transition case), this
+  // plan type correctly stops applying and resolveStatefulFinancePlan
+  // takes over instead, retaining the same vehicle/target/department.
+  const state = computeCumulativeFinanceState(conversation, message);
+  if (!state || state.downPayment !== null || state.targetPayment === null || state.department === null) return null;
 
   return {
-    department: historicalVehicle.department, vehicleValue: historicalVehicle.vehicleValue, vehicleYear: historicalVehicle.vehicleYear,
-    targetPayment, termMonthsList, ...extractCommercialOverrides(message), ...extractBalloonCountConstraint(message)
+    department: state.department, vehicleValue: state.vehicleValue!, vehicleYear: state.vehicleYear,
+    targetPayment: state.targetPayment, termMonthsList: state.termMonthsList,
+    financingTypeOverride: state.financingTypeOverride, allOptionsRequested: state.allOptionsRequested,
+    balloonCountMax: state.balloonCountMax, balloonCountExact: state.balloonCountExact,
   };
 }
 

@@ -207,6 +207,14 @@ const extractBalloonCountConstraintFn = "export " + extractFunction(source, "ext
 const financeExplanationOnlyReConst = "export " + extractConst(source, "FINANCE_EXPLANATION_ONLY_RE");
 const financeExplicitMutationVerbReConst = "export " + extractConst(source, "FINANCE_EXPLICIT_MUTATION_VERB_RE");
 const isFinanceExplanationOnlyFn = "export " + extractFunction(source, "isFinanceExplanationOnly");
+// IA-CAPLOCK8 -- resolveStatefulFinancePlan/resolveStatefulRequiredDownPaymentPlan
+// are now thin projections of ONE cumulative, turn-by-turn-folded state.
+const cumulativeFinanceStateInterface = "export " + extractInterface(source, "CumulativeFinanceState");
+const financeStateSignalReConst = "export " + extractConst(source, "FINANCE_STATE_SIGNAL_RE");
+const termDelegationReConst = "export " + extractConst(source, "TERM_DELEGATION_RE");
+const emptyCumulativeFinanceStateFn = "export " + extractFunction(source, "emptyCumulativeFinanceState");
+const applyFinanceTurnDeltaFn = "export " + extractFunction(source, "applyFinanceTurnDelta");
+const computeCumulativeFinanceStateFn = "export " + extractFunction(source, "computeCumulativeFinanceState");
 // timedEvaluateToolPolicy is a closure DEFINED INSIDE the request handler
 // (not module-level) -- extractFunctionGenericAware's marker now tolerates
 // indentation so it can find it there.
@@ -226,6 +234,8 @@ const extractorModText = [
   buildRequiredDownPaymentSimulationInputsFn, buildCommercialSelectionInputsFn, commercialProposalInterface, selectCommercialProposalsFn,
   balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
   financeExplanationOnlyReConst, financeExplicitMutationVerbReConst, isFinanceExplanationOnlyFn,
+  cumulativeFinanceStateInterface, financeStateSignalReConst, termDelegationReConst,
+  emptyCumulativeFinanceStateFn, applyFinanceTurnDeltaFn, computeCumulativeFinanceStateFn,
 ].join("\n\n");
 
 const tmpDir1 = mkdtempSync(join(tmpdir(), "ia-recon-efirst-extractor-"));

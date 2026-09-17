@@ -228,6 +228,14 @@ export { baiSend }; export function getRenderCount() { return renderCount; } exp
   const financeExplanationOnlyReConst = "export " + extractConst(source, "FINANCE_EXPLANATION_ONLY_RE");
   const financeExplicitMutationVerbReConst = "export " + extractConst(source, "FINANCE_EXPLICIT_MUTATION_VERB_RE");
   const isFinanceExplanationOnlyFn = "export " + extractFunction(source, "isFinanceExplanationOnly");
+  // IA-CAPLOCK8 -- resolveStatefulRequiredDownPaymentPlan is now a thin
+  // projection of ONE cumulative, turn-by-turn-folded state.
+  const cumulativeFinanceStateInterface = "export " + extractInterface(source, "CumulativeFinanceState");
+  const financeStateSignalReConst = "export " + extractConst(source, "FINANCE_STATE_SIGNAL_RE");
+  const termDelegationReConst = "export " + extractConst(source, "TERM_DELEGATION_RE");
+  const emptyCumulativeFinanceStateFn = "export " + extractFunction(source, "emptyCumulativeFinanceState");
+  const applyFinanceTurnDeltaFn = "export " + extractFunction(source, "applyFinanceTurnDelta");
+  const computeCumulativeFinanceStateFn = "export " + extractFunction(source, "computeCumulativeFinanceState");
 
   const modText = [
     "// AUTO-EXTRACTED at test time -- do not hand-edit.",
@@ -239,6 +247,8 @@ export { baiSend }; export function getRenderCount() { return renderCount; } exp
     requiredPlanInterface, extractOverridesFn, resolveTermsFn, extractRdpFn, resolveRdpFn, buildRdpFn,
     balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
     financeExplanationOnlyReConst, financeExplicitMutationVerbReConst, isFinanceExplanationOnlyFn,
+    cumulativeFinanceStateInterface, financeStateSignalReConst, termDelegationReConst,
+    emptyCumulativeFinanceStateFn, applyFinanceTurnDeltaFn, computeCumulativeFinanceStateFn,
   ].join("\n\n");
   const tmpDir3 = mkdtempSync(join(tmpdir(), "ia-recon-multioption-"));
   const modPath3 = join(tmpDir3, "extracted.ts");

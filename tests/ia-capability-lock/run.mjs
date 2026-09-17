@@ -235,6 +235,31 @@ const CAPABILITIES = [
       { dir: RECON, file: "balloon-count-constraint.test.mjs" },
     ],
   },
+  {
+    // IA-CAPLOCK8 -- closes the exact structural limitation CAPLOCK7's
+    // own report disclosed: financial constraint mutations were
+    // individually understood, but a LATER turn could reconstruct state
+    // from the last self-sufficient historical message and silently
+    // lose mutations made in intermediate turns (vehicle-value
+    // mutations were lost outright; down-payment/term mutations reset
+    // to the original historical anchor the instant a later turn's own
+    // independent backward scan bypassed them). stateful-orchestration-
+    // integration.test.mjs's own TEST J reproduces the brief's full
+    // T1-T10 golden sequence end to end through the real orchestration
+    // path (multi-hop accumulation, explanation-only no-op, exact-
+    // replaces-max normalization, term delegated<->fixed transitions,
+    // BALAO<->LINEAR mode transitions with constraint clearing,
+    // down-payment-unknown<->known objective transitions); TEST K
+    // proves conversation isolation (two independent conversations
+    // never observe each other's mutations, re-checked across repeated
+    // calls, never a process-global mutable state).
+    id: "18_CUMULATIVE_FINANCIAL_CONVERSATION_STATE",
+    name: "Cumulative financial conversation state (multi-hop mutation accumulation, unnamed-constraint persistence, conversation isolation)",
+    proofType: "MOCKED_E2E",
+    tests: [
+      { dir: RECON, file: "stateful-orchestration-integration.test.mjs" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------

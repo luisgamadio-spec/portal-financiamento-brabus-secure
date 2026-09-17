@@ -173,6 +173,19 @@ const financeExplanationOnlyReConst = "export " + extractConst(source, "FINANCE_
 const financeExplicitMutationVerbReConst = "export " + extractConst(source, "FINANCE_EXPLICIT_MUTATION_VERB_RE");
 const isFinanceExplanationOnlyFn = "export " + extractFunction(source, "isFinanceExplanationOnly");
 
+// IA-CAPLOCK8 -- resolveStatefulFinancePlan/resolveStatefulRequiredDownPaymentPlan
+// are now thin projections of ONE cumulative, turn-by-turn-folded state
+// (never a single historical anchor -- closes the structural limitation
+// CAPLOCK7 disclosed: an intermediate turn's own mutation used to be
+// lost the instant a later turn's independent backward scan found an
+// earlier, unrelated self-sufficient message instead).
+const cumulativeFinanceStateInterface = "export " + extractInterface(source, "CumulativeFinanceState");
+const financeStateSignalReConst = "export " + extractConst(source, "FINANCE_STATE_SIGNAL_RE");
+const termDelegationReConst = "export " + extractConst(source, "TERM_DELEGATION_RE");
+const emptyCumulativeFinanceStateFn = "export " + extractFunction(source, "emptyCumulativeFinanceState");
+const applyFinanceTurnDeltaFn = "export " + extractFunction(source, "applyFinanceTurnDelta");
+const computeCumulativeFinanceStateFn = "export " + extractFunction(source, "computeCumulativeFinanceState");
+
 const toolErrorClass = (() => {
   const markerRe = /(?:^|\r?\n)class\s+ToolError\b/;
   const m = markerRe.exec(source);
@@ -318,6 +331,8 @@ const extractorDepsText = [
   buildRequiredDownPaymentSimulationInputsFn, buildCommercialSelectionInputsFn, commercialProposalInterface, selectCommercialProposalsFn,
   balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
   financeExplanationOnlyReConst, financeExplicitMutationVerbReConst, isFinanceExplanationOnlyFn,
+  cumulativeFinanceStateInterface, financeStateSignalReConst, termDelegationReConst,
+  emptyCumulativeFinanceStateFn, applyFinanceTurnDeltaFn, computeCumulativeFinanceStateFn,
   // IA-CAPLOCK5 -- buildRequiredDownPaymentSimulationInputs' own named-term
   // branch (plan.termMonthsList !== null, exercised for the first time by
   // this Wave's term-mutation matrix test) references MAX_TOOL_CALLS as a
@@ -848,6 +863,129 @@ function runHarness(overrides) {
   });
   check("[I/T2] a completely different quoted amount (R$123.456,78, never seen in this file's own incident-specific tests) is ALSO never mistaken for a new vehicle_value -- proves the fix is a general phrasing/intent classifier, not a hardcoded exception for 111806.14", result2.engineFirstPlan === null && result2.requiredDownPaymentPlan === null, { engineFirstPlan: result2.engineFirstPlan, requiredDownPaymentPlan: result2.requiredDownPaymentPlan });
   check("[I/T2] no dispatch occurs for this arbitrary-value explanation turn either", simCalls2.length === 0, simCalls2);
+}
+
+// ========================================================================
+// TEST J — IA-CAPLOCK8: cumulative financial conversation state golden
+// path. The exact T1-T10 sequence from the brief's own Part K,
+// reproducing the structural limitation CAPLOCK7 disclosed (an
+// intermediate turn's own mutation used to be lost the instant a later
+// turn's independent single-anchor backward scan found an earlier,
+// unrelated self-sufficient message instead) and proving it fixed
+// end-to-end through the real orchestration path.
+// ========================================================================
+{
+  const T1 = "Eclipse Cross HPE 0 km de R$180.000. Quero chegar em R$1.800 de parcela. Você escolhe o prazo.";
+  const T2 = "Agora muda o valor do carro para R$170 mil e recalcula.";
+  const T3 = "Agora usa R$60 mil de entrada.";
+  const T4 = "Agora tenta em 36 meses.";
+  const T5 = "Agora quero no máximo 2 balões.";
+  const T6 = "Você falou um valor de R$29.306,14 antes, de onde veio isso?";
+  const T7 = "Agora exatamente 1 balão";
+  const T8 = "Pode escolher o prazo de novo";
+  const T9 = "Agora sem balão";
+  const T10 = "Volta para balão, no máximo 2";
+
+  const turns = [T1, T2, T3, T4, T5, T6, T7, T8, T9, T10];
+  const history = [];
+  const results = [];
+  for (const t of turns) {
+    const calls = [];
+    // eslint-disable-next-line no-await-in-loop
+    const r = await runHarness({
+      message: t, conversation: [...history],
+      callOpenAI: async () => mkResponse({ text: "ok" }),
+      toolSimularFinanciamento: fixtureToolSimularFinanciamento(calls),
+      toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+      input: [{ role: "developer", content: "mock" }, ...history.map((h) => ({ role: "user", content: h.content })), { role: "user", content: t }],
+    });
+    results.push({ result: r, calls });
+    history.push({ role: "user", content: t });
+  }
+  const [r1, r2, r3, r4, r5, r6, r7, r8, r9, r10] = results;
+
+  check("[J/T1] open recommendation: vehicle=180000, target=1800, term delegated, NOVOS", r1.result.requiredDownPaymentPlan?.vehicleValue === 180000 && r1.result.requiredDownPaymentPlan?.targetPayment === 1800 && r1.result.requiredDownPaymentPlan?.termMonthsList === null && r1.result.requiredDownPaymentPlan?.department === "NOVOS", r1.result.requiredDownPaymentPlan);
+
+  check("[J/T2] vehicle mutation alone is no longer lost (CAPLOCK7's own disclosed limitation): vehicle=170000, target=1800 retained, still open (down payment still unknown)", r2.result.requiredDownPaymentPlan?.vehicleValue === 170000 && r2.result.requiredDownPaymentPlan?.targetPayment === 1800, r2.result.requiredDownPaymentPlan);
+
+  check("[J/T3] down-payment mutation transitions to the down-payment-known shape, RETAINING the mutated vehicle (170000, never reverted to 180000)", r3.result.engineFirstPlan?.vehicleValue === 170000 && r3.result.engineFirstPlan?.downPayment === 60000 && r3.result.engineFirstPlan?.targetPayment === 1800, r3.result.engineFirstPlan);
+
+  check("[J/T4] term mutation retains vehicle=170000 and down_payment=60000, sets term=36", r4.result.engineFirstPlan?.vehicleValue === 170000 && r4.result.engineFirstPlan?.downPayment === 60000 && r4.result.engineFirstPlan?.termMonths === 36, r4.result.engineFirstPlan);
+
+  check("[J/T5] FINAL calculation receives the fully accumulated state: vehicle=170000, down_payment=60000, term=36, department=NOVOS", r5.result.engineFirstPlan?.vehicleValue === 170000 && r5.result.engineFirstPlan?.downPayment === 60000 && r5.result.engineFirstPlan?.termMonths === 36 && r5.result.engineFirstPlan?.department === "NOVOS", r5.result.engineFirstPlan);
+  check("[J/T5] balloon ceiling=2 reaches the plan", r5.result.engineFirstPlan?.balloonCountMax === 2, r5.result.engineFirstPlan);
+  const balaoCall5 = r5.calls.find((c) => c.financing_type === "BALAO");
+  check("[J/T5] balloon ceiling=2 genuinely reaches the DISPATCH args (not just the plan object)", balaoCall5?.balloon_count_ceiling === 2, balaoCall5);
+
+  check("[J/T6] explanation-only quoting a derived value: ZERO state mutation (both plan types null)", r6.result.engineFirstPlan === null && r6.result.requiredDownPaymentPlan === null, { engineFirstPlan: r6.result.engineFirstPlan, requiredDownPaymentPlan: r6.result.requiredDownPaymentPlan });
+  check("[J/T6] no dispatch occurred for the explanation turn", r6.calls.length === 0, r6.calls);
+
+  check("[J/T7] 'agora exatamente 1 balão': exact=1 replaces the prior max=2 (never a contradictory max+exact pair)", r7.result.engineFirstPlan?.balloonCountExact === 1 && r7.result.engineFirstPlan?.balloonCountMax === null, r7.result.engineFirstPlan);
+  check("[J/T7] vehicle=170000, down_payment=60000, term=36 all still retained -- the explanation turn (T6) never poisoned the accumulated state it wasn't supposed to touch", r7.result.engineFirstPlan?.vehicleValue === 170000 && r7.result.engineFirstPlan?.downPayment === 60000 && r7.result.engineFirstPlan?.termMonths === 36, r7.result.engineFirstPlan);
+
+  check("[J/T8] 'pode escolher o prazo de novo': fixed term (36) cleared, delegated optimization restored (termMonths=null)", r8.result.engineFirstPlan?.termMonths === null, r8.result.engineFirstPlan);
+  check("[J/T8] vehicle=170000, down_payment=60000, exact balloon count (1) still retained -- unnamed by this turn, never reset", r8.result.engineFirstPlan?.vehicleValue === 170000 && r8.result.engineFirstPlan?.downPayment === 60000 && r8.result.engineFirstPlan?.balloonCountExact === 1, r8.result.engineFirstPlan);
+
+  check("[J/T9] 'agora sem balão': switches to LINEAR_ONLY", r9.result.engineFirstPlan?.scenario === "LINEAR_ONLY", r9.result.engineFirstPlan);
+  check("[J/T9] Balloon-only constraints (exact=1) are cleared -- no longer applicable once switched to LINEAR", r9.result.engineFirstPlan?.balloonCountExact === null && r9.result.engineFirstPlan?.balloonCountMax === null, r9.result.engineFirstPlan);
+  check("[J/T9] vehicle=170000, down_payment=60000 retained across the mode switch", r9.result.engineFirstPlan?.vehicleValue === 170000 && r9.result.engineFirstPlan?.downPayment === 60000, r9.result.engineFirstPlan);
+  const balaoCall9 = r9.calls.find((c) => c.financing_type === "BALAO");
+  check("[J/T9] BALAO is never dispatched this turn (LINEAR_ONLY genuinely excludes it)", balaoCall9 === undefined, r9.calls);
+
+  check("[J/T10] 'volta para balão, no máximo 2': returns to BALAO_ONLY with the new ceiling", r10.result.engineFirstPlan?.scenario === "BALAO_ONLY" && r10.result.engineFirstPlan?.balloonCountMax === 2, r10.result.engineFirstPlan);
+  check("[J/T10] vehicle=170000, down_payment=60000 retained across the round-trip mode transition", r10.result.engineFirstPlan?.vehicleValue === 170000 && r10.result.engineFirstPlan?.downPayment === 60000, r10.result.engineFirstPlan);
+}
+
+// ========================================================================
+// TEST K — IA-CAPLOCK8 Part L: conversation isolation. Cumulative state
+// is a PURE function of (conversation, message) -- no shared mutable
+// state anywhere -- so two independent conversations must never
+// observe each other's mutations, proven directly (never assumed).
+// ========================================================================
+{
+  const convA_T1 = "Eclipse Cross HPE 0 km de R$170.000. Quero chegar em R$1.800 de parcela. Você escolhe o prazo.";
+  const convA_T2 = "Agora usa R$60 mil de entrada.";
+  const convB_T1 = "Triton HPE-S 0 km de R$250.000. Quero chegar em R$2.500 de parcela. Você escolhe o prazo.";
+  const convB_T2 = "Agora usa R$100 mil de entrada.";
+
+  const resultA = await runHarness({
+    message: convA_T2, conversation: [{ role: "user", content: convA_T1 }],
+    callOpenAI: async () => mkResponse({ text: "ok" }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento([]),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: convA_T1 }, { role: "user", content: convA_T2 }],
+  });
+  const resultB = await runHarness({
+    message: convB_T2, conversation: [{ role: "user", content: convB_T1 }],
+    callOpenAI: async () => mkResponse({ text: "ok" }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento([]),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: convB_T1 }, { role: "user", content: convB_T2 }],
+  });
+
+  check("[K] conversation A resolves its OWN state (vehicle=170000, down_payment=60000)", resultA.engineFirstPlan?.vehicleValue === 170000 && resultA.engineFirstPlan?.downPayment === 60000, resultA.engineFirstPlan);
+  check("[K] conversation B resolves its OWN, completely different state (vehicle=250000, down_payment=100000)", resultB.engineFirstPlan?.vehicleValue === 250000 && resultB.engineFirstPlan?.downPayment === 100000, resultB.engineFirstPlan);
+  check("[K] conversation A's own state is untouched by B -- never observes B's vehicle/down_payment", resultA.engineFirstPlan?.vehicleValue !== 250000 && resultA.engineFirstPlan?.downPayment !== 100000);
+  check("[K] conversation B's own state is untouched by A -- never observes A's vehicle/down_payment", resultB.engineFirstPlan?.vehicleValue !== 170000 && resultB.engineFirstPlan?.downPayment !== 60000);
+
+  // Re-resolve A a SECOND time (mutate A further) and re-confirm B is still exactly as it was -- proves isolation holds across repeated calls, not just a single snapshot.
+  const convA_T3 = "Agora tenta em 48 meses.";
+  const resultA2 = await runHarness({
+    message: convA_T3, conversation: [{ role: "user", content: convA_T1 }, { role: "user", content: convA_T2 }],
+    callOpenAI: async () => mkResponse({ text: "ok" }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento([]),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: convA_T1 }, { role: "user", content: convA_T2 }, { role: "user", content: convA_T3 }],
+  });
+  check("[K] mutating A further (term=48) still retains A's own vehicle/down_payment", resultA2.engineFirstPlan?.vehicleValue === 170000 && resultA2.engineFirstPlan?.downPayment === 60000 && resultA2.engineFirstPlan?.termMonths === 48, resultA2.engineFirstPlan);
+  const resultB2 = await runHarness({
+    message: convB_T2, conversation: [{ role: "user", content: convB_T1 }],
+    callOpenAI: async () => mkResponse({ text: "ok" }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento([]),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: convB_T1 }, { role: "user", content: convB_T2 }],
+  });
+  check("[K] B re-resolved from its own unchanged history is byte-identical to before A was ever mutated further -- no cross-conversation leakage, no process-global mutable state", resultB2.engineFirstPlan?.vehicleValue === 250000 && resultB2.engineFirstPlan?.downPayment === 100000 && JSON.stringify(resultB2.engineFirstPlan) === JSON.stringify(resultB.engineFirstPlan), { resultB2: resultB2.engineFirstPlan, resultB: resultB.engineFirstPlan });
 }
 
 console.log(`\n=== Stateful Deterministic Orchestration — Integration Harness (IA-REGRESSION-01): ${pass}/${pass + fail} ===`);
