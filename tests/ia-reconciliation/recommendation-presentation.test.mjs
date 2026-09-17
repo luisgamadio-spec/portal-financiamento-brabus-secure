@@ -159,8 +159,15 @@ function syntheticBalaoOutput() {
     /chame de novo com os mesmos dados e show_term_comparison=true/.test(prompt)
   );
   check(
+    // IA-CAPLOCK5 -- balloon_count_ceiling/balloon_count_exact were
+    // inserted into the required[] array between balloon_count_max and
+    // show_term_comparison (two new strict-mode-required fields for the
+    // stateful balloon-count-constraint fix) -- this check's own
+    // literal text updated to match, same structural intent (adjacency
+    // proves show_term_comparison is still present, right after the
+    // balloon-count-family fields).
     "show_term_comparison is present in the tool's required[] array (OpenAI strict-mode schema requirement)",
-    /"balloon_count_max", "show_term_comparison", "priority"/.test(source)
+    /"balloon_count_max", "balloon_count_ceiling", "balloon_count_exact", "show_term_comparison", "priority"/.test(source)
   );
 }
 

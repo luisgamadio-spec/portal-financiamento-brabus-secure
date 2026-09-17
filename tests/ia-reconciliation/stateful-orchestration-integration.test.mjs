@@ -156,6 +156,14 @@ const buildCommercialSelectionInputsFn = "export " + extractFunction(source, "bu
 const commercialProposalInterface = "export " + extractInterface(source, "CommercialProposal");
 const selectCommercialProposalsFn = "export " + extractFunction(source, "selectCommercialProposals");
 
+// IA-CAPLOCK5 -- a financing follow-up that mutates the allowed/desired
+// Balão COUNT ("no máximo 2 balões", "exatamente 2 balões") now feeds
+// into requiredDownPaymentPlan/its dispatch, closing the real Human
+// UAT defect where such a follow-up was silently dropped.
+const balloonCountMaxReConst = "export " + extractConst(source, "BALLOON_COUNT_MAX_RE");
+const balloonCountExactReConst = "export " + extractConst(source, "BALLOON_COUNT_EXACT_RE");
+const extractBalloonCountConstraintFn = "export " + extractFunction(source, "extractBalloonCountConstraint");
+
 const toolErrorClass = (() => {
   const markerRe = /(?:^|\r?\n)class\s+ToolError\b/;
   const m = markerRe.exec(source);
@@ -299,6 +307,14 @@ const extractorDepsText = [
   requiredDownPaymentPlanInterface, extractCommercialOverridesFn, extractTermMonthsListFn, resolveTermMonthsListFn,
   extractRequiredDownPaymentPlanFn, resolveStatefulRequiredDownPaymentPlanFn,
   buildRequiredDownPaymentSimulationInputsFn, buildCommercialSelectionInputsFn, commercialProposalInterface, selectCommercialProposalsFn,
+  balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
+  // IA-CAPLOCK5 -- buildRequiredDownPaymentSimulationInputs' own named-term
+  // branch (plan.termMonthsList !== null, exercised for the first time by
+  // this Wave's term-mutation matrix test) references MAX_TOOL_CALLS as a
+  // bare identifier -- a pre-existing dependency of that function, never
+  // previously included in this module because no prior test drove that
+  // branch. Same const already extracted above for harnessModText.
+  maxToolCallsConst,
 ].join("\n\n");
 
 const tmpDirDeps = mkdtempSync(join(tmpdir(), "ia-recon-stateful-deps-"));
@@ -331,7 +347,11 @@ const FINANCE_TOOLS = [{ type: "function", name: "simular_financiamento" }, { ty
 // mechanism is exercised meaningfully and not vacuously.
 function fixtureToolSimularFinanciamento(calls) {
   return async (_userClient, args) => {
-    calls.push({ financing_type: args.financing_type, department: args.department, vehicle_value: args.vehicle_value, down_payment: args.down_payment, target_payment: args.target_payment });
+    // IA-CAPLOCK5 -- term_months/balloon_count_ceiling/balloon_count_exact
+    // added to the recorded call shape (additive, no existing test reads
+    // fewer fields than this) so new tests can assert the Human's own
+    // stated constraint genuinely reached this dispatch call.
+    calls.push({ financing_type: args.financing_type, department: args.department, vehicle_value: args.vehicle_value, down_payment: args.down_payment, target_payment: args.target_payment, term_months: args.term_months, balloon_count_ceiling: args.balloon_count_ceiling, balloon_count_exact: args.balloon_count_exact });
     if (args.financing_type === "BALAO") {
       return { department: args.department, vehicle_value: args.vehicle_value, down_payment: args.down_payment, financing_type: "BALAO", feasible: true, balloon_optimized: true, target_payment: args.target_payment, term_months: 30, monthly_payment: 1766.94, balloons: [{ month: 15, value: 45000 }, { month: 30, value: 45000 }], balloon_count_tried: 2 };
     }
@@ -556,6 +576,154 @@ function runHarness(overrides) {
   check("[INVARIANT] anti-promise rule reaches FINANCE_SYNTHESIS_PROFILE (the engine-first zero-tool synthesis call itself)", financeSynthesisPrompt.includes(RULE_MARKER));
   check("[INVARIANT] anti-promise rule reaches CASH_SYNTHESIS_PROFILE (the new Cash Conversion zero-tool synthesis call)", cashSynthesisPrompt.includes(RULE_MARKER));
   check("[INVARIANT] the deterministic selection block itself (Test A's own engine-first path) additionally forbids promising an unevaluated structure at the data level, not just the global prompt level", source.includes('nunca prometa uma avaliação futura'.toUpperCase()) || source.includes("nunca prometa uma avaliação futura") || source.includes("Nunca mencione uma estrutura (Balão, Multi-Balão) que não apareça nos resultados acima"));
+}
+
+// ========================================================================
+// TEST F — IA-CAPLOCK5: the real Human UAT defect, full incident
+// reproduction. A financing follow-up that changes the allowed/desired
+// Balão COUNT ("no máximo 2 balões", "exatamente 2 balões") used to be
+// silently dropped -- the resulting plan carried no trace of the
+// constraint, so the dispatched simulation ignored it entirely. This
+// exercises the REAL requiredDownPaymentPlan branch (blockRDP, wired
+// into this harness since IA-CAPLOCK3) end to end: conversation state
+// -> new Human constraint -> new financial intent -> NEW tool call ->
+// dispatch args a fixture records -- never a description of the old
+// (unconstrained) proposal.
+// ========================================================================
+{
+  const TURN_1 = "Eclipse Cross HPE 0 km de R$ 180.000. Quero chegar em uma parcela de R$ 1.800. Você escolhe o prazo. Quero a menor entrada possível e pode usar mais de um balão se isso ajudar.";
+  const TURN_2 = "no máximo 2 balões";
+  const TURN_3 = "quero exatamente 2 balões";
+
+  // ---- TURN 1: open recommendation, no constraint yet ----
+  const simCalls1 = [];
+  const result1 = await runHarness({
+    message: TURN_1,
+    conversation: [],
+    callOpenAI: async () => mkResponse({ text: "Recomendo Balão em 30x, com dois balões de R$45.000." }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento(simCalls1),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: TURN_1 }],
+  });
+  check("[F/T1] engineFirstPlan stays null (no down payment stated -- this scenario belongs to requiredDownPaymentPlan, never both)", result1.engineFirstPlan === null, result1.engineFirstPlan);
+  check("[F/T1] requiredDownPaymentPlan resolved: vehicle=180000, target=1800, department=NOVOS, term delegated, unconstrained", result1.requiredDownPaymentPlan !== null && result1.requiredDownPaymentPlan.vehicleValue === 180000 && result1.requiredDownPaymentPlan.targetPayment === 1800 && result1.requiredDownPaymentPlan.department === "NOVOS" && result1.requiredDownPaymentPlan.termMonthsList === null && result1.requiredDownPaymentPlan.balloonCountMax === null && result1.requiredDownPaymentPlan.balloonCountExact === null, result1.requiredDownPaymentPlan);
+  check("[F/T1] a real dispatch occurred: both LINEAR and BALAO were simulated (open recommendation, no financing-type override)", simCalls1.some((c) => c.financing_type === "LINEAR") && simCalls1.some((c) => c.financing_type === "BALAO"), simCalls1);
+  const balaoCall1 = simCalls1.find((c) => c.financing_type === "BALAO");
+  check("[F/T1] the BALAO dispatch carries NO count constraint (unconstrained escalation, current deterministic optimum under canonical limits)", balaoCall1.balloon_count_ceiling === null && balaoCall1.balloon_count_exact === null, balaoCall1);
+  check("[F/T1] term search is delegated to the engine (term_months=null, 'você escolhe o prazo')", balaoCall1.term_months === null, balaoCall1);
+  check("[F/T1] engineFirstRan=true (a real deterministic dispatch happened, never left for the model)", result1.engineFirstRan === true);
+
+  // ---- TURN 2: "no máximo 2 balões" -- THE DEFECT ----
+  const simCalls2 = [];
+  const result2 = await runHarness({
+    message: TURN_2,
+    conversation: [{ role: "user", content: TURN_1 }],
+    callOpenAI: async () => mkResponse({ text: "Com no máximo 2 balões, a menor entrada encontrada foi..." }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento(simCalls2),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: TURN_1 }, { role: "user", content: TURN_2 }],
+  });
+  check("[F/T2] a NEW engine execution occurs for a message with no vehicle/target/entrada of its own (state correctly resolved from history)", result2.requiredDownPaymentPlan !== null, result2.requiredDownPaymentPlan);
+  check("[F/T2] vehicle/target/department retained from Turn 1 WITHOUT the Human repeating them", result2.requiredDownPaymentPlan?.vehicleValue === 180000 && result2.requiredDownPaymentPlan?.targetPayment === 1800 && result2.requiredDownPaymentPlan?.department === "NOVOS", result2.requiredDownPaymentPlan);
+  check("[F/T2] the NEW constraint is captured: balloonCountMax=2 (a real ceiling, not a floor/escalation-start)", result2.requiredDownPaymentPlan?.balloonCountMax === 2 && result2.requiredDownPaymentPlan?.balloonCountExact === null, result2.requiredDownPaymentPlan);
+  check("[F/T2] term search REMAINS delegated (a balloon-count-only follow-up never silently freezes the term the previous winning proposal happened to use)", result2.requiredDownPaymentPlan?.termMonthsList === null, result2.requiredDownPaymentPlan);
+  check("[F/T2] a real dispatch occurred (never just a description of the Turn 1 result)", simCalls2.length > 0, simCalls2);
+  const balaoCall2 = simCalls2.find((c) => c.financing_type === "BALAO");
+  check("[F/T2] the BALAO dispatch genuinely carries the ceiling=2 constraint (THE regression proof -- this used to be silently dropped)", balaoCall2 !== undefined && balaoCall2.balloon_count_ceiling === 2, balaoCall2);
+  check("[F/T2] balloon_count_exact is NOT set (this is a ceiling, not an exact-count request)", balaoCall2.balloon_count_exact === null, balaoCall2);
+  check("[F/T2] engineFirstRan=true (never fell back describing an inability to recalculate)", result2.engineFirstRan === true);
+
+  // ---- TURN 3: "quero exatamente 2 balões" ----
+  const simCalls3 = [];
+  const result3 = await runHarness({
+    message: TURN_3,
+    conversation: [{ role: "user", content: TURN_1 }, { role: "user", content: TURN_2 }],
+    callOpenAI: async () => mkResponse({ text: "Com exatamente 2 balões, a entrada é..." }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento(simCalls3),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: TURN_1 }, { role: "user", content: TURN_2 }, { role: "user", content: TURN_3 }],
+  });
+  check("[F/T3] another real engine execution occurs", result3.requiredDownPaymentPlan !== null, result3.requiredDownPaymentPlan);
+  check("[F/T3] vehicle/target/department STILL retained -- three turns deep, never re-asked", result3.requiredDownPaymentPlan?.vehicleValue === 180000 && result3.requiredDownPaymentPlan?.targetPayment === 1800 && result3.requiredDownPaymentPlan?.department === "NOVOS", result3.requiredDownPaymentPlan);
+  check("[F/T3] EXACT is captured this time, distinct from the previous turn's MAX constraint", result3.requiredDownPaymentPlan?.balloonCountExact === 2 && result3.requiredDownPaymentPlan?.balloonCountMax === null, result3.requiredDownPaymentPlan);
+  const balaoCall3 = simCalls3.find((c) => c.financing_type === "BALAO");
+  check("[F/T3] the BALAO dispatch carries balloon_count_exact=2 (never balloon_count_ceiling for an EXACT request)", balaoCall3 !== undefined && balaoCall3.balloon_count_exact === 2 && balaoCall3.balloon_count_ceiling === null, balaoCall3);
+  check("[F/T3] this is a genuinely SEPARATE dispatch from Turn 2's (never a cached/reused result -- each turn's own fixture call list is independent)", simCalls3.length > 0 && simCalls3 !== simCalls2);
+}
+
+// ========================================================================
+// TEST G — IA-CAPLOCK5 Part D: general constraint-mutation matrix.
+// Each case proves a NEW engine execution occurs with the mutated
+// constraint correctly reaching dispatch, vehicle/target/department
+// retained from Turn 1 without the Human repeating them.
+// ========================================================================
+{
+  const TURN_1 = "Eclipse Cross HPE 0 km de R$ 180.000. Quero chegar em uma parcela de R$ 1.800. Você escolhe o prazo. Quero a menor entrada possível e pode usar mais de um balão se isso ajudar.";
+  const conv1 = [{ role: "user", content: TURN_1 }];
+
+  async function runFollowUp(message, extraOverrides = {}) {
+    const calls = [];
+    const result = await runHarness({
+      message, conversation: conv1,
+      callOpenAI: async () => mkResponse({ text: "ok" }),
+      toolSimularFinanciamento: fixtureToolSimularFinanciamento(calls),
+      toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+      input: [{ role: "developer", content: "mock" }, { role: "user", content: TURN_1 }, { role: "user", content: message }],
+      ...extraOverrides,
+    });
+    return { result, calls };
+  }
+
+  // ---- 1. max balloons mutation (also covered end-to-end in TEST F; re-confirmed here as part of the matrix) ----
+  {
+    const { result, calls } = await runFollowUp("no máximo 3 balões");
+    check("[G1 max-balloons] plan carries balloonCountMax=3", result.requiredDownPaymentPlan?.balloonCountMax === 3, result.requiredDownPaymentPlan);
+    check("[G1 max-balloons] dispatch reaches the engine with ceiling=3", calls.find((c) => c.financing_type === "BALAO")?.balloon_count_ceiling === 3, calls);
+  }
+
+  // ---- 2. exact balloon count mutation ----
+  {
+    const { result, calls } = await runFollowUp("apenas 1 balão");
+    check("[G2 exact-balloons] plan carries balloonCountExact=1", result.requiredDownPaymentPlan?.balloonCountExact === 1, result.requiredDownPaymentPlan);
+    check("[G2 exact-balloons] dispatch reaches the engine with exact=1", calls.find((c) => c.financing_type === "BALAO")?.balloon_count_exact === 1, calls);
+  }
+
+  // ---- 3. term mutation ----
+  {
+    const { result, calls } = await runFollowUp("tenta em 36 meses");
+    check("[G3 term] plan carries termMonthsList=[36] (no longer delegated)", JSON.stringify(result.requiredDownPaymentPlan?.termMonthsList) === "[36]", result.requiredDownPaymentPlan);
+    check("[G3 term] a real dispatch occurred for the new term", calls.some((c) => c.term_months === 36), calls);
+    check("[G3 term] vehicle/target retained without repeating", result.requiredDownPaymentPlan?.vehicleValue === 180000 && result.requiredDownPaymentPlan?.targetPayment === 1800);
+  }
+
+  // ---- 4. target-payment mutation ----
+  {
+    const { result, calls } = await runFollowUp("na verdade quero chegar em 2.000 de parcela");
+    check("[G4 target] plan carries the NEW targetPayment=2000, never the old 1800", result.requiredDownPaymentPlan?.targetPayment === 2000, result.requiredDownPaymentPlan);
+    check("[G4 target] dispatch reaches the engine with the new target", calls.every((c) => c.target_payment === 2000) && calls.length > 0, calls);
+    check("[G4 target] vehicle/department retained without repeating", result.requiredDownPaymentPlan?.vehicleValue === 180000 && result.requiredDownPaymentPlan?.department === "NOVOS");
+  }
+
+  // ---- 6. financing-type mutation (LINEAR_ONLY override) ----
+  {
+    const { result, calls } = await runFollowUp("na verdade sem balão, só linear mesmo");
+    check("[G6 financing-type] plan carries financingTypeOverride=LINEAR_ONLY", result.requiredDownPaymentPlan?.financingTypeOverride === "LINEAR_ONLY", result.requiredDownPaymentPlan);
+    check("[G6 financing-type] dispatch sends LINEAR only, BALAO never dispatched this turn", calls.some((c) => c.financing_type === "LINEAR") && !calls.some((c) => c.financing_type === "BALAO"), calls);
+  }
+
+  // ---- 7. remove balloons / back to Linear (same mechanism as #6, distinct phrasing proving the existing regex, not a new phrase-specific branch) ----
+  {
+    const { result, calls } = await runFollowUp("sem balão, obrigado");
+    check("[G7 remove-balloons] plan carries financingTypeOverride=LINEAR_ONLY via the pre-existing exclusion regex (no new phrase-specific code)", result.requiredDownPaymentPlan?.financingTypeOverride === "LINEAR_ONLY", result.requiredDownPaymentPlan);
+    check("[G7 remove-balloons] BALAO never dispatched this turn", !calls.some((c) => c.financing_type === "BALAO"), calls);
+  }
+
+  // ---- 9. attempted count above canonical ceiling (NOVOS max 4) ----
+  {
+    const { result, calls } = await runFollowUp("no máximo 10 balões");
+    check("[G9 above-ceiling] the RAW stated constraint is captured as-is at extraction time (10) -- clamping is the engine's own job, proven directly against the real engine in balloon-count-constraint.test.mjs", result.requiredDownPaymentPlan?.balloonCountMax === 10, result.requiredDownPaymentPlan);
+    check("[G9 above-ceiling] dispatch still reaches the engine (never silently rejected/blocked at the orchestration layer)", calls.find((c) => c.financing_type === "BALAO")?.balloon_count_ceiling === 10, calls);
+  }
 }
 
 console.log(`\n=== Stateful Deterministic Orchestration — Integration Harness (IA-REGRESSION-01): ${pass}/${pass + fail} ===`);

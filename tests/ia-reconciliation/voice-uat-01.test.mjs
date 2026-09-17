@@ -218,6 +218,11 @@ export { baiSend }; export function getRenderCount() { return renderCount; } exp
   const extractRdpFn = "export " + extractFunction(source, "extractRequiredDownPaymentPlan");
   const resolveRdpFn = "export " + extractFunction(source, "resolveStatefulRequiredDownPaymentPlan");
   const buildRdpFn = "export " + extractFunction(source, "buildRequiredDownPaymentSimulationInputs");
+  // IA-CAPLOCK5 -- extractRequiredDownPaymentPlan/resolveStatefulRequiredDownPaymentPlan
+  // now also call extractBalloonCountConstraint (a new real dependency).
+  const balloonCountMaxReConst = "export " + extractConst(source, "BALLOON_COUNT_MAX_RE");
+  const balloonCountExactReConst = "export " + extractConst(source, "BALLOON_COUNT_EXACT_RE");
+  const extractBalloonCountConstraintFn = "export " + extractFunction(source, "extractBalloonCountConstraint");
 
   const modText = [
     "// AUTO-EXTRACTED at test time -- do not hand-edit.",
@@ -227,6 +232,7 @@ export { baiSend }; export function getRenderCount() { return renderCount; } exp
     clientBoundaryConst, maxToolCallsConst, extractTermListFn,
     linearOnlyConst, balaoOnlyConst, allOptionsConst, bareTermConst,
     requiredPlanInterface, extractOverridesFn, resolveTermsFn, extractRdpFn, resolveRdpFn, buildRdpFn,
+    balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
   ].join("\n\n");
   const tmpDir3 = mkdtempSync(join(tmpdir(), "ia-recon-multioption-"));
   const modPath3 = join(tmpDir3, "extracted.ts");

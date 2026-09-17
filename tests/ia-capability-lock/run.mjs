@@ -187,6 +187,28 @@ const CAPABILITIES = [
       { dir: RECON, file: "memory-reset.test.mjs" },
     ],
   },
+  {
+    // IA-CAPLOCK5 -- real Human UAT defect: a financing follow-up that
+    // mutates a calculation constraint (Balão count, term, target
+    // payment, financing type) must trigger a NEW deterministic engine
+    // execution, never a description of the previous proposal.
+    // stateful-orchestration-integration.test.mjs's own TEST F reproduces
+    // the exact incident (open recommendation -> "no máximo 2 balões" ->
+    // "quero exatamente 2 balões") end to end through the real
+    // requiredDownPaymentPlan/blockRDP orchestration; TEST G covers the
+    // general constraint-mutation matrix. balloon-count-constraint.test.mjs
+    // proves the real balaoRequiredDownPaymentEscalateForTarget engine
+    // itself genuinely honors the new ceiling/exact parameters (never
+    // invented numbers -- every comparison derived from the engine's own
+    // output at each count).
+    id: "16_STATEFUL_FINANCIAL_CONSTRAINT_MUTATION",
+    name: "Stateful financial constraint mutation (Balão count/term/target/financing-type follow-ups trigger real recalculation)",
+    proofType: "MOCKED_E2E_AND_ENGINE_BEHAVIOR",
+    tests: [
+      { dir: RECON, file: "stateful-orchestration-integration.test.mjs" },
+      { dir: RECON, file: "balloon-count-constraint.test.mjs" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------

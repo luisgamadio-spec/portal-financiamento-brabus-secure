@@ -70,6 +70,11 @@ const buildRdpFn = "export " + extractFunction(source, "buildRequiredDownPayment
 const buildSelectionInputsFn = "export " + extractFunction(source, "buildCommercialSelectionInputs");
 const commercialProposalInterface = "export " + extractInterface(source, "CommercialProposal");
 const selectProposalsFn = "export " + extractFunction(source, "selectCommercialProposals");
+// IA-CAPLOCK5 -- extractRequiredDownPaymentPlan/resolveStatefulRequiredDownPaymentPlan
+// now also call extractBalloonCountConstraint (a new real dependency).
+const balloonCountMaxReConst = "export " + extractConst(source, "BALLOON_COUNT_MAX_RE");
+const balloonCountExactReConst = "export " + extractConst(source, "BALLOON_COUNT_EXACT_RE");
+const extractBalloonCountConstraintFn = "export " + extractFunction(source, "extractBalloonCountConstraint");
 
 const modText = [
   "// AUTO-EXTRACTED at test time -- do not hand-edit.",
@@ -80,6 +85,7 @@ const modText = [
   linearOnlyConst, balaoOnlyConst, allOptionsConst, bareTermConst,
   requiredPlanInterface, extractOverridesFn, resolveTermsFn, extractRdpFn, resolveRdpFn, buildRdpFn,
   buildSelectionInputsFn, commercialProposalInterface, selectProposalsFn,
+  balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
 ].join("\n\n");
 const tmpDir = mkdtempSync(join(tmpdir(), "ia-uat04-"));
 const modPath = join(tmpDir, "extracted.ts");
