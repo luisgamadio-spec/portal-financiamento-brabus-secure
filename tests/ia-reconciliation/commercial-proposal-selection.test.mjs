@@ -75,6 +75,11 @@ const selectProposalsFn = "export " + extractFunction(source, "selectCommercialP
 const balloonCountMaxReConst = "export " + extractConst(source, "BALLOON_COUNT_MAX_RE");
 const balloonCountExactReConst = "export " + extractConst(source, "BALLOON_COUNT_EXACT_RE");
 const extractBalloonCountConstraintFn = "export " + extractFunction(source, "extractBalloonCountConstraint");
+// IA-CAPLOCK7 -- resolveStatefulRequiredDownPaymentPlan now also checks
+// isFinanceExplanationOnly (a new real dependency).
+const financeExplanationOnlyReConst = "export " + extractConst(source, "FINANCE_EXPLANATION_ONLY_RE");
+const financeExplicitMutationVerbReConst = "export " + extractConst(source, "FINANCE_EXPLICIT_MUTATION_VERB_RE");
+const isFinanceExplanationOnlyFn = "export " + extractFunction(source, "isFinanceExplanationOnly");
 
 const modText = [
   "// AUTO-EXTRACTED at test time -- do not hand-edit.",
@@ -86,6 +91,7 @@ const modText = [
   requiredPlanInterface, extractOverridesFn, resolveTermsFn, extractRdpFn, resolveRdpFn, buildRdpFn,
   buildSelectionInputsFn, commercialProposalInterface, selectProposalsFn,
   balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
+  financeExplanationOnlyReConst, financeExplicitMutationVerbReConst, isFinanceExplanationOnlyFn,
 ].join("\n\n");
 const tmpDir = mkdtempSync(join(tmpdir(), "ia-uat04-"));
 const modPath = join(tmpDir, "extracted.ts");

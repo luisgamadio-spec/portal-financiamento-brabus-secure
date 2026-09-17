@@ -196,6 +196,17 @@ const buildRequiredDownPaymentSimulationInputsFn = "export " + extractFunction(s
 const buildCommercialSelectionInputsFn = "export " + extractFunction(source, "buildCommercialSelectionInputs");
 const commercialProposalInterface = "export " + extractInterface(source, "CommercialProposal");
 const selectCommercialProposalsFn = "export " + extractFunction(source, "selectCommercialProposals");
+// IA-CAPLOCK5 -- extractRequiredDownPaymentPlan/resolveStatefulRequiredDownPaymentPlan
+// also call extractBalloonCountConstraint (a real dependency this file's
+// own extraction had never actually needed until now).
+const balloonCountMaxReConst = "export " + extractConst(source, "BALLOON_COUNT_MAX_RE");
+const balloonCountExactReConst = "export " + extractConst(source, "BALLOON_COUNT_EXACT_RE");
+const extractBalloonCountConstraintFn = "export " + extractFunction(source, "extractBalloonCountConstraint");
+// IA-CAPLOCK7 -- resolveStatefulFinancePlan/resolveStatefulRequiredDownPaymentPlan
+// now also check isFinanceExplanationOnly (a new real dependency).
+const financeExplanationOnlyReConst = "export " + extractConst(source, "FINANCE_EXPLANATION_ONLY_RE");
+const financeExplicitMutationVerbReConst = "export " + extractConst(source, "FINANCE_EXPLICIT_MUTATION_VERB_RE");
+const isFinanceExplanationOnlyFn = "export " + extractFunction(source, "isFinanceExplanationOnly");
 // timedEvaluateToolPolicy is a closure DEFINED INSIDE the request handler
 // (not module-level) -- extractFunctionGenericAware's marker now tolerates
 // indentation so it can find it there.
@@ -213,6 +224,8 @@ const extractorModText = [
   requiredDownPaymentPlanInterface, extractCommercialOverridesFn, extractTermMonthsListFn, resolveTermMonthsListFn,
   extractRequiredDownPaymentPlanFn, resolveStatefulRequiredDownPaymentPlanFn,
   buildRequiredDownPaymentSimulationInputsFn, buildCommercialSelectionInputsFn, commercialProposalInterface, selectCommercialProposalsFn,
+  balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
+  financeExplanationOnlyReConst, financeExplicitMutationVerbReConst, isFinanceExplanationOnlyFn,
 ].join("\n\n");
 
 const tmpDir1 = mkdtempSync(join(tmpdir(), "ia-recon-efirst-extractor-"));

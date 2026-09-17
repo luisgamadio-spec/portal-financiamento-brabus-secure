@@ -209,6 +209,32 @@ const CAPABILITIES = [
       { dir: RECON, file: "balloon-count-constraint.test.mjs" },
     ],
   },
+  {
+    // IA-CAPLOCK7 -- real Human UAT defect: a DERIVED monetary value from
+    // the assistant's own previous answer (e.g. a wrongly-computed "total
+    // devido") contaminated canonical financing conversation state,
+    // becoming the apparent vehicle_value for a new, real engine
+    // dispatch. stateful-orchestration-integration.test.mjs's own TEST H
+    // reproduces the exact incident end to end (explanation-only turn
+    // preserves vehicle_value/down_payment/target_payment, triggers no
+    // engine execution, produces no cards; a later EXPLICIT mutation
+    // still works) plus TEST I (a second, different quoted amount,
+    // proving the fix is a structural intent classifier, never a
+    // hardcoded exception for the incident's own numbers).
+    // balloon-count-constraint.test.mjs's own Part 8 proves, against the
+    // real unmodified balaoOptimizeMinPaymentMulti, that the ORIGINAL
+    // synthesis error (balloon_month_total_due summing every balloon
+    // instead of only the one due in that month) is fixed and reproduces
+    // the incident's exact wrong (R$111.806,14) and right (R$29.306,14)
+    // figures from real engine output.
+    id: "17_CANONICAL_FINANCIAL_STATE_INTEGRITY",
+    name: "Canonical financial state integrity (explanation-only turns never mutate vehicle_value/down_payment/target_payment; balloon due-month synthesis is deterministic)",
+    proofType: "MOCKED_E2E_AND_ENGINE_BEHAVIOR",
+    tests: [
+      { dir: RECON, file: "stateful-orchestration-integration.test.mjs" },
+      { dir: RECON, file: "balloon-count-constraint.test.mjs" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------

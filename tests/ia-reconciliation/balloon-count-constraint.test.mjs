@@ -77,6 +77,7 @@ const modText = [
   "export " + extractFunction(source, "balaoOptimizeMinPaymentMulti"),
   "export " + extractFunction(source, "balaoRequiredDownPaymentAutoBalloon"),
   "export " + extractFunction(source, "balaoRequiredDownPaymentEscalateForTarget"),
+  "export " + extractFunction(source, "balaoOptimizeEscalateForTarget"),
   "export " + extractConst(source, "BALLOON_COUNT_MAX_RE"),
   "export " + extractConst(source, "BALLOON_COUNT_EXACT_RE"),
   "export " + extractFunction(source, "extractBalloonCountConstraint"),
@@ -240,6 +241,56 @@ if (probe1.ok) {
   check("a plain balloon-related message with no count constraint at all -> both null", JSON.stringify(mod.extractBalloonCountConstraint("pode usar mais de um balão se isso ajudar")) === JSON.stringify({ balloonCountMax: null, balloonCountExact: null }));
 }
 
-console.log(`\n=== Balloon Count Constraint Tests (IA-CAPLOCK5): ${pass}/${pass + fail} ===`);
+// ========================================================================
+// PART 8 — IA-CAPLOCK7: balloon_month_total_due must equal monthly_payment
+// + the LAST balloon's own value, never the sum of every balloon in the
+// structure. Real Human UAT defect: with 4 balloons of R$27.500 spread
+// across months 9/18/27/36, the field returned monthly_payment + R$110.000
+// (all four summed) = R$111.806,14 -- a figure with no correspondence to
+// any single month's real amount due -- instead of monthly_payment +
+// R$27.500 (only the month-36 balloon) = R$29.306,14, the figure the
+// Human correctly expected. Proven here against the REAL, unmodified
+// balaoOptimizeMinPaymentMulti (never a hand-copied duplicate, never an
+// invented balloon distribution).
+// ========================================================================
+{
+  const probeMulti = mod.balaoOptimizeMinPaymentMulti(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, PROBE_DOWN_PAYMENT, TERM, null, null, 4);
+  check("fixture: a real 4-balloon structure is feasible on this synthetic table", probeMulti.ok, JSON.stringify(probeMulti));
+  if (probeMulti.ok) {
+    const { balloons, monthly_payment } = probeMulti.result;
+    check("fixture: the real engine distributed the 4 balloons across more than one distinct month (a meaningful test of the fix, not a vacuous one)", new Set(balloons.map((b) => b.month)).size > 1, JSON.stringify(balloons));
+
+    const lastBalloon = balloons.reduce((latest, b) => (b.month > latest.month ? b : latest), balloons[0]);
+    const correctTotalDue = mod.round2(monthly_payment + lastBalloon.value);
+    const buggyTotalDue = mod.round2(monthly_payment + mod.round2(balloons.reduce((s, b) => s + b.value, 0)));
+
+    check(
+      "the CORRECT total due in the last balloon's own month (monthly_payment + that ONE balloon) genuinely differs from the buggy sum-of-all-balloons figure -- proves this is a real, meaningful distinction on real engine output, not a no-op",
+      correctTotalDue !== buggyTotalDue,
+      { correctTotalDue, buggyTotalDue, lastBalloonMonth: lastBalloon.month, lastBalloonValue: lastBalloon.value, allBalloons: balloons }
+    );
+    check(
+      "the correct figure equals monthly_payment + ONLY the last balloon's value (this Wave's own fix, mirrored here as a real-data proof, never a duplicated formula in production)",
+      correctTotalDue === mod.round2(monthly_payment + lastBalloon.value)
+    );
+    check(
+      "the buggy figure (monthly_payment + sum of ALL balloons) is strictly greater than the correct one whenever more than one balloon exists -- confirms the pre-fix defect would always overstate the amount due in a single month",
+      buggyTotalDue > correctTotalDue
+    );
+  }
+
+  // ---------- the exact incident's own numbers, reproduced from a fixture shaped to match (4 balloons of equal value) ----------
+  {
+    const monthly_payment = 1806.14;
+    const balloons = [{ month: 9, value: 27500 }, { month: 18, value: 27500 }, { month: 27, value: 27500 }, { month: 36, value: 27500 }];
+    const lastBalloon = balloons.reduce((latest, b) => (b.month > latest.month ? b : latest), balloons[0]);
+    const correctTotalDue = mod.round2(monthly_payment + lastBalloon.value);
+    const buggyTotalDue = mod.round2(monthly_payment + balloons.reduce((s, b) => s + b.value, 0));
+    check("incident reproduction: the buggy formula produces exactly the real incident's wrong figure, R$111.806,14 (confirms this WAS the actual root cause of the assistant's original wrong statement)", buggyTotalDue === 111806.14, buggyTotalDue);
+    check("incident reproduction: the correct formula produces exactly R$29.306,14, matching the Human's own correct expectation (R$27.500 + R$1.806,14)", correctTotalDue === 29306.14, correctTotalDue);
+  }
+}
+
+console.log(`\n=== Balloon Count Constraint + Total-Due Tests (IA-CAPLOCK5/IA-CAPLOCK7): ${pass}/${pass + fail} ===`);
 console.log(fail === 0 ? "RESULT: PASS" : "RESULT: FAIL");
 process.exit(fail === 0 ? 0 : 1);

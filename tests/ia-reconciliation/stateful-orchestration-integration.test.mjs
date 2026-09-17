@@ -164,6 +164,15 @@ const balloonCountMaxReConst = "export " + extractConst(source, "BALLOON_COUNT_M
 const balloonCountExactReConst = "export " + extractConst(source, "BALLOON_COUNT_EXACT_RE");
 const extractBalloonCountConstraintFn = "export " + extractFunction(source, "extractBalloonCountConstraint");
 
+// IA-CAPLOCK7 -- resolveStatefulFinancePlan/resolveStatefulRequiredDownPaymentPlan
+// now both check isFinanceExplanationOnly(message) before extracting any
+// new canonical financial input from the current turn (real Human UAT
+// defect: an explanation-only question quoting a previously-derived
+// figure was misread as a new vehicle_value/target_payment).
+const financeExplanationOnlyReConst = "export " + extractConst(source, "FINANCE_EXPLANATION_ONLY_RE");
+const financeExplicitMutationVerbReConst = "export " + extractConst(source, "FINANCE_EXPLICIT_MUTATION_VERB_RE");
+const isFinanceExplanationOnlyFn = "export " + extractFunction(source, "isFinanceExplanationOnly");
+
 const toolErrorClass = (() => {
   const markerRe = /(?:^|\r?\n)class\s+ToolError\b/;
   const m = markerRe.exec(source);
@@ -308,6 +317,7 @@ const extractorDepsText = [
   extractRequiredDownPaymentPlanFn, resolveStatefulRequiredDownPaymentPlanFn,
   buildRequiredDownPaymentSimulationInputsFn, buildCommercialSelectionInputsFn, commercialProposalInterface, selectCommercialProposalsFn,
   balloonCountMaxReConst, balloonCountExactReConst, extractBalloonCountConstraintFn,
+  financeExplanationOnlyReConst, financeExplicitMutationVerbReConst, isFinanceExplanationOnlyFn,
   // IA-CAPLOCK5 -- buildRequiredDownPaymentSimulationInputs' own named-term
   // branch (plan.termMonthsList !== null, exercised for the first time by
   // this Wave's term-mutation matrix test) references MAX_TOOL_CALLS as a
@@ -724,6 +734,120 @@ function runHarness(overrides) {
     check("[G9 above-ceiling] the RAW stated constraint is captured as-is at extraction time (10) -- clamping is the engine's own job, proven directly against the real engine in balloon-count-constraint.test.mjs", result.requiredDownPaymentPlan?.balloonCountMax === 10, result.requiredDownPaymentPlan);
     check("[G9 above-ceiling] dispatch still reaches the engine (never silently rejected/blocked at the orchestration layer)", calls.find((c) => c.financing_type === "BALAO")?.balloon_count_ceiling === 10, calls);
   }
+}
+
+// ========================================================================
+// TEST H — IA-CAPLOCK7: real Human UAT defect, full incident
+// reproduction. A DERIVED monetary value from the assistant's own
+// previous answer must never contaminate canonical financing state. An
+// explanation-only turn quoting/referencing a previous figure must
+// preserve vehicle_value/down_payment/target_payment exactly, trigger
+// no new engine execution, and produce no replacement cards.
+// ========================================================================
+{
+  const TURN_1 = "Eclipse Cross HPE 0 km de R$ 180.000. Quero chegar em uma parcela de R$ 1.800. Você escolhe o prazo. Quero a menor entrada possível.";
+  // Self-sufficient (restates vehicle+target alongside the now-exact down
+  // payment) -- this Wave's own trace confirmed resolveStatefulFinancePlan's
+  // synthetic-history mechanism only carries vehicle/down-payment/department
+  // forward, never target_payment, so establishing all three explicitly here
+  // keeps this test's own canonical baseline unambiguous rather than taking
+  // a dependency on an untested cross-plan-type inheritance path (out of
+  // this Wave's traced scope).
+  const TURN_2 = "O carro é o Eclipse Cross HPE de R$ 180.000. Quero chegar em uma parcela de R$ 1.800. Vou usar entrada exata de R$ 70.000. Calcule a melhor condição.";
+  // The exact real incident text.
+  const TURN_3 = "Você falou que no mês 36 o total devido será R$111.806,14, mas o balão do mês 36 é R$27.500 e a parcela é R$1.806,14. Me explica detalhadamente de onde vieram os R$111.806,14?";
+
+  // ---- TURN 2: establish canonical state (vehicle=180000, down_payment=70000, target=1800) ----
+  const simCalls2 = [];
+  const result2 = await runHarness({
+    message: TURN_2,
+    conversation: [{ role: "user", content: TURN_1 }],
+    callOpenAI: async () => mkResponse({ text: "Recomendo Balão em 36x, com 4 balões de R$27.500 (meses 9, 18, 27 e 36)." }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento(simCalls2),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: TURN_1 }, { role: "user", content: TURN_2 }],
+  });
+  check("[H/T2] engineFirstPlan resolved: vehicle=180000, down_payment=70000, target=1800", result2.engineFirstPlan?.vehicleValue === 180000 && result2.engineFirstPlan?.downPayment === 70000 && result2.engineFirstPlan?.targetPayment === 1800, result2.engineFirstPlan);
+  check("[H/T2] a real dispatch occurred (genuine calculation established this canonical state)", simCalls2.length > 0, simCalls2);
+
+  // ---- TURN 3: explanation-only -- THE DEFECT ----
+  const simCalls3 = [];
+  const result3 = await runHarness({
+    message: TURN_3,
+    conversation: [{ role: "user", content: TURN_1 }, { role: "user", content: TURN_2 }],
+    callOpenAI: async () => mkResponse({ text: "R$27.500 (balão do mês 36) + R$1.806,14 (parcela) = R$29.306,14." }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento(simCalls3),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: TURN_1 }, { role: "user", content: TURN_2 }, { role: "user", content: TURN_3 }],
+  });
+  check("[H/T3] classified explanation-only: engineFirstPlan is null (never contaminated by the quoted R$111.806,14)", result3.engineFirstPlan === null, result3.engineFirstPlan);
+  check("[H/T3] classified explanation-only: requiredDownPaymentPlan is also null (the sibling plan type has the identical vulnerability, also guarded)", result3.requiredDownPaymentPlan === null, result3.requiredDownPaymentPlan);
+  check("[H/T3] NO new engine execution occurred solely because of this explanation request", simCalls3.length === 0, simCalls3);
+  check("[H/T3] engineFirstRan=false (fell through to the fallback loop, never a silent deterministic dispatch built from a quoted display figure)", result3.engineFirstRan === false);
+  check("[H/T3] execution_path is never finance_engine_first for this turn", result3.timings.execution_path !== "finance_engine_first", result3.timings.execution_path);
+
+  // ---- TURN 4 (independent branch from the post-explanation state): explicit vehicle-value mutation still works ----
+  const TURN_4 = "Agora muda o valor do carro para R$170 mil e recalcula a parcela.";
+  const simCalls4 = [];
+  const result4 = await runHarness({
+    message: TURN_4,
+    conversation: [{ role: "user", content: TURN_1 }, { role: "user", content: TURN_2 }, { role: "user", content: TURN_3 }],
+    callOpenAI: async () => mkResponse({ text: "ok" }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento(simCalls4),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: TURN_4 }],
+  });
+  check("[H/T4] explicit vehicle-value change is honored: vehicle_value becomes 170000 (never locked by the prior explanation-only turn)", result4.engineFirstPlan?.vehicleValue === 170000, result4.engineFirstPlan);
+  check("[H/T4] down_payment (70000, established in Turn 2) is retained", result4.engineFirstPlan?.downPayment === 70000, result4.engineFirstPlan);
+  check("[H/T4] a real, new dispatch occurs for the explicit mutation", simCalls4.length > 0, simCalls4);
+
+  // ---- TURN 5 (independent branch from the post-explanation state): explicit down-payment mutation still works ----
+  const TURN_5 = "Agora usa R$60 mil de entrada e recalcula a parcela.";
+  const simCalls5 = [];
+  const result5 = await runHarness({
+    message: TURN_5,
+    conversation: [{ role: "user", content: TURN_1 }, { role: "user", content: TURN_2 }, { role: "user", content: TURN_3 }],
+    callOpenAI: async () => mkResponse({ text: "ok" }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento(simCalls5),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: TURN_5 }],
+  });
+  check("[H/T5] explicit down-payment change is honored: down_payment becomes 60000", result5.engineFirstPlan?.downPayment === 60000, result5.engineFirstPlan);
+  check("[H/T5] vehicle_value (180000, established in Turn 2) is retained", result5.engineFirstPlan?.vehicleValue === 180000, result5.engineFirstPlan);
+  check("[H/T5] a real, new dispatch occurs for the explicit mutation", simCalls5.length > 0, simCalls5);
+}
+
+// ========================================================================
+// TEST I — IA-CAPLOCK7: overfit protection. The fix must be structural
+// (any quoted/derived amount, in any explanation-seeking phrasing),
+// never a hardcoded exception for the exact incident's own numbers.
+// ========================================================================
+{
+  const OTHER_TURN_1 = "Triton HPE-S 0 km de R$ 200.000. Quero chegar em uma parcela de R$ 2.500. Vou usar entrada exata de R$ 80.000. Calcule a melhor condição.";
+  const OTHER_TURN_2 = "De onde veio o valor de R$123.456,78 que você mencionou?";
+
+  const simCalls1 = [];
+  const result1 = await runHarness({
+    message: OTHER_TURN_1,
+    conversation: [],
+    callOpenAI: async () => mkResponse({ text: "ok" }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento(simCalls1),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: OTHER_TURN_1 }],
+  });
+  check("[I/T1] a different vehicle/entrada/target establishes its own canonical state (200000/80000/2500)", result1.engineFirstPlan?.vehicleValue === 200000 && result1.engineFirstPlan?.downPayment === 80000 && result1.engineFirstPlan?.targetPayment === 2500, result1.engineFirstPlan);
+
+  const simCalls2 = [];
+  const result2 = await runHarness({
+    message: OTHER_TURN_2,
+    conversation: [{ role: "user", content: OTHER_TURN_1 }],
+    callOpenAI: async () => mkResponse({ text: "ok" }),
+    toolSimularFinanciamento: fixtureToolSimularFinanciamento(simCalls2),
+    toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+    input: [{ role: "developer", content: "mock" }, { role: "user", content: OTHER_TURN_1 }, { role: "user", content: OTHER_TURN_2 }],
+  });
+  check("[I/T2] a completely different quoted amount (R$123.456,78, never seen in this file's own incident-specific tests) is ALSO never mistaken for a new vehicle_value -- proves the fix is a general phrasing/intent classifier, not a hardcoded exception for 111806.14", result2.engineFirstPlan === null && result2.requiredDownPaymentPlan === null, { engineFirstPlan: result2.engineFirstPlan, requiredDownPaymentPlan: result2.requiredDownPaymentPlan });
+  check("[I/T2] no dispatch occurs for this arbitrary-value explanation turn either", simCalls2.length === 0, simCalls2);
 }
 
 console.log(`\n=== Stateful Deterministic Orchestration — Integration Harness (IA-REGRESSION-01): ${pass}/${pass + fail} ===`);
