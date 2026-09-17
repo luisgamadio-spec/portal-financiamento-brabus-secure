@@ -6800,7 +6800,22 @@ const CLIENT_BOUNDARY_RE = /agora outro cliente|novo cliente|nova negocia[cç][�
 // "somente Linear"/"só Linear"/"sem Balão": an explicit hard constraint
 // from the user, never inferred -- forces LINEAR_ONLY even when a
 // target/goal signal would otherwise trigger BOTH_BALAO_AND_LINEAR.
-const LINEAR_ONLY_EXCLUSION_RE = /s(?:o|ó)mente linear|s(?:o|ó)\s+linear|sem bal[ãa]o|sem bal[õo]es|n[ãa]o quero bal[ãa]o|nenhum bal[ãa]o/i;
+// IA-CAPLOCK12 -- real Human UAT defect: the exact live phrasing "E se
+// eu não quiser balão nenhum?" matched NEITHER "n[ãa]o quero bal[ãa]o"
+// (subjunctive "quiser" is a different verb form from indicative
+// "quero", irregular verb "querer") NOR "nenhum bal[ãa]o" (the Human's
+// own natural word order, "balão nenhum", is reversed from what the
+// regex required) -- so this turn's own financing-mode mutation was
+// silently never detected at all: canonical state stayed at whatever
+// scenario/balloon constraint the PREVIOUS turn left it in, the engine
+// (correctly, from that stale state's own perspective) went on to
+// compute and recommend a valid Balão structure, while the model's own
+// broader NL understanding of the same hypothetical phrasing correctly
+// described Linear in prose -- the exact structured-result/NL split-
+// brain this Wave fixes. Added: the "quiser" conjugation and the
+// reversed "bal[ãa]o nenhum" word order, both proven gaps, nothing
+// broader/speculative.
+const LINEAR_ONLY_EXCLUSION_RE = /s(?:o|ó)mente linear|s(?:o|ó)\s+linear|sem bal[ãa]o|sem bal[õo]es|n[ãa]o quero bal[ãa]o|n[ãa]o quiser bal[ãa]o|nenhum bal[ãa]o|bal[ãa]o nenhum/i;
 
 // IA-UAT-04 -- the mirror of LINEAR_ONLY_EXCLUSION_RE, for the new
 // required-down-payment commercial selector ONLY (Section 8) -- never
@@ -7108,15 +7123,27 @@ function applyLinearOnlyExclusion(plan: FinanceEngineFirstPlan, message: string)
 // Ties prefer the simpler structure (LINEAR over BALAO).
 interface EngineFirstCandidate { source: "LINEAR" | "BALAO"; term_months: number; payment: number; balloons?: unknown; }
 
-function collectEngineFirstCandidates(engineResults: Array<{ simArgs: SimulationInput; output: any }>): EngineFirstCandidate[] {
+function collectEngineFirstCandidates(
+  engineResults: Array<{ simArgs: SimulationInput; output: any }>,
+  // IA-CAPLOCK12 -- defense-in-depth: buildEngineFirstSimulationInputs
+  // already never dispatches the excluded type when `scenario` is
+  // LINEAR_ONLY/BALAO_ONLY (structural prevention, the primary layer),
+  // so `engineResults` should never carry a contradicting entry -- but
+  // this is a second, independent guard at the single point every
+  // downstream selection/card/NL-synthesis path reads from. null
+  // (every pre-existing call shape) preserves prior behavior exactly.
+  activeScenario: FinanceEngineFirstScenario | null = null
+): EngineFirstCandidate[] {
   const candidates: EngineFirstCandidate[] = [];
   for (const { simArgs, output } of engineResults) {
     if (!output || typeof output !== "object") continue;
     if (simArgs.financing_type === "BALAO") {
+      if (activeScenario === "LINEAR_ONLY") continue;
       if (output.feasible === true && typeof output.monthly_payment === "number") {
         candidates.push({ source: "BALAO", term_months: output.term_months, payment: output.monthly_payment, balloons: output.balloons ?? null });
       }
     } else if (Array.isArray(output.results)) {
+      if (activeScenario === "BALAO_ONLY") continue;
       for (const r of output.results) {
         if (typeof r.payment === "number") candidates.push({ source: "LINEAR", term_months: r.term_months, payment: r.payment });
       }
@@ -7573,9 +7600,21 @@ interface CommercialProposal {
 // Pure function (no I/O, no tool dispatch) -- same shape discipline as
 // the existing selectClosestCandidate (IA-REGRESSION-01), so this is
 // directly unit-testable against real dispatched results.
-function selectCommercialProposals(results: Array<{ simArgs: SimulationInput; output: any }>): CommercialProposal[] {
-  const linearResult = results.find((r) => r.simArgs.financing_type === "LINEAR");
-  const balaoResult = results.find((r) => r.simArgs.financing_type === "BALAO");
+function selectCommercialProposals(
+  results: Array<{ simArgs: SimulationInput; output: any }>,
+  // IA-CAPLOCK12 -- defense-in-depth: buildCommercialSelectionInputs
+  // already never dispatches the excluded type (structural prevention,
+  // the primary layer), so `results` itself should never carry a
+  // contradicting entry -- but this is a second, independent guard at
+  // the single point selection/labeling happens, protecting against a
+  // future divergence between what was dispatched and what mode is
+  // actually active. null (every pre-existing call shape) preserves
+  // prior behavior exactly -- no filtering when the caller doesn't know
+  // an active override.
+  activeFinancingTypeOverride: "LINEAR_ONLY" | "BALAO_ONLY" | null = null
+): CommercialProposal[] {
+  const linearResult = activeFinancingTypeOverride === "BALAO_ONLY" ? undefined : results.find((r) => r.simArgs.financing_type === "LINEAR");
+  const balaoResult = activeFinancingTypeOverride === "LINEAR_ONLY" ? undefined : results.find((r) => r.simArgs.financing_type === "BALAO");
 
   // LINEAR (Section 6) -- never "always the 2 longest terms" as a
   // blind rule: #1 = the feasible term with the LOWEST entrada the
@@ -9133,7 +9172,7 @@ capital = a entrada já estabelecida para este cliente/cenário (nunca pergunte 
         // model ever sees the data. Absent without a target (plain
         // simulation) -- unchanged, no selection block in that case.
         const selection = engineFirstPlan.targetPayment !== null
-          ? selectClosestCandidate(collectEngineFirstCandidates(engineResults), engineFirstPlan.targetPayment)
+          ? selectClosestCandidate(collectEngineFirstCandidates(engineResults, engineFirstPlan.scenario), engineFirstPlan.targetPayment)
           : null;
         if (selection) homologCalls.push({ name: "__deterministic_candidate_selection", args: { target_payment: engineFirstPlan.targetPayment }, result: selection }); // portal-ai-homolog ONLY, traceability — never cherry-picked to canonical
         const selectionBlock = selection
@@ -9221,7 +9260,7 @@ Use EXCLUSIVAMENTE os números acima para responder -- nunca recalcule, nunca ar
         // synthesis text is built, so both ever see only the selection
         // (Section 11), never the full multi-term comparison.
         const selection = (isOpenRecommendation && !requiredDownPaymentPlan.allOptionsRequested)
-          ? selectCommercialProposals(rdpResults)
+          ? selectCommercialProposals(rdpResults, requiredDownPaymentPlan.financingTypeOverride)
           : null;
 
         let rdpResultsBlock: string;

@@ -988,6 +988,192 @@ function runHarness(overrides) {
   check("[K] B re-resolved from its own unchanged history is byte-identical to before A was ever mutated further -- no cross-conversation leakage, no process-global mutable state", resultB2.engineFirstPlan?.vehicleValue === 250000 && resultB2.engineFirstPlan?.downPayment === 100000 && JSON.stringify(resultB2.engineFirstPlan) === JSON.stringify(resultB.engineFirstPlan), { resultB2: resultB2.engineFirstPlan, resultB: resultB.engineFirstPlan });
 }
 
+// ========================================================================
+// TEST L — IA-CAPLOCK12: real Human UAT defect, full incident
+// reproduction. A financing-mode mutation phrased as a hypothetical
+// question ("E se eu não quiser balão nenhum?") used to leave canonical
+// state at whatever mode/balloon-count the PREVIOUS turn established
+// (LINEAR_ONLY_EXCLUSION_RE matched neither the subjunctive "quiser"
+// verb form nor the Human's own natural "balão nenhum" word order) --
+// the deterministic engine went on to (correctly, from that stale
+// state's own perspective) recommend a valid Balão structure while the
+// model's own broader NL understanding of the same turn correctly
+// described Linear, producing exactly the structured-result/NL split-
+// brain this Wave fixes. Exercises the REAL engine-first block
+// (blockFinance, balanced-brace-sliced verbatim from current
+// production) end to end -- never a description of the defect, a
+// genuine dispatch/selection proof.
+// ========================================================================
+{
+  const T1 = "Eclipse Cross HPE 0 km de R$170.000. Quero chegar em R$1.800 de parcela. Vou usar entrada de R$60.000. Tenta em 36 meses.";
+  const T2 = "Beleza, mas limita em no máximo 2 balões.";
+  const T3 = "Tá, então faz exatamente com 1 balão.";
+  const T4 = "Agora pode escolher o prazo de novo.";
+  const T5 = "E se eu não quiser balão nenhum?";
+  const T6 = "Volta para balão, no máximo 2.";
+
+  const turns = [T1, T2, T3, T4, T5, T6];
+  const history = [];
+  const results = [];
+  for (const t of turns) {
+    const calls = [];
+    let synthesisInput = null;
+    // eslint-disable-next-line no-await-in-loop
+    const r = await runHarness({
+      message: t, conversation: [...history],
+      callOpenAI: async (_key, input) => { synthesisInput = input; return mkResponse({ text: "ok" }); },
+      toolSimularFinanciamento: fixtureToolSimularFinanciamento(calls),
+      toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+      input: [{ role: "developer", content: "mock" }, ...history.map((h) => ({ role: "user", content: h.content })), { role: "user", content: t }],
+    });
+    results.push({ result: r, calls, synthesisInput: () => synthesisInput });
+    history.push({ role: "user", content: t });
+  }
+  const [r1, r2, r3, r4, r5, r6] = results;
+
+  check("[L/T1] baseline: vehicle=170000, down_payment=60000, term=36, target=1800, scenario=BOTH", r1.result.engineFirstPlan?.vehicleValue === 170000 && r1.result.engineFirstPlan?.downPayment === 60000 && r1.result.engineFirstPlan?.termMonths === 36 && r1.result.engineFirstPlan?.targetPayment === 1800 && r1.result.engineFirstPlan?.scenario === "BOTH_BALAO_AND_LINEAR", r1.result.engineFirstPlan);
+  check("[L/T2] ceiling=2 reaches the plan", r2.result.engineFirstPlan?.balloonCountMax === 2, r2.result.engineFirstPlan);
+  check("[L/T3] exact=1 replaces ceiling=2", r3.result.engineFirstPlan?.balloonCountExact === 1 && r3.result.engineFirstPlan?.balloonCountMax === null, r3.result.engineFirstPlan);
+  check("[L/T4] term re-delegated (null), exact=1 retained, mode still BOTH", r4.result.engineFirstPlan?.termMonths === null && r4.result.engineFirstPlan?.balloonCountExact === 1 && r4.result.engineFirstPlan?.scenario === "BOTH_BALAO_AND_LINEAR", r4.result.engineFirstPlan);
+
+  // ---- T5: THE DEFECT TURN ----
+  check("[L/T5] financing mode = LINEAR_ONLY (THE regression proof -- this used to stay BOTH_BALAO_AND_LINEAR)", r5.result.engineFirstPlan?.scenario === "LINEAR_ONLY", r5.result.engineFirstPlan);
+  check("[L/T5] vehicle=170000, down_payment=60000 retained", r5.result.engineFirstPlan?.vehicleValue === 170000 && r5.result.engineFirstPlan?.downPayment === 60000, r5.result.engineFirstPlan);
+  check("[L/T5] balloon_count_max=null, balloon_count_exact=null (Part G clears balloon-only constraints on the LINEAR transition -- this only fires once scenario resolution is itself correct)", r5.result.engineFirstPlan?.balloonCountMax === null && r5.result.engineFirstPlan?.balloonCountExact === null, r5.result.engineFirstPlan);
+  check("[L/T5] ZERO BALAO dispatch occurred this turn (structural exclusion, buildEngineFirstSimulationInputs) -- never a comparison card either, matching existing LINEAR_ONLY-suppresses-BALAO behavior", !r5.calls.some((c) => c.financing_type === "BALAO"), r5.calls);
+  check("[L/T5] a real LINEAR dispatch occurred", r5.calls.some((c) => c.financing_type === "LINEAR"), r5.calls);
+  const sel5 = r5.result.homologCalls.find((c) => c.name === "__deterministic_candidate_selection");
+  check("[L/T5] selected recommendation = LINEAR (never a stale BALAO candidate)", sel5?.result?.selected?.source === "LINEAR", sel5);
+  check("[L/T5] NL synthesis input never references a BALAO recommendation for this turn (the developer-message engine-results block, built from THIS turn's own dispatch, structurally cannot contain one since zero BALAO calls happened)", !r5.synthesisInput()[0].content.includes('"financing_type":"BALAO"'), r5.synthesisInput()[0].content);
+
+  // ---- T6: reverse transition ----
+  check("[L/T6] financing mode = BALAO_ONLY", r6.result.engineFirstPlan?.scenario === "BALAO_ONLY", r6.result.engineFirstPlan);
+  check("[L/T6] vehicle=170000, down_payment=60000 retained across the round-trip mode transition", r6.result.engineFirstPlan?.vehicleValue === 170000 && r6.result.engineFirstPlan?.downPayment === 60000, r6.result.engineFirstPlan);
+  check("[L/T6] new ceiling=2 captured", r6.result.engineFirstPlan?.balloonCountMax === 2, r6.result.engineFirstPlan);
+  check("[L/T6] ZERO LINEAR dispatch occurred this turn (structural exclusion under BALAO_ONLY) -- no stale LINEAR recommendation can survive", !r6.calls.some((c) => c.financing_type === "LINEAR"), r6.calls);
+  check("[L/T6] a real BALAO dispatch occurred, carrying the new ceiling=2", r6.calls.some((c) => c.financing_type === "BALAO" && c.balloon_count_ceiling === 2), r6.calls);
+  const sel6 = r6.result.homologCalls.find((c) => c.name === "__deterministic_candidate_selection");
+  check("[L/T6] selected recommendation = BALAO (a valid candidate exists, current mode wins)", sel6?.result?.selected?.source === "BALAO", sel6);
+}
+
+// ========================================================================
+// TEST M — IA-CAPLOCK12 Mission 10: mode mutation matrix. Each case
+// proves the CURRENT turn's explicit mode wins, only the currently-
+// valid financing type is ever dispatched/recommended, and the
+// opposite type's candidate never survives from a previous turn.
+// ========================================================================
+{
+  async function runPair(t1, t2) {
+    const calls1 = [];
+    const r1 = await runHarness({
+      message: t1, conversation: [],
+      callOpenAI: async () => mkResponse({ text: "ok" }),
+      toolSimularFinanciamento: fixtureToolSimularFinanciamento(calls1),
+      toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+      input: [{ role: "developer", content: "mock" }, { role: "user", content: t1 }],
+    });
+    const calls2 = [];
+    const r2 = await runHarness({
+      message: t2, conversation: [{ role: "user", content: t1 }],
+      callOpenAI: async () => mkResponse({ text: "ok" }),
+      toolSimularFinanciamento: fixtureToolSimularFinanciamento(calls2),
+      toolSimularCashConversion: fixtureToolSimularCashConversion([]),
+      input: [{ role: "developer", content: "mock" }, { role: "user", content: t1 }, { role: "user", content: t2 }],
+    });
+    return { r1, calls1, r2, calls2 };
+  }
+
+  const BASE_T1 = "Eclipse Cross HPE 0 km de R$180.000. Quero chegar em R$1.800 de parcela. Vou usar entrada de R$70.000.";
+
+  // ---- 1. BALAO_ONLY -> LINEAR_ONLY (bare, no prior ceiling/exact) ----
+  {
+    const { r1, r2, calls2 } = await runPair(`${BASE_T1} Quero balão.`, "sem balão, obrigado");
+    check("[M1] T1 establishes BALAO_ONLY", r1.engineFirstPlan?.scenario === "BALAO_ONLY", r1.engineFirstPlan);
+    check("[M1] T2 current turn wins: scenario=LINEAR_ONLY", r2.engineFirstPlan?.scenario === "LINEAR_ONLY", r2.engineFirstPlan);
+    check("[M1] T2 dispatches only LINEAR, never BALAO", calls2.some((c) => c.financing_type === "LINEAR") && !calls2.some((c) => c.financing_type === "BALAO"), calls2);
+  }
+
+  // ---- 2. LINEAR_ONLY -> BALAO_ONLY (bare) ----
+  {
+    const { r1, r2, calls2 } = await runPair(`${BASE_T1} Só linear.`, "quero balão");
+    check("[M2] T1 establishes LINEAR_ONLY", r1.engineFirstPlan?.scenario === "LINEAR_ONLY", r1.engineFirstPlan);
+    check("[M2] T2 current turn wins: scenario=BALAO_ONLY", r2.engineFirstPlan?.scenario === "BALAO_ONLY", r2.engineFirstPlan);
+    check("[M2] T2 dispatches only BALAO, never LINEAR", calls2.some((c) => c.financing_type === "BALAO") && !calls2.some((c) => c.financing_type === "LINEAR"), calls2);
+  }
+
+  // ---- 3. BALAO exact=1 -> LINEAR (the exact live incident's own verb form) ----
+  {
+    const { r1, r2, calls2 } = await runPair(`${BASE_T1} Exatamente 1 balão.`, "E se eu não quiser balão nenhum?");
+    check("[M3] T1 establishes exact=1", r1.engineFirstPlan?.balloonCountExact === 1, r1.engineFirstPlan);
+    check("[M3] T2 current turn wins: scenario=LINEAR_ONLY, exact cleared", r2.engineFirstPlan?.scenario === "LINEAR_ONLY" && r2.engineFirstPlan?.balloonCountExact === null, r2.engineFirstPlan);
+    check("[M3] T2 dispatches only LINEAR", calls2.some((c) => c.financing_type === "LINEAR") && !calls2.some((c) => c.financing_type === "BALAO"), calls2);
+  }
+
+  // ---- 4. BALAO ceiling=2 -> LINEAR ----
+  {
+    const { r1, r2, calls2 } = await runPair(`${BASE_T1} No máximo 2 balões.`, "sem balão");
+    check("[M4] T1 establishes ceiling=2", r1.engineFirstPlan?.balloonCountMax === 2, r1.engineFirstPlan);
+    check("[M4] T2 current turn wins: scenario=LINEAR_ONLY, ceiling cleared", r2.engineFirstPlan?.scenario === "LINEAR_ONLY" && r2.engineFirstPlan?.balloonCountMax === null, r2.engineFirstPlan);
+    check("[M4] T2 dispatches only LINEAR", calls2.some((c) => c.financing_type === "LINEAR") && !calls2.some((c) => c.financing_type === "BALAO"), calls2);
+  }
+
+  // ---- 5. LINEAR -> BALAO ceiling=1 ----
+  {
+    const { r1, r2, calls2 } = await runPair(`${BASE_T1} Só linear.`, "quero balão, no máximo 1");
+    check("[M5] T1 establishes LINEAR_ONLY", r1.engineFirstPlan?.scenario === "LINEAR_ONLY", r1.engineFirstPlan);
+    check("[M5] T2 current turn wins: scenario=BALAO_ONLY, ceiling=1", r2.engineFirstPlan?.scenario === "BALAO_ONLY" && r2.engineFirstPlan?.balloonCountMax === 1, r2.engineFirstPlan);
+    check("[M5] T2 dispatch carries ceiling=1, never LINEAR", calls2.find((c) => c.financing_type === "BALAO")?.balloon_count_ceiling === 1 && !calls2.some((c) => c.financing_type === "LINEAR"), calls2);
+  }
+
+  // ---- 6. LINEAR -> BALAO ceiling=2 ----
+  {
+    const { r1, r2, calls2 } = await runPair(`${BASE_T1} Só linear.`, "quero balão, no máximo 2");
+    check("[M6] T1 establishes LINEAR_ONLY", r1.engineFirstPlan?.scenario === "LINEAR_ONLY", r1.engineFirstPlan);
+    check("[M6] T2 current turn wins: scenario=BALAO_ONLY, ceiling=2", r2.engineFirstPlan?.scenario === "BALAO_ONLY" && r2.engineFirstPlan?.balloonCountMax === 2, r2.engineFirstPlan);
+    check("[M6] T2 dispatch carries ceiling=2, never LINEAR", calls2.find((c) => c.financing_type === "BALAO")?.balloon_count_ceiling === 2 && !calls2.some((c) => c.financing_type === "LINEAR"), calls2);
+  }
+}
+
+// ========================================================================
+// TEST N — IA-CAPLOCK12: defense-in-depth unit proof. Even if a future
+// bug caused engineResults/rdpResults to carry a contradicting entry
+// (never true today -- buildEngineFirstSimulationInputs/
+// buildCommercialSelectionInputs already never dispatch it), the second,
+// independent guard in collectEngineFirstCandidates/selectCommercial
+// Proposals must still reject it. Proven directly against the real
+// functions with a HAND-CONSTRUCTED contradicting engineResults array
+// (the one case the structural prevention above can never itself
+// exercise), never a hand-copied duplicate of the filtering logic.
+// ========================================================================
+{
+  const contradictingResults = [
+    { simArgs: { financing_type: "BALAO" }, output: { feasible: true, monthly_payment: 1766.94, term_months: 30, balloons: [] } },
+    { simArgs: { financing_type: "LINEAR" }, output: { results: [{ term_months: 60, payment: 2984.38 }] } },
+  ];
+
+  const onlyLinearAllowed = collectEngineFirstCandidates(contradictingResults, "LINEAR_ONLY");
+  check("[N1] collectEngineFirstCandidates: a contradicting BALAO entry is rejected under LINEAR_ONLY even when present in the input array", !onlyLinearAllowed.some((c) => c.source === "BALAO"), onlyLinearAllowed);
+  check("[N1] the genuinely-allowed LINEAR entry is preserved", onlyLinearAllowed.some((c) => c.source === "LINEAR"), onlyLinearAllowed);
+
+  const onlyBalaoAllowed = collectEngineFirstCandidates(contradictingResults, "BALAO_ONLY");
+  check("[N2] collectEngineFirstCandidates: a contradicting LINEAR entry is rejected under BALAO_ONLY", !onlyBalaoAllowed.some((c) => c.source === "LINEAR"), onlyBalaoAllowed);
+  check("[N2] the genuinely-allowed BALAO entry is preserved", onlyBalaoAllowed.some((c) => c.source === "BALAO"), onlyBalaoAllowed);
+
+  const noOverride = collectEngineFirstCandidates(contradictingResults);
+  check("[N3] omitting activeScenario entirely (every pre-existing call shape) preserves both -- no unintended filtering when the caller doesn't know an active mode", noOverride.some((c) => c.source === "BALAO") && noOverride.some((c) => c.source === "LINEAR"), noOverride);
+
+  const contradictingRdpResults = [
+    { simArgs: { financing_type: "BALAO" }, output: { feasible: true, term_months: 30, down_payment: 50000, monthly_payment: 1766.94 } },
+    { simArgs: { financing_type: "LINEAR" }, output: { results: [{ possible: true, term_months: 60, down_payment: 60000, payment: 2984.38 }] } },
+  ];
+  const rdpLinearOnly = selectCommercialProposals(contradictingRdpResults, "LINEAR_ONLY");
+  check("[N4] selectCommercialProposals: a contradicting BALAO proposal is rejected under LINEAR_ONLY", !rdpLinearOnly.some((p) => p.kind === "BALAO"), rdpLinearOnly);
+  const rdpBalaoOnly = selectCommercialProposals(contradictingRdpResults, "BALAO_ONLY");
+  check("[N5] selectCommercialProposals: a contradicting LINEAR proposal is rejected under BALAO_ONLY", !rdpBalaoOnly.some((p) => p.kind === "LINEAR"), rdpBalaoOnly);
+  const rdpNoOverride = selectCommercialProposals(contradictingRdpResults);
+  check("[N6] selectCommercialProposals: omitting the override entirely (every pre-existing call shape) preserves both", rdpNoOverride.some((p) => p.kind === "BALAO") && rdpNoOverride.some((p) => p.kind === "LINEAR"), rdpNoOverride);
+}
+
 console.log(`\n=== Stateful Deterministic Orchestration — Integration Harness (IA-REGRESSION-01): ${pass}/${pass + fail} ===`);
 console.log(`RESULT: ${fail === 0 ? "PASS" : "FAIL"}`);
 if (fail > 0) process.exit(1);

@@ -291,6 +291,42 @@ const CAPABILITIES = [
       { dir: RECON, file: "balloon-count-constraint.test.mjs" },
     ],
   },
+  {
+    // IA-CAPLOCK12 -- real Human UAT defect: a financing-mode mutation
+    // phrased as a hypothetical question ("E se eu não quiser balão
+    // nenhum?") matched neither LINEAR_ONLY_EXCLUSION_RE's "não quero"
+    // (a different verb conjugation from the Human's own "não quiser")
+    // nor its "nenhum balão" (the Human's own natural word order,
+    // "balão nenhum", is reversed) -- canonical financing mode silently
+    // stayed at whatever the PREVIOUS turn established, the deterministic
+    // engine (correctly, from that stale state's own perspective) went
+    // on recommending a valid Balão structure, while the model's own
+    // broader NL understanding of the same turn correctly described
+    // Linear -- a genuine structured-result/NL split-brain. TEST L
+    // (stateful-orchestration-integration.test.mjs) reproduces the exact
+    // live T1-T6 sequence end to end through the real engine-first block
+    // (blockFinance, balanced-brace-sliced verbatim from current
+    // production): the regression proof itself (T5 now correctly
+    // resolves LINEAR_ONLY, zero BALAO dispatch, zero stale BALAO
+    // selection, NL synthesis input structurally cannot mention one) and
+    // the reverse transition (T6, back to BALAO_ONLY, a stale LINEAR
+    // recommendation never survives). TEST M proves the mode-mutation
+    // matrix (6 transition pairs: bare BALAO<->LINEAR, BALAO exact1/
+    // ceiling2->LINEAR, LINEAR->BALAO ceiling1/ceiling2) -- current turn
+    // always wins, only the currently-valid type is ever dispatched.
+    // TEST N proves the second, independent defense-in-depth guard
+    // (collectEngineFirstCandidates/selectCommercialProposals) directly
+    // against a HAND-CONSTRUCTED contradicting results array -- the one
+    // case the structural dispatch-level prevention can never itself
+    // exercise, since a real, correctly-classified conversation never
+    // produces a contradicting result in the first place.
+    id: "20_FINANCING_MODE_RECOMMENDATION_COHERENCE",
+    name: "Financing-mode recommendation coherence (LINEAR_ONLY/BALAO_ONLY transitions supersede stale prior-turn recommendations; structured result agrees with NL synthesis; comparison blocks never wrongly recommended; reverse transitions and cumulative state survive)",
+    proofType: "MOCKED_E2E",
+    tests: [
+      { dir: RECON, file: "stateful-orchestration-integration.test.mjs" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------
