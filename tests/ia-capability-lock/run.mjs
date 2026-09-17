@@ -260,6 +260,37 @@ const CAPABILITIES = [
       { dir: RECON, file: "stateful-orchestration-integration.test.mjs" },
     ],
   },
+  {
+    // IA-CAPLOCK10 -- real Human UAT defect: once down_payment AND
+    // term_months were BOTH already fixed (never the RDP/down-payment-
+    // unknown path IA-CAPLOCK5 already fixed), a "no máximo N balões"/
+    // "exatamente N balões" follow-up was silently ignored by
+    // balaoOptimizeEscalateForTarget (target_payment branch) and by
+    // toolSimularFinanciamento's own no-target multi-balloon dispatch
+    // (both always used the department's full canonical ceiling or the
+    // legacy floor-only `balloon_count_max`, never the real ceiling/
+    // exact fields) -- the assistant's text could correctly say no
+    // valid <=N-balloon structure existed while the card/result still
+    // showed the old, unconstrained structure. balloon-count-constraint.
+    // test.mjs's PARTS 9-10 prove, against the real unmodified
+    // balaoOptimizeEscalateForTarget/balaoOptimizeMinPaymentMulti (never
+    // a hand-copied duplicate), that a Human-stated ceiling/exact now
+    // genuinely narrows the search on BOTH branches, is never bypassed,
+    // never exceeds the department's own canonical ceiling, and honestly
+    // reports target_met=false rather than silently reusing/fabricating
+    // an out-of-constraint result. A second, independent hard invariant
+    // at toolSimularFinanciamento's own selection convergence point
+    // (index.ts) additionally guarantees a result violating the active
+    // constraint can never reach the structured result, the card, or NL
+    // synthesis as feasible/recommended, regardless of how it was
+    // produced -- defense-in-depth, not the primary fix.
+    id: "19_BALLOON_HARD_CONSTRAINT_ENFORCEMENT",
+    name: "Balloon hard constraint enforcement (down_payment/term already fixed: ceiling/exact genuinely narrows the search, never silently ignored, never rendered as an invalid recommendation)",
+    proofType: "ENGINE_BEHAVIOR",
+    tests: [
+      { dir: RECON, file: "balloon-count-constraint.test.mjs" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------

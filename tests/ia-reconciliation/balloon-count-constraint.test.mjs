@@ -291,6 +291,142 @@ if (probe1.ok) {
   }
 }
 
-console.log(`\n=== Balloon Count Constraint + Total-Due Tests (IA-CAPLOCK5/IA-CAPLOCK7): ${pass}/${pass + fail} ===`);
+// ========================================================================
+// PART 9 — IA-CAPLOCK10: real Human UAT defect, down_payment-GIVEN path.
+// A financing follow-up that mutates the allowed/desired Balão COUNT
+// ("no máximo 2 balões", "exatamente 1 balão"), once down_payment AND
+// term_months are BOTH already fixed (the exact "fixed entrada + fixed
+// prazo + parcela-alvo" shape of the real incident -- distinct from
+// PARTS 1-6 above, which all test the SIBLING down_payment-NOT-known
+// escalation function, already fixed in IA-CAPLOCK5), used to be
+// silently ignored: balaoOptimizeEscalateForTarget always escalated all
+// the way to the department's own canonical ceiling to chase the target
+// payment, with no parameter through which a caller could ever narrow
+// that search -- toolSimularFinanciamento's own single call site
+// (index.ts, the target_payment!==null branch) passed only the legacy
+// `balloonCount` floor variable, never args.balloon_count_ceiling/
+// balloon_count_exact. Proven here against the REAL, unmodified
+// function (never a hand-copied duplicate, never an invented expected
+// value -- every comparison is derived from the engine's own output at
+// each count, on a synthetic offline fixture table).
+// ========================================================================
+{
+  const DOWN_PAYMENT = 60000;
+  const probe1 = mod.balaoOptimizeMinPayment(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, null, null);
+  const probe4 = mod.balaoOptimizeMinPaymentMulti(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, null, null, mod.BALAO_MAX_COUNT.NOVOS);
+  check("fixture (down_payment given): count=1 probe is feasible", probe1.ok, JSON.stringify(probe1));
+  check("fixture (down_payment given): count=4 (canonical max) probe is feasible", probe4.ok, JSON.stringify(probe4));
+
+  if (probe1.ok && probe4.ok) {
+    const sweep = [];
+    for (let c = 1; c <= mod.BALAO_MAX_COUNT.NOVOS; c++) {
+      const r = c > 1
+        ? mod.balaoOptimizeMinPaymentMulti(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, null, null, c)
+        : mod.balaoOptimizeMinPayment(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, null, null);
+      if (r.ok) sweep.push({ count: c, payment: r.result.monthly_payment });
+    }
+    check("fixture: sweep found feasible results for counts 1..4", sweep.length === 4, JSON.stringify(sweep));
+    // A target only the canonical maximum (4 balloons) can reach exactly -- just above count=4's own payment.
+    const TARGET = sweep.find((s) => s.count === 4).payment + 1;
+
+    // ---- 9.1 — THE DEFECT SCENARIO ITSELF: ceiling=2 must never escalate past 2 ----
+    {
+      const escUnconstrained = mod.balaoOptimizeEscalateForTarget(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, null, null, 1, TARGET);
+      check("no ceiling (pre-existing default call shape, omitted argument): still escalates all the way to 4 and meets the target -- proves this fixture genuinely needs 4 balloons, so ceiling=2 below is a REAL constraint, not vacuous", escUnconstrained.ok && escUnconstrained.result.balloon_count_tried === 4 && escUnconstrained.result.target_met === true, JSON.stringify(escUnconstrained));
+
+      const escCeiling2 = mod.balaoOptimizeEscalateForTarget(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, null, null, 1, TARGET, /* maxCountOverride */ 2);
+      check("ceiling=2 (THE incident's own constraint): call succeeds", escCeiling2.ok, JSON.stringify(escCeiling2));
+      if (escCeiling2.ok) {
+        check("ceiling=2: NEVER tries a count above 2 -- the real, isolated root cause of the CAPLOCK10 regression, now fixed", escCeiling2.result.balloon_count_tried <= 2, `got balloon_count_tried=${escCeiling2.result.balloon_count_tried}`);
+        const count2Direct = sweep.find((s) => s.count === 2);
+        check("ceiling=2: result equals count=2's own direct computation exactly (the true best achievable within the constraint, never the unconstrained 4-balloon figure)", escCeiling2.result.monthly_payment === count2Direct.payment, { got: escCeiling2.result.monthly_payment, expected: count2Direct.payment });
+        check("ceiling=2: target_met is honestly FALSE (2 balloons cannot reach a target only 4 balloons can hit) -- never silently reports success on a structure that doesn't meet it, and never fabricates/reuses the old 4-balloon result", escCeiling2.result.target_met === false, JSON.stringify(escCeiling2.result));
+      }
+    }
+
+    // ---- 9.2 — exact=1 pins the search to a single count ----
+    {
+      const escExact1 = mod.balaoOptimizeEscalateForTarget(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, null, null, 1, TARGET, /* maxCountOverride */ 1);
+      check("exact=1 (floor=ceiling=1): call succeeds", escExact1.ok, JSON.stringify(escExact1));
+      if (escExact1.ok) {
+        check("exact=1: tries ONLY count 1, never 2, 3, or 4", escExact1.result.balloon_count_tried === 1, `got balloon_count_tried=${escExact1.result.balloon_count_tried}`);
+        check("exact=1: result equals count=1's own direct computation exactly", escExact1.result.monthly_payment === probe1.result.monthly_payment, { got: escExact1.result.monthly_payment, expected: probe1.result.monthly_payment });
+      }
+    }
+
+    // ---- 9.3 — a ceiling above the canonical max is clamped, never exceeded ----
+    {
+      const escOverCeiling = mod.balaoOptimizeEscalateForTarget(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, null, null, 1, TARGET, /* maxCountOverride */ 10);
+      check("ceiling=10 (above NOVOS canonical 4): call succeeds", escOverCeiling.ok, JSON.stringify(escOverCeiling));
+      if (escOverCeiling.ok) {
+        check("ceiling=10: still never tries a count above the department's own canonical ceiling (4)", escOverCeiling.result.balloon_count_tried <= mod.BALAO_MAX_COUNT.NOVOS, `got balloon_count_tried=${escOverCeiling.result.balloon_count_tried}`);
+        check("ceiling=10: behaves identically to no ceiling at all (reaches the target with 4 balloons)", escOverCeiling.result.balloon_count_tried === 4 && escOverCeiling.result.target_met === true, JSON.stringify(escOverCeiling));
+      }
+    }
+
+    // ---- 9.4 — regression guard: default (no ceiling argument) behaves exactly as before this Wave ----
+    {
+      const escDefaultOmitted = mod.balaoOptimizeEscalateForTarget(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, null, null, 1, TARGET);
+      const escDefaultExplicitNull = mod.balaoOptimizeEscalateForTarget(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, null, null, 1, TARGET, null);
+      check("omitting maxCountOverride entirely (every pre-existing call site's own shape) still escalates to the true optimum", escDefaultOmitted.ok && escDefaultOmitted.result.balloon_count_tried === 4, JSON.stringify(escDefaultOmitted));
+      check("explicit maxCountOverride=null: identical to omitting it entirely", escDefaultExplicitNull.ok && escDefaultExplicitNull.result.balloon_count_tried === 4, JSON.stringify(escDefaultExplicitNull));
+    }
+
+    // ---- 9.5 — SEMINOVOS: ceiling above its own canonical (2) is also clamped ----
+    {
+      const FIXTURE_ENGINE_SEMI = { novosTable: null, seminovosTable: [{ entrada: 0.00, prazo: 48, max: 0.7, taxa: 0.0179, anoInicio: 2017, anoFim: 2099 }] };
+      const probeSemi1 = mod.balaoOptimizeMinPayment(FIXTURE_ENGINE_SEMI, "SEMINOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, 2022, null);
+      if (probeSemi1.ok) {
+        const targetSemi = probeSemi1.result.monthly_payment - 1; // just below count=1's payment -> needs escalation
+        const escSemiCeiling1 = mod.balaoOptimizeEscalateForTarget(FIXTURE_ENGINE_SEMI, "SEMINOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, 2022, null, 1, targetSemi, /* maxCountOverride */ 1);
+        check("SEMINOVOS ceiling=1: never tries count 2, even though a target below count=1's own payment exists (target_met stays honestly false rather than escalating past the ceiling)", escSemiCeiling1.ok && escSemiCeiling1.result.balloon_count_tried === 1, JSON.stringify(escSemiCeiling1));
+        const escSemiOverCeiling = mod.balaoOptimizeEscalateForTarget(FIXTURE_ENGINE_SEMI, "SEMINOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, TERM, 2022, null, 1, targetSemi, /* maxCountOverride */ 10);
+        check("SEMINOVOS ceiling=10 (above canonical 2): still never exceeds 2", escSemiOverCeiling.ok && escSemiOverCeiling.result.balloon_count_tried <= mod.BALAO_MAX_COUNT.SEMINOVOS, JSON.stringify(escSemiOverCeiling));
+      }
+    }
+  }
+}
+
+// ========================================================================
+// PART 10 — IA-CAPLOCK10: the no-target-payment sibling (Branch C,
+// toolSimularFinanciamento's balaoOptimizeMinPaymentMulti dispatch). This
+// branch never escalates/searches at all -- it always used the shared
+// `balloonCount` variable (floor semantics, balloon_count_max) directly
+// as the EXACT count to build, completely ignoring
+// balloon_count_ceiling/balloon_count_exact. The fix computes a new
+// `balloonCountGiven` local (balloonCeilingGiven ?? balloonCount), right
+// before the down-payment-given results map, and passes THAT instead --
+// reproduced here against the real balaoOptimizeMinPaymentMulti with the
+// exact derivation formula production now uses (never a hand-invented
+// substitute); balaoOptimizeMinPaymentMulti itself already correctly
+// builds whatever exact count it's given -- the bug was entirely in
+// WHICH count toolSimularFinanciamento computed and passed, never in
+// this function.
+// ========================================================================
+{
+  const DOWN_PAYMENT = 60000;
+  // Mirrors toolSimularFinanciamento's own local derivation verbatim
+  // (index.ts, balloonFloorGiven/balloonCeilingGiven/balloonCountGiven,
+  // computed once before the down-payment-given results map).
+  function deriveBalloonCountGiven(department, balloonCountMax, balloonCountCeiling, balloonCountExact) {
+    const balloonCount = balloonCountMax !== null ? Math.min(balloonCountMax, mod.BALAO_MAX_COUNT[department]) : 1;
+    const balloonCeilingGiven = balloonCountExact !== null
+      ? Math.min(balloonCountExact, mod.BALAO_MAX_COUNT[department])
+      : (balloonCountCeiling !== null ? Math.min(balloonCountCeiling, mod.BALAO_MAX_COUNT[department]) : null);
+    return balloonCeilingGiven !== null ? balloonCeilingGiven : balloonCount;
+  }
+
+  check("no ceiling/exact stated (balloon_count_max=null default): balloonCountGiven falls back to the pre-existing floor (1) -- unchanged from before this Wave", deriveBalloonCountGiven("NOVOS", null, null, null) === 1);
+  check("balloon_count_ceiling=2, no exact: balloonCountGiven=2 (the CAPLOCK10 defect's own no-target sibling, now respected)", deriveBalloonCountGiven("NOVOS", null, 2, null) === 2);
+  check("balloon_count_exact=1: balloonCountGiven=1, takes priority over any ceiling", deriveBalloonCountGiven("NOVOS", null, 3, 1) === 1);
+  check("balloon_count_ceiling=10 (above NOVOS canonical 4): clamped to 4, never exceeds the department's own ceiling", deriveBalloonCountGiven("NOVOS", null, 10, null) === 4);
+  check("SEMINOVOS balloon_count_ceiling=5 (above canonical 2): clamped to 2", deriveBalloonCountGiven("SEMINOVOS", null, 5, null) === 2);
+
+  const ceiling2Count = deriveBalloonCountGiven("NOVOS", null, 2, null);
+  const optCeiling2 = mod.balaoOptimizeMinPaymentMulti(FIXTURE_ENGINE, "NOVOS", VEHICLE_VALUE, DOWN_PAYMENT, TERM, null, null, ceiling2Count);
+  check("real engine call with the derived ceiling-respecting count (2) succeeds and returns exactly 2 balloons -- never the unconstrained default of 1", optCeiling2.ok && optCeiling2.result.balloons.length === 2, JSON.stringify(optCeiling2));
+}
+
+console.log(`\n=== Balloon Count Constraint + Total-Due Tests (IA-CAPLOCK5/IA-CAPLOCK7/IA-CAPLOCK10): ${pass}/${pass + fail} ===`);
 console.log(fail === 0 ? "RESULT: PASS" : "RESULT: FAIL");
 process.exit(fail === 0 ? 0 : 1);

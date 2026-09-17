@@ -3199,9 +3199,23 @@ function balaoOptimizeMinPaymentMulti(
 function balaoOptimizeEscalateForTarget(
   engine: BalaoEngine, department: SimDepartment, vehicleValue: number, downPayment: number,
   prazo: number, balloonMonth: number, vehicleYear: number | null, balloonCap: number | null,
-  minCount: number, targetPayment: number | null
+  minCount: number, targetPayment: number | null,
+  // IA-CAPLOCK10 -- optional real ceiling on the search ("no máximo N
+  // balões"), never exceeding the department's own canonical ceiling.
+  // null (the default, every pre-existing call site) preserves the
+  // exact prior behavior: escalate all the way to the canonical max.
+  // Mirrors balaoRequiredDownPaymentEscalateForTarget's own IA-CAPLOCK5
+  // fix verbatim -- this sibling function (down_payment already known,
+  // rather than searched for) never received the same ceiling
+  // parameter at the time, which is the exact, isolated root cause of
+  // the CAPLOCK10 regression: a Human who fixed entrada+prazo and then
+  // said "no máximo 2 balões" had that ceiling silently ignored, since
+  // this function always escalated all the way to BALAO_MAX_COUNT.
+  maxCountOverride: number | null = null
 ): { ok: true; result: { monthly_payment: number; balloons: { month: number; value: number }[]; limite_balao: number; capped_by_user: boolean; balloon_count_tried: number; escalated_from_count: number; target_met: boolean } } | { ok: false; error: BalaoErrorCode } {
-  const maxCount = BALAO_MAX_COUNT[department];
+  const canonicalMax = BALAO_MAX_COUNT[department];
+  const maxCount = maxCountOverride !== null ? Math.min(maxCountOverride, canonicalMax) : canonicalMax;
+  const effectiveMinCount = Math.min(minCount, maxCount);
   const tryCount = (count: number) => count > 1
     ? balaoOptimizeMinPaymentMulti(engine, department, vehicleValue, downPayment, prazo, vehicleYear, balloonCap, count)
     : balaoOptimizeMinPayment(engine, department, vehicleValue, downPayment, prazo, balloonMonth, vehicleYear, balloonCap);
@@ -3209,8 +3223,8 @@ function balaoOptimizeEscalateForTarget(
     count > 1 ? (r as { balloons: { month: number; value: number }[] }).balloons : [{ month: balloonMonth, value: (r as { balloon_value: number }).balloon_value }];
 
   let best: { ok: true; result: any } | { ok: false; error: BalaoErrorCode } | null = null;
-  let bestCount = minCount;
-  for (let count = minCount; count <= maxCount; count++) {
+  let bestCount = effectiveMinCount;
+  for (let count = effectiveMinCount; count <= maxCount; count++) {
     const attempt = tryCount(count);
     if (!attempt.ok) {
       if (best === null) { best = attempt; bestCount = count; }
@@ -3228,7 +3242,7 @@ function balaoOptimizeEscalateForTarget(
       limite_balao: round2(best.result.limite_balao),
       capped_by_user: best.result.capped_by_user,
       balloon_count_tried: bestCount,
-      escalated_from_count: minCount,
+      escalated_from_count: effectiveMinCount,
       target_met: targetPayment !== null && round2(best.result.monthly_payment) <= round2(targetPayment)
     }
   };
@@ -3734,6 +3748,25 @@ async function toolSimularBalao(userClient: any, args: SimulationInput) {
     const downPayment = downPaymentGiven;
     if (downPayment === null) throw new ToolError("Informe a entrada (valor ou percentual) — ou, para eu determinar a entrada automaticamente, informe também a parcela-alvo (target_payment).");
 
+    // IA-CAPLOCK10 -- real Human UAT defect: entrada e prazo já fixos
+    // (down_payment e term_months ambos conhecidos), Human diz "no
+    // máximo 2 balões" -- balloon_count_exact/balloon_count_ceiling
+    // chegavam corretamente em args (IA-CAPLOCK8, buildEngineFirstSimu
+    // lationInputs), mas nem balaoOptimizeEscalateForTarget (ramo com
+    // target_payment, abaixo) nem balaoOptimizeMinPaymentMulti (ramo
+    // sem target_payment, abaixo) jamais os liam -- apenas o ramo
+    // irmão de entrada-NÃO-dada (balaoRequiredDownPaymentEscalateForTa
+    // rget) tinha recebido esse teto, em IA-CAPLOCK5. Mesma disciplina
+    // de piso/teto aplicada aqui pela primeira vez, para esta família
+    // de ramos (entrada já conhecida).
+    const balloonFloorGiven = args.balloon_count_exact !== null
+      ? Math.min(args.balloon_count_exact, BALAO_MAX_COUNT[args.department])
+      : balloonCount;
+    const balloonCeilingGiven = args.balloon_count_exact !== null
+      ? Math.min(args.balloon_count_exact, BALAO_MAX_COUNT[args.department])
+      : (args.balloon_count_ceiling !== null ? Math.min(args.balloon_count_ceiling, BALAO_MAX_COUNT[args.department]) : null);
+    const balloonCountGiven = balloonCeilingGiven !== null ? balloonCeilingGiven : balloonCount;
+
     const results = terms.map((t) => {
       const balloonMonth = args.balloon_month !== null ? args.balloon_month : t;
       if (balloonMonth < 1 || balloonMonth > t) {
@@ -3750,7 +3783,7 @@ async function toolSimularBalao(userClient: any, args: SimulationInput) {
       // case (UAT-BALAO-AUTONOMY-01 "determine o balão" stays exactly
       // as audited).
       if (args.target_payment !== null) {
-        const esc = balaoOptimizeEscalateForTarget(engine, args.department, args.vehicle_value!, downPayment, t, balloonMonth, args.vehicle_year, args.balloon_cap, balloonCount, args.target_payment);
+        const esc = balaoOptimizeEscalateForTarget(engine, args.department, args.vehicle_value!, downPayment, t, balloonMonth, args.vehicle_year, args.balloon_cap, balloonFloorGiven, args.target_payment, balloonCeilingGiven);
         if (!esc.ok) return { term_months: t, feasible: false, error: esc.error, message: BALAO_ERROR_MESSAGES[esc.error], balloon_month: null, monthly_payment: null, balloon_value: null, balloons: null, balloon_month_total_due: null, max_balloon_allowed: null };
         // IA-CAPLOCK7 -- real Human UAT defect: this used to sum EVERY
         // balloon across the whole term (e.g. 4 balloons of R$27.500 =
@@ -3769,8 +3802,8 @@ async function toolSimularBalao(userClient: any, args: SimulationInput) {
           balloon_count_tried: esc.result.balloon_count_tried, escalated_from_count: esc.result.escalated_from_count, target_met: esc.result.target_met
         };
       }
-      if (balloonCount > 1) {
-        const opt = balaoOptimizeMinPaymentMulti(engine, args.department, args.vehicle_value!, downPayment, t, args.vehicle_year, args.balloon_cap, balloonCount);
+      if (balloonCountGiven > 1) {
+        const opt = balaoOptimizeMinPaymentMulti(engine, args.department, args.vehicle_value!, downPayment, t, args.vehicle_year, args.balloon_cap, balloonCountGiven);
         if (!opt.ok) return { term_months: t, feasible: false, error: opt.error, message: BALAO_ERROR_MESSAGES[opt.error], balloon_month: null, monthly_payment: null, balloon_value: null, balloons: null, balloon_month_total_due: null, max_balloon_allowed: null };
         // IA-CAPLOCK7 -- same fix as the target-escalation branch above.
         const lastBalloonOpt = opt.result.balloons.reduce((latest, b) => (b.month > latest.month ? b : latest), opt.result.balloons[0]);
@@ -3809,11 +3842,29 @@ async function toolSimularBalao(userClient: any, args: SimulationInput) {
     // target_payment is completely unchanged.
     const best = balaoSelectBestCandidate(results, args.target_payment);
 
-    if (!best) {
+    // IA-CAPLOCK10 -- defense-in-depth: the search layer above
+    // (balaoOptimizeEscalateForTarget/balaoOptimizeMinPaymentMulti, this
+    // Wave's own primary fix) can no longer structurally produce a
+    // count above a Human-stated ceiling/exact -- but this is the ONE
+    // convergence point every consumer (the structured result below,
+    // the card buildBlockFromToolResult renders from it, and the NL
+    // synthesis block that JSON-serializes this exact return value)
+    // reads from. A second, independent hard invariant here means a
+    // result violating the active constraint can never reach any of
+    // them as feasible/recommended, regardless of how it was produced.
+    const activeBalloonLimit = args.balloon_count_exact !== null
+      ? Math.min(args.balloon_count_exact, BALAO_MAX_COUNT[args.department])
+      : (args.balloon_count_ceiling !== null ? Math.min(args.balloon_count_ceiling, BALAO_MAX_COUNT[args.department]) : null);
+    const bestViolatesBalloonLimit = best !== null && activeBalloonLimit !== null && Array.isArray(best.balloons) && best.balloons.length > activeBalloonLimit;
+
+    if (!best || bestViolatesBalloonLimit) {
       const firstError = results[0];
       return {
         mode: "payment", department: args.department, feasible: false, balloon_optimized: true,
-        error: firstError.error, message: firstError.message,
+        error: bestViolatesBalloonLimit ? null : firstError.error,
+        message: bestViolatesBalloonLimit
+          ? `Nenhuma estrutura de Balão dentro do limite de ${activeBalloonLimit} balão(ões) foi encontrada para essa condição.`
+          : firstError.message,
         vehicle_value: round2(args.vehicle_value), down_payment: round2(downPayment),
         term_months: terms.length === 1 ? terms[0] : null, vehicle_year: args.vehicle_year,
         results, calculation_source: calculationSource
