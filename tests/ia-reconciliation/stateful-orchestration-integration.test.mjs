@@ -52,10 +52,13 @@ function extractTypeAlias(src, name) {
 }
 
 function extractFunctionGenericAware(src, name) {
-  const markerRe = new RegExp(`(?:^|\\r?\\n)(async function|function)\\s+${name}\\s*\\(`);
+  // [ \t]* tolerates a function declared INSIDE another function body
+  // (e.g. timedEvaluateToolPolicy, indented, not at module top level) --
+  // never changes what's captured for an unindented, top-level match.
+  const markerRe = new RegExp(`(?:^|\\r?\\n)([ \\t]*)(async function|function)\\s+${name}\\s*\\(`);
   const m = markerRe.exec(src);
   if (!m) throw new Error(`extractFunctionGenericAware: marker for "${name}" not found`);
-  const start = m.index + (m[0].startsWith("\r\n") ? 2 : m[0].startsWith("\n") ? 1 : 0);
+  const start = m.index + (m[0].startsWith("\r\n") ? 2 : m[0].startsWith("\n") ? 1 : 0) + m[1].length;
   const parenOpen = src.indexOf("(", m.index + m[0].length - 1);
   let pdepth = 0, j = parenOpen;
   for (; j < src.length; j++) {
@@ -127,6 +130,32 @@ const parseCashRateFn = "export " + extractFunction(source, "parseCashRateOverri
 const resolvedCashContextInterface = "export " + extractInterface(source, "ResolvedCashContext");
 const resolveCashContextFn = "export " + extractFunction(source, "resolveCashConversionContext");
 
+// IA-CAPLOCK3 -- the requiredDownPaymentPlan branch (IA-UAT-04/
+// VOICE-UAT-01: the open-recommendation + explicit-term commercial
+// selector) was added to production AFTER this harness's extraction
+// boundaries were last drawn -- gateDeclarations already references
+// these bare identifiers (production line ~8704), and the branch
+// itself sits, whole and previously un-extracted, between
+// blockFinance and blockFallback. Extracted here the same way every
+// other real dependency in this file is: by name, from the CURRENT
+// source, never hand-copied.
+const balaoOnlyExclusionConst = "export " + extractConst(source, "BALAO_ONLY_EXCLUSION_RE");
+const allCommercialOptionsConst = "export " + extractConst(source, "ALL_COMMERCIAL_OPTIONS_RE");
+const bareTermOverrideConst = "export " + extractConst(source, "BARE_TERM_OVERRIDE_RE");
+const novosPrazosConst = "export " + extractConst(source, "NOVOS_PRAZOS");
+const seminovosPrazosConst = "export " + extractConst(source, "SEMINOVOS_PRAZOS");
+const simPrazosForFn = "export " + extractFunction(source, "simPrazosFor");
+const requiredDownPaymentPlanInterface = "export " + extractInterface(source, "RequiredDownPaymentPlan");
+const extractCommercialOverridesFn = "export " + extractFunction(source, "extractCommercialOverrides");
+const extractTermMonthsListFn = "export " + extractFunction(source, "extractTermMonthsList");
+const resolveTermMonthsListFn = "export " + extractFunction(source, "resolveTermMonthsList");
+const extractRequiredDownPaymentPlanFn = "export " + extractFunction(source, "extractRequiredDownPaymentPlan");
+const resolveStatefulRequiredDownPaymentPlanFn = "export " + extractFunction(source, "resolveStatefulRequiredDownPaymentPlan");
+const buildRequiredDownPaymentSimulationInputsFn = "export " + extractFunction(source, "buildRequiredDownPaymentSimulationInputs");
+const buildCommercialSelectionInputsFn = "export " + extractFunction(source, "buildCommercialSelectionInputs");
+const commercialProposalInterface = "export " + extractInterface(source, "CommercialProposal");
+const selectCommercialProposalsFn = "export " + extractFunction(source, "selectCommercialProposals");
+
 const toolErrorClass = (() => {
   const markerRe = /(?:^|\r?\n)class\s+ToolError\b/;
   const m = markerRe.exec(source);
@@ -142,6 +171,16 @@ const extractFunctionCallsFn = "export " + extractFunctionGenericAware(source, "
 const extractOutputTextFn = "export " + extractFunction(source, "extractOutputText");
 const financeSynthesisProfileConst = "export const FINANCE_SYNTHESIS_PROFILE = " + JSON.stringify(extractComposedPrompt(source, "FINANCE_SYNTHESIS_PROFILE")) + ";";
 const cashSynthesisProfileConst = "export const CASH_SYNTHESIS_PROFILE = " + JSON.stringify(extractComposedPrompt(source, "CASH_SYNTHESIS_PROFILE")) + ";";
+
+// IA-CAPLOCK3 -- timedEvaluateToolPolicy is a thin timing wrapper
+// DEFINED INSIDE the request handler itself (not a module-level
+// function, so extractFunction's top-level marker can't find it) --
+// closes over evaluateToolPolicy (an opts param) and timings (a local
+// declared below) -- both already in scope wherever this is spliced
+// into runRequestLoop's own body. blockCash/blockRDP/blockFallback all
+// call it; without it spliced in, those blocks throw ReferenceError
+// the moment they run.
+const timedEvaluateToolPolicyFn = extractFunctionGenericAware(source, "timedEvaluateToolPolicy");
 
 // ---------- extract the real request-handler region, verbatim, balanced-brace ----------
 
@@ -165,8 +204,20 @@ const blockCash = extractBalancedFrom(source, "if (cashContext) {", gateEnd);
 check("extracted Cash Conversion block contains the real deterministic baseline + cash dispatch", blockCash.text.includes("toolSimularCashConversion(userClient, cashArgs)") && blockCash.text.includes("toolSimularFinanciamento(userClient, baselineInput)"));
 const blockFinance = extractBalancedFrom(source, "if (!engineFirstRan && engineFirstPlan) {", blockCash.end);
 check("extracted finance engine-first block contains the real buildEngineFirstSimulationInputs flow", blockFinance.text.includes("buildEngineFirstSimulationInputs(engineFirstPlan)"));
-const blockFallback = extractBalancedFrom(source, "if (!engineFirstRan) {", blockFinance.end);
-check("extracted fallback block contains the real unmodified while(true) loop", blockFallback.text.includes("while (true) {") && blockFallback.text.includes("await callOpenAI(openaiKey, input, passTools)"));
+// IA-CAPLOCK3 -- a FOURTH real branch (IA-UAT-04/VOICE-UAT-01's
+// requiredDownPaymentPlan commercial selector) sits between blockFinance
+// and the fallback loop in current production. Before this fix, blockFallback's
+// own marker search ("if (!engineFirstRan) {", starting from blockFinance.end)
+// silently skipped over this ENTIRE branch -- a distinct substring
+// ("if (!engineFirstRan && requiredDownPaymentPlan) {") that indexOf never
+// matches, so it just found the true fallback marker further down and
+// dropped everything in between. Extracted here as its own block so the
+// harness is a faithful copy of ALL of current production's orchestration,
+// not just the two branches this file knew about when it was first written.
+const blockRDP = extractBalancedFrom(source, "if (!engineFirstRan && requiredDownPaymentPlan) {", blockFinance.end);
+check("extracted requiredDownPaymentPlan block contains the real commercial-selection dispatch", blockRDP.text.includes("buildCommercialSelectionInputs(requiredDownPaymentPlan)") && blockRDP.text.includes("buildRequiredDownPaymentSimulationInputs(requiredDownPaymentPlan)"));
+const blockFallback = extractBalancedFrom(source, "if (!engineFirstRan) {", blockRDP.end);
+check("extracted fallback block contains the real unmodified while(true) loop", blockFallback.text.includes("while (true) {") && blockFallback.text.includes("await callOpenAI(openaiKey, input, passTools, 0, retryTracker)"));
 
 const harnessModText = `// AUTO-EXTRACTED at test time from supabase/functions/portal-ai-homolog/index.ts -- do not hand-edit.
 ${toolErrorClass}
@@ -185,11 +236,20 @@ ${financeSynthesisProfileConst}
 
 ${cashSynthesisProfileConst}
 
+${linearOnlyExclusionConst}
+
+${balaoOnlyExclusionConst}
+
+${allCommercialOptionsConst}
+
+${bareTermOverrideConst}
+
 export async function runRequestLoop(opts) {
   const {
     isFinanceFastPath, message, conversation, effectiveTools, effectiveSystemPrompt, dynamicContextSuffix,
     resolveCashConversionContext, resolveStatefulFinancePlan, buildEngineFirstSimulationInputs,
     collectEngineFirstCandidates, selectClosestCandidate,
+    resolveStatefulRequiredDownPaymentPlan, buildRequiredDownPaymentSimulationInputs, buildCommercialSelectionInputs, selectCommercialProposals,
     callOpenAI, toolSimularFinanciamento, toolSimularCashConversion, evaluateToolPolicy, buildBlockFromToolResult, dispatchTool,
     input, emptySimulationInput,
   } = opts;
@@ -204,9 +264,12 @@ export async function runRequestLoop(opts) {
     tools_sent_count: effectiveTools.length,
     tools_sent_count_per_pass: [], input_item_count_per_pass: [],
     execution_path: null, openai_pass_count: null,
+    openai_retry_count_per_pass: [],
   };
   let promptProfileLabel = isFinanceFastPath ? "finance" : "full";
   let promptCharsActual = effectiveSystemPrompt.length;
+
+  ${timedEvaluateToolPolicyFn}
 
   ${preDeclarations}
 
@@ -216,10 +279,12 @@ export async function runRequestLoop(opts) {
 
   ${blockFinance.text}
 
+  ${blockRDP.text}
+
   ${blockFallback.text}
 
   timings.openai_pass_count = timings.openai_pass_ms.length;
-  return { finalText, timings, blocks, toolsUsed, toolCallCount, homologCalls, engineFirstRan, promptProfileLabel, promptCharsActual, cashContext, engineFirstPlan };
+  return { finalText, timings, blocks, toolsUsed, toolCallCount, homologCalls, engineFirstRan, promptProfileLabel, promptCharsActual, cashContext, engineFirstPlan, requiredDownPaymentPlan };
 }
 `;
 
@@ -230,13 +295,20 @@ const extractorDepsText = [
   clientBoundaryConst, linearOnlyExclusionConst, resolveStatefulPlanFn, applyLinearOnlyExclusionFn,
   engineFirstCandidateInterface, collectCandidatesFn, selectClosestFn,
   cashIntentConst, cashRateOverrideConst, parseCashRateFn, resolvedCashContextInterface, resolveCashContextFn,
+  balaoOnlyExclusionConst, allCommercialOptionsConst, bareTermOverrideConst, novosPrazosConst, seminovosPrazosConst, simPrazosForFn,
+  requiredDownPaymentPlanInterface, extractCommercialOverridesFn, extractTermMonthsListFn, resolveTermMonthsListFn,
+  extractRequiredDownPaymentPlanFn, resolveStatefulRequiredDownPaymentPlanFn,
+  buildRequiredDownPaymentSimulationInputsFn, buildCommercialSelectionInputsFn, commercialProposalInterface, selectCommercialProposalsFn,
 ].join("\n\n");
 
 const tmpDirDeps = mkdtempSync(join(tmpdir(), "ia-recon-stateful-deps-"));
 const depsPath = join(tmpDirDeps, "extracted.ts");
 writeFileSync(depsPath, extractorDepsText, "utf8");
 const depsMod = await import("file://" + depsPath.replace(/\\/g, "/"));
-const { resolveStatefulFinancePlan, resolveCashConversionContext, collectEngineFirstCandidates, selectClosestCandidate, extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs, emptySimulationInput } = depsMod;
+const {
+  resolveStatefulFinancePlan, resolveCashConversionContext, collectEngineFirstCandidates, selectClosestCandidate, extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs, emptySimulationInput,
+  resolveStatefulRequiredDownPaymentPlan, buildRequiredDownPaymentSimulationInputs, buildCommercialSelectionInputs, selectCommercialProposals,
+} = depsMod;
 
 const tmpDirHarness = mkdtempSync(join(tmpdir(), "ia-recon-stateful-harness-"));
 const harnessPath = join(tmpDirHarness, "extracted.ts");
@@ -300,6 +372,7 @@ function runHarness(overrides) {
     dynamicContextSuffix: "\n\n=== CONTEXTO TEMPORAL (mock) ===",
     resolveCashConversionContext, resolveStatefulFinancePlan, buildEngineFirstSimulationInputs,
     collectEngineFirstCandidates, selectClosestCandidate, emptySimulationInput,
+    resolveStatefulRequiredDownPaymentPlan, buildRequiredDownPaymentSimulationInputs, buildCommercialSelectionInputs, selectCommercialProposals,
     evaluateToolPolicy: async () => ({ allowed: true }),
     buildBlockFromToolResult: (name) => ({ type: "metrics", title: name }),
     ...overrides,

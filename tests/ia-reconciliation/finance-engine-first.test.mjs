@@ -69,10 +69,13 @@ function extractClass(src, name) {
 // function with that exact shape -- same local-extractor-override
 // precedent as pass2-tool-elision.test.mjs's own copy of this helper.
 function extractFunctionGenericAware(src, name) {
-  const markerRe = new RegExp(`(?:^|\\r?\\n)(async function|function)\\s+${name}\\s*\\(`);
+  // [ \t]* tolerates a function declared INSIDE another function body
+  // (e.g. timedEvaluateToolPolicy, indented, not at module top level) --
+  // never changes what's captured for an unindented, top-level match.
+  const markerRe = new RegExp(`(?:^|\\r?\\n)([ \\t]*)(async function|function)\\s+${name}\\s*\\(`);
   const m = markerRe.exec(src);
   if (!m) throw new Error(`extractFunctionGenericAware: marker for "${name}" not found`);
-  const start = m.index + (m[0].startsWith("\r\n") ? 2 : m[0].startsWith("\n") ? 1 : 0);
+  const start = m.index + (m[0].startsWith("\r\n") ? 2 : m[0].startsWith("\n") ? 1 : 0) + m[1].length;
   const parenOpen = src.indexOf("(", m.index + m[0].length - 1);
   let pdepth = 0, j = parenOpen;
   for (; j < src.length; j++) {
@@ -153,18 +156,74 @@ const classifyFn = "export " + extractFunction(source, "classifyFinanceFastPath"
 const allowReConst = "export " + extractConst(source, "FINANCE_FAST_PATH_ALLOW_RE");
 const denyReConst = "export " + extractConst(source, "FINANCE_FAST_PATH_DENY_RE");
 
+// IA-CAPLOCK3 -- Part E's mocked end-to-end execution (below) needs the
+// REAL current gate/blocks, which have evolved since this file was
+// first written: the gate no longer calls extractFinanceEngineFirstPlan
+// directly -- it now runs resolveCashConversionContext AND
+// resolveStatefulFinancePlan AND resolveStatefulRequiredDownPaymentPlan
+// (IA-REGRESSION-01 / IA-UAT-04), and three more real if-blocks
+// (Cash Conversion, requiredDownPaymentPlan) now sit between the
+// engine-first block and the fallback loop. Parts A-D above are
+// unaffected (extractFinanceEngineFirstPlan/buildEngineFirstSimulationInputs/
+// classifyFinanceFastPath are still the same standalone functions,
+// unchanged) -- these additional deps are for Part E only.
+const clientBoundaryConst = "export " + extractConst(source, "CLIENT_BOUNDARY_RE");
+const linearOnlyExclusionConst = "export " + extractConst(source, "LINEAR_ONLY_EXCLUSION_RE");
+const resolveStatefulPlanFn = "export " + extractFunction(source, "resolveStatefulFinancePlan");
+const applyLinearOnlyExclusionFn = "export " + extractFunction(source, "applyLinearOnlyExclusion");
+const engineFirstCandidateInterface = "export " + extractInterface(source, "EngineFirstCandidate");
+const collectCandidatesFn = "export " + extractFunction(source, "collectEngineFirstCandidates");
+const selectClosestFn = "export " + extractFunction(source, "selectClosestCandidate");
+const cashConversionInputInterface = "export " + extractInterface(source, "CashConversionInput");
+const cashIntentConst = "export " + extractConst(source, "CASH_CONVERSION_INTENT_RE");
+const cashRateOverrideConst = "export " + extractConst(source, "CASH_RATE_OVERRIDE_RE");
+const parseCashRateFn = "export " + extractFunction(source, "parseCashRateOverride");
+const resolvedCashContextInterface = "export " + extractInterface(source, "ResolvedCashContext");
+const resolveCashContextFn = "export " + extractFunction(source, "resolveCashConversionContext");
+const balaoOnlyExclusionConst = "export " + extractConst(source, "BALAO_ONLY_EXCLUSION_RE");
+const allCommercialOptionsConst = "export " + extractConst(source, "ALL_COMMERCIAL_OPTIONS_RE");
+const bareTermOverrideConst = "export " + extractConst(source, "BARE_TERM_OVERRIDE_RE");
+const novosPrazosConst = "export " + extractConst(source, "NOVOS_PRAZOS");
+const seminovosPrazosConst = "export " + extractConst(source, "SEMINOVOS_PRAZOS");
+const simPrazosForFn = "export " + extractFunction(source, "simPrazosFor");
+const requiredDownPaymentPlanInterface = "export " + extractInterface(source, "RequiredDownPaymentPlan");
+const extractCommercialOverridesFn = "export " + extractFunction(source, "extractCommercialOverrides");
+const extractTermMonthsListFn = "export " + extractFunction(source, "extractTermMonthsList");
+const resolveTermMonthsListFn = "export " + extractFunction(source, "resolveTermMonthsList");
+const extractRequiredDownPaymentPlanFn = "export " + extractFunction(source, "extractRequiredDownPaymentPlan");
+const resolveStatefulRequiredDownPaymentPlanFn = "export " + extractFunction(source, "resolveStatefulRequiredDownPaymentPlan");
+const buildRequiredDownPaymentSimulationInputsFn = "export " + extractFunction(source, "buildRequiredDownPaymentSimulationInputs");
+const buildCommercialSelectionInputsFn = "export " + extractFunction(source, "buildCommercialSelectionInputs");
+const commercialProposalInterface = "export " + extractInterface(source, "CommercialProposal");
+const selectCommercialProposalsFn = "export " + extractFunction(source, "selectCommercialProposals");
+// timedEvaluateToolPolicy is a closure DEFINED INSIDE the request handler
+// (not module-level) -- extractFunctionGenericAware's marker now tolerates
+// indentation so it can find it there.
+const timedEvaluateToolPolicyFn = extractFunctionGenericAware(source, "timedEvaluateToolPolicy");
+
 const extractorModText = [
   "// AUTO-EXTRACTED at test time from supabase/functions/portal-ai-homolog/index.ts -- do not hand-edit.",
   simDepartmentType, simulationModeType, simFinancingTypeType, simulationInputInterface,
   round2Fn, brMoneyTokenConst, vehicleValueReConst, parseBRMoneyTokenFn, maskSpanFn, extractPlanFn, emptySimulationInputFn, buildInputsFn,
   allowReConst, denyReConst, classifyFn,
+  clientBoundaryConst, linearOnlyExclusionConst, resolveStatefulPlanFn, applyLinearOnlyExclusionFn,
+  engineFirstCandidateInterface, collectCandidatesFn, selectClosestFn,
+  cashConversionInputInterface, cashIntentConst, cashRateOverrideConst, parseCashRateFn, resolvedCashContextInterface, resolveCashContextFn,
+  balaoOnlyExclusionConst, allCommercialOptionsConst, bareTermOverrideConst, novosPrazosConst, seminovosPrazosConst, simPrazosForFn,
+  requiredDownPaymentPlanInterface, extractCommercialOverridesFn, extractTermMonthsListFn, resolveTermMonthsListFn,
+  extractRequiredDownPaymentPlanFn, resolveStatefulRequiredDownPaymentPlanFn,
+  buildRequiredDownPaymentSimulationInputsFn, buildCommercialSelectionInputsFn, commercialProposalInterface, selectCommercialProposalsFn,
 ].join("\n\n");
 
 const tmpDir1 = mkdtempSync(join(tmpdir(), "ia-recon-efirst-extractor-"));
 const extractorPath = join(tmpDir1, "extracted.ts");
 writeFileSync(extractorPath, extractorModText, "utf8");
 const extractorMod = await import("file://" + extractorPath.replace(/\\/g, "/"));
-const { extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs, classifyFinanceFastPath, parseBRMoneyToken } = extractorMod;
+const {
+  extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs, classifyFinanceFastPath, parseBRMoneyToken,
+  resolveStatefulFinancePlan, resolveCashConversionContext, collectEngineFirstCandidates, selectClosestCandidate,
+  resolveStatefulRequiredDownPaymentPlan, buildRequiredDownPaymentSimulationInputs, buildCommercialSelectionInputs, selectCommercialProposals,
+} = extractorMod;
 
 // ---------- A. parseBRMoneyToken -- real function, representative Brazilian formats ----------
 
@@ -317,22 +376,43 @@ const passIndexIdx = source.indexOf(passIndexMarker, declStart);
 const declEnd = passIndexIdx + passIndexMarker.length;
 const preDeclarations = source.slice(declStart, declEnd);
 
-// The gate declarations sit between the pre-loop declarations and the
-// engine-first if-block itself -- extracted verbatim as their own
-// small slice so the synthetic harness below has them too.
-const gateMarker = "const engineFirstPlan = isFinanceFastPath ? extractFinanceEngineFirstPlan(message) : null;";
+// IA-CAPLOCK3 -- the gate declarations now start at cashContext (IA-
+// REGRESSION-01) and run through requiredDownPaymentPlan (IA-UAT-04)
+// before engineFirstRan is declared -- the old single-line
+// `const engineFirstPlan = isFinanceFastPath ? extractFinanceEngineFirstPlan(message) : null;`
+// this test used to look for no longer exists anywhere in current
+// source (superseded by `(!cashContext && isFinanceFastPath) ?
+// resolveStatefulFinancePlan(...)`), which is exactly why this test
+// was throwing "engineFirstPlan gate declaration not found" -- its own
+// marker string had drifted out of existence. Extracted verbatim, the
+// same way stateful-orchestration-integration.test.mjs (IA-REGRESSION-01's
+// own harness) already does.
+const gateMarker = "const cashContext = resolveCashConversionContext(conversation, message);";
 const gateStart = source.indexOf(gateMarker, declEnd);
-if (gateStart === -1) throw new Error("engineFirstPlan gate declaration not found");
+if (gateStart === -1) throw new Error("cashContext gate declaration not found");
 const engineFirstRanMarker = "let engineFirstRan = false;";
 const gateEnd = source.indexOf(engineFirstRanMarker, gateStart) + engineFirstRanMarker.length;
 const gateDeclarations = source.slice(gateStart, gateEnd);
-check("gate declarations include the real engineFirstPlan computation", gateDeclarations.includes(gateMarker));
+check("gate declarations include the real cashContext computation", gateDeclarations.includes(gateMarker));
+check("gate declarations include the real engineFirstPlan computation (gated on !cashContext)", gateDeclarations.includes("const engineFirstPlan = (!cashContext && isFinanceFastPath) ? resolveStatefulFinancePlan(conversation, message) : null;"));
 check("gate declarations include the real engineFirstRan flag", gateDeclarations.includes(engineFirstRanMarker));
 
-const blockA = extractBalancedFrom(source, "if (engineFirstPlan) {", declEnd);
+// IA-CAPLOCK3 -- THREE real sibling blocks now sit in this region, not
+// two: Cash Conversion (blockCash) and requiredDownPaymentPlan
+// (blockRDP) were both added to production after this file was first
+// written. Extracting only blockA/blockB (as before) would silently
+// skip blockCash/blockRDP's own real content -- both are extracted
+// here too so the harness is a faithful copy of ALL of current
+// production's orchestration in this region, not just the two
+// branches this file originally knew about.
+const blockCash = extractBalancedFrom(source, "if (cashContext) {", gateEnd);
+check("extracted Cash Conversion block contains the real deterministic baseline + cash dispatch", blockCash.text.includes("toolSimularCashConversion(userClient, cashArgs)") && blockCash.text.includes("toolSimularFinanciamento(userClient, baselineInput)"));
+const blockA = extractBalancedFrom(source, "if (!engineFirstRan && engineFirstPlan) {", blockCash.end);
 check("extracted engine-first block contains the real extractFinanceEngineFirstPlan-driven flow marker", blockA.text.includes("buildEngineFirstSimulationInputs(engineFirstPlan)"));
-const blockB = extractBalancedFrom(source, "if (!engineFirstRan) {", blockA.end);
-check("extracted fallback block contains the real unmodified while(true) loop", blockB.text.includes("while (true) {") && blockB.text.includes("await callOpenAI(openaiKey, input, passTools)"));
+const blockRDP = extractBalancedFrom(source, "if (!engineFirstRan && requiredDownPaymentPlan) {", blockA.end);
+check("extracted requiredDownPaymentPlan block contains the real commercial-selection dispatch", blockRDP.text.includes("buildCommercialSelectionInputs(requiredDownPaymentPlan)") && blockRDP.text.includes("buildRequiredDownPaymentSimulationInputs(requiredDownPaymentPlan)"));
+const blockB = extractBalancedFrom(source, "if (!engineFirstRan) {", blockRDP.end);
+check("extracted fallback block contains the real unmodified while(true) loop", blockB.text.includes("while (true) {") && blockB.text.includes("await callOpenAI(openaiKey, input, passTools, 0, retryTracker)"));
 
 const toolErrorClass = extractClass(source, "ToolError");
 const maxToolCallsConst = "export " + extractConst(source, "MAX_TOOL_CALLS");
@@ -361,12 +441,22 @@ ${extractOutputTextFn}
 
 ${financeSynthesisProfileConst}
 
+${linearOnlyExclusionConst}
+
+${balaoOnlyExclusionConst}
+
+${allCommercialOptionsConst}
+
+${bareTermOverrideConst}
+
 export async function runRequestLoop(opts) {
   const {
-    isFinanceFastPath, message, effectiveTools, effectiveSystemPrompt, dynamicContextSuffix,
+    isFinanceFastPath, message, conversation, effectiveTools, effectiveSystemPrompt, dynamicContextSuffix,
     extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
-    callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult, dispatchTool,
-    input,
+    resolveCashConversionContext, resolveStatefulFinancePlan, collectEngineFirstCandidates, selectClosestCandidate,
+    resolveStatefulRequiredDownPaymentPlan, buildRequiredDownPaymentSimulationInputs, buildCommercialSelectionInputs, selectCommercialProposals,
+    callOpenAI, toolSimularFinanciamento, toolSimularCashConversion, evaluateToolPolicy, buildBlockFromToolResult, dispatchTool,
+    input, emptySimulationInput,
   } = opts;
   const openaiKey = "mock-key";
   const userClient = null;
@@ -379,20 +469,27 @@ export async function runRequestLoop(opts) {
     tools_sent_count: effectiveTools.length,
     tools_sent_count_per_pass: [], input_item_count_per_pass: [],
     execution_path: null, openai_pass_count: null,
+    openai_retry_count_per_pass: [],
   };
   let promptProfileLabel = isFinanceFastPath ? "finance" : "full";
   let promptCharsActual = effectiveSystemPrompt.length;
+
+  ${timedEvaluateToolPolicyFn}
 
   ${preDeclarations}
 
   ${gateDeclarations}
 
+  ${blockCash.text}
+
   ${blockA.text}
+
+  ${blockRDP.text}
 
   ${blockB.text}
 
   timings.openai_pass_count = timings.openai_pass_ms.length;
-  return { finalText, timings, blocks, toolsUsed, toolCallCount, homologCalls, engineFirstRan, promptProfileLabel, promptCharsActual };
+  return { finalText, timings, blocks, toolsUsed, toolCallCount, homologCalls, engineFirstRan, promptProfileLabel, promptCharsActual, cashContext, requiredDownPaymentPlan };
 }
 `;
 
@@ -433,10 +530,13 @@ function mkResponse({ calls = [], text = null }) {
   const result = await runRequestLoop({
     isFinanceFastPath: true,
     message: CANONICAL_TEST_1,
+    conversation: [],
     effectiveTools: FINANCE_TOOLS,
     effectiveSystemPrompt: mockEffectiveSystemPrompt,
     dynamicContextSuffix: mockDynamicContextSuffix,
     extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
+    resolveCashConversionContext, resolveStatefulFinancePlan, collectEngineFirstCandidates, selectClosestCandidate,
+    resolveStatefulRequiredDownPaymentPlan, buildRequiredDownPaymentSimulationInputs, buildCommercialSelectionInputs, selectCommercialProposals,
     callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult,
     input: [{ role: "developer", content: "mock finance prompt" }, { role: "user", content: CANONICAL_TEST_1 }],
   });
@@ -473,10 +573,13 @@ function mkResponse({ calls = [], text = null }) {
   await runRequestLoop({
     isFinanceFastPath: true,
     message: CANONICAL_TEST_1,
+    conversation: [],
     effectiveTools: FINANCE_TOOLS,
     effectiveSystemPrompt: mockEffectiveSystemPrompt,
     dynamicContextSuffix: "\n\n=== CONTEXTO TEMPORAL (mock) ===",
     extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
+    resolveCashConversionContext, resolveStatefulFinancePlan, collectEngineFirstCandidates, selectClosestCandidate,
+    resolveStatefulRequiredDownPaymentPlan, buildRequiredDownPaymentSimulationInputs, buildCommercialSelectionInputs, selectCommercialProposals,
     callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult,
     input: [{ role: "developer", content: mockEffectiveSystemPrompt }, { role: "user", content: CANONICAL_TEST_1 }],
   });
@@ -513,10 +616,13 @@ function mkResponse({ calls = [], text = null }) {
   const result = await runRequestLoop({
     isFinanceFastPath: true,
     message: ambiguousMessage,
+    conversation: [],
     effectiveTools: FINANCE_TOOLS,
     effectiveSystemPrompt: mockEffectiveSystemPrompt,
     dynamicContextSuffix: "\n\n=== CONTEXTO TEMPORAL (mock) ===",
     extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
+    resolveCashConversionContext, resolveStatefulFinancePlan, collectEngineFirstCandidates, selectClosestCandidate,
+    resolveStatefulRequiredDownPaymentPlan, buildRequiredDownPaymentSimulationInputs, buildCommercialSelectionInputs, selectCommercialProposals,
     callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult, dispatchTool,
     input: [{ role: "developer", content: "mock finance prompt" }, { role: "user", content: ambiguousMessage }],
   });
@@ -545,10 +651,13 @@ function mkResponse({ calls = [], text = null }) {
   const result = await runRequestLoop({
     isFinanceFastPath: true,
     message: CANONICAL_TEST_1,
+    conversation: [],
     effectiveTools: FINANCE_TOOLS,
     effectiveSystemPrompt: "MOCK-FINANCE-PROMPT-PROFILE",
     dynamicContextSuffix: "\n\n=== CONTEXTO TEMPORAL (mock) ===",
     extractFinanceEngineFirstPlan, buildEngineFirstSimulationInputs,
+    resolveCashConversionContext, resolveStatefulFinancePlan, collectEngineFirstCandidates, selectClosestCandidate,
+    resolveStatefulRequiredDownPaymentPlan, buildRequiredDownPaymentSimulationInputs, buildCommercialSelectionInputs, selectCommercialProposals,
     callOpenAI, toolSimularFinanciamento, evaluateToolPolicy, buildBlockFromToolResult,
     input: [{ role: "developer", content: "mock finance prompt" }, { role: "user", content: CANONICAL_TEST_1 }],
   });
@@ -560,7 +669,12 @@ function mkResponse({ calls = [], text = null }) {
 
 // ---------- F. full-profile requests are never eligible for engine-first (structural, not just by convention) ----------
 
-check("engine-first gate in source requires isFinanceFastPath (full-profile requests structurally excluded)", source.includes("const engineFirstPlan = isFinanceFastPath ? extractFinanceEngineFirstPlan(message) : null;"));
+// IA-CAPLOCK3 -- the gate's exact text evolved with IA-REGRESSION-01
+// (gated on !cashContext too) and now calls resolveStatefulFinancePlan
+// instead of extractFinanceEngineFirstPlan directly (see gateDeclarations
+// above) -- isFinanceFastPath is still structurally required either way,
+// this check just needed the current real text.
+check("engine-first gate in source requires isFinanceFastPath (full-profile requests structurally excluded)", source.includes("const engineFirstPlan = (!cashContext && isFinanceFastPath) ? resolveStatefulFinancePlan(conversation, message) : null;"));
 
 // ---------- G. source-level invariants (frozen symbols, no duplicated formula) ----------
 
@@ -574,7 +688,12 @@ check("balaoCalcular itself is never redeclared/duplicated by this Wave (exactly
 check("balaoOptimizeEscalateForTarget itself is never redeclared/duplicated by this Wave (exactly one declaration)", [...source.matchAll(/function balaoOptimizeEscalateForTarget\(/g)].length === 1);
 check("buildBlockFromToolResult itself is never redeclared/duplicated by this Wave (exactly one declaration)", [...source.matchAll(/function buildBlockFromToolResult\(/g)].length === 1);
 check("engine-first calls buildBlockFromToolResult (same real card-building authority, never a new one)", source.includes('buildBlockFromToolResult("simular_financiamento", simArgs, output)'));
-check("engine-first calls the SAME evaluateToolPolicy authorization gate the existing loop uses (never bypassed)", source.includes('evaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission)'));
+// IA-CAPLOCK3 -- LATENCY-1 wrapped every evaluateToolPolicy call site in
+// timedEvaluateToolPolicy (a thin timing wrapper, zero effect on the
+// authorization decision itself -- see its own declaration) -- the
+// literal call text changed, the authority it calls (evaluateToolPolicy,
+// unmodified, called with the exact same 4 args) did not.
+check("engine-first calls the SAME evaluateToolPolicy authorization gate the existing loop uses (never bypassed, now via the timedEvaluateToolPolicy wrapper)", source.includes('timedEvaluateToolPolicy("simular_financiamento", simArgs, authorityEnvelope, checkModulePermission)'));
 check("FULL_SYSTEM_PROMPT composition untouched by this Wave (IA-3J.6)", /const FULL_SYSTEM_PROMPT = \[/.test(source));
 check("FINANCE_PROMPT_PROFILE composition untouched by this Wave (IA-3J.6) -- the fallback loop's own profile, never the synthesis one", /const FINANCE_PROMPT_PROFILE = \[/.test(source));
 
