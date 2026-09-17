@@ -100,25 +100,48 @@ const copEngine = {
     { prazo: 24, taxa: 0.0049, coef: 0.048, rebate: 0.02 },
     { prazo: 36, taxa: 0.0099, coef: 0.036, rebate: 0.03 }
   ];
-  // entrada = exactly 50% of bem -- the modality's fixed minimum.
-  const r = mod.subsidiadasCalcular(table, 100000, 50000, null);
-  check("Subsidiado: bem=100000, entrada=50000 (exact 50% floor) -> ok=true", r.ok === true, JSON.stringify(r));
-  if (r.ok) {
-    check("Subsidiado: financed = bem - entrada = 50000", r.financed === 50000, `got ${r.financed}`);
-    check("Subsidiado: returns one option per matched table row (2)", r.options.length === 2, `got ${r.options.length}`);
+  // IA-CAPLOCK2: the canonical business rule is entrada STRICTLY ABOVE
+  // 50% -- exactly 50% does NOT qualify (PROMPT_FINANCE_SUBSIDIADAS'
+  // own text always said this; the engine's own gate previously
+  // allowed pctEntrada===0.50 through, a real prompt-vs-engine
+  // contradiction this fixture now locks correctly). Exact-cent
+  // fixtures on bem=100000 avoid any floating-point boundary ambiguity
+  // (each percentage below is an exact decimal of 100000; only the
+  // 50.00% case sits exactly on the boundary, and division by 2 is
+  // always exact in IEEE754 double precision).
+  const rBelow1 = mod.subsidiadasCalcular(table, 100000, 49990, null); // 49.99%
+  check("Subsidiado: entrada=49,99% -> ok=false (below the boundary)", rBelow1.ok === false, JSON.stringify(rBelow1));
+
+  const rExactly50 = mod.subsidiadasCalcular(table, 100000, 50000, null); // exactly 50.00%
+  check("Subsidiado: entrada=exactly 50,00% -> ok=false (REJECTED -- exactly 50% never qualifies)", rExactly50.ok === false, JSON.stringify(rExactly50));
+
+  const rAbove1 = mod.subsidiadasCalcular(table, 100000, 50010, null); // 50.01%
+  check("Subsidiado: entrada=50,01% -> ok=true (first eligible cent above the boundary)", rAbove1.ok === true, JSON.stringify(rAbove1));
+  if (rAbove1.ok) {
+    const financed1 = 100000 - 50010;
+    check("Subsidiado: financed = bem - entrada = 49990 at 50,01%", rAbove1.financed === financed1, `got ${rAbove1.financed}`);
+    check("Subsidiado: returns one option per matched table row (2) at 50,01%", rAbove1.options.length === 2, `got ${rAbove1.options.length}`);
     check(
-      "Subsidiado: prazo<=24 option's payment = financed * coef, rounded (no +2500 base adjustment)",
-      r.options[0].payment === mod.round2(50000 * 0.048),
-      JSON.stringify(r.options[0])
+      "Subsidiado: prazo<=24 option's payment = financed * coef, rounded, at 50,01%",
+      rAbove1.options[0].payment === mod.round2(financed1 * 0.048),
+      JSON.stringify(rAbove1.options[0])
     );
     check(
-      "Subsidiado: prazo>24 option's payment = (financed + 2500) * coef, rounded",
-      r.options[1].payment === mod.round2((50000 + 2500) * 0.036),
-      JSON.stringify(r.options[1])
+      "Subsidiado: prazo>24 option's payment = (financed + 2500) * coef, rounded, at 50,01%",
+      rAbove1.options[1].payment === mod.round2((financed1 + 2500) * 0.036),
+      JSON.stringify(rAbove1.options[1])
     );
   }
+
+  const rAbove2 = mod.subsidiadasCalcular(table, 100000, 51000, null); // 51.00%
+  check("Subsidiado: entrada=51,00% -> ok=true (comfortably above the boundary)", rAbove2.ok === true, JSON.stringify(rAbove2));
+  if (rAbove2.ok) {
+    check("Subsidiado: financed = bem - entrada = 49000 at 51,00%", rAbove2.financed === 49000, `got ${rAbove2.financed}`);
+    check("Subsidiado: returns one option per matched table row (2) at 51,00%", rAbove2.options.length === 2, `got ${rAbove2.options.length}`);
+  }
+
   const rBelowMin = mod.subsidiadasCalcular(table, 100000, 40000, null);
-  check("Subsidiado: entrada=40% -> below the fixed 50% floor -> ok=false", rBelowMin.ok === false, JSON.stringify(rBelowMin));
+  check("Subsidiado: entrada=40% -> below the boundary -> ok=false", rBelowMin.ok === false, JSON.stringify(rBelowMin));
 
   const rInvalid = mod.subsidiadasCalcular(table, 100000, 150000, null);
   check("Subsidiado: entrada > bem -> ok=false, not a negative/garbage financed value", rInvalid.ok === false, JSON.stringify(rInvalid));
