@@ -124,6 +124,35 @@
   }
   function gbOnlyDigits(v) { return (v ?? '').toString().replace(/\D/g, ''); }
   function gbCleanChassis(v) { return (v ?? '').toString().toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  // Incidente T35918/M4 -- normalizacao de documento (CPF/CNPJ) para a
+  // ponte de identidade Base01<->Base03. Prova real (auditoria completa
+  // do arquivo atual): 9/10 digitos sao quase sempre um CPF que perdeu 2/1
+  // zeros a esquerda por coercao numerica do Excel (celula numerica, nao
+  // texto); 12/13 digitos, o mesmo para CNPJ. Reparo controlado, NUNCA um
+  // pad generico -- comprimentos fora desta lista (ex.: os 2 casos de 8
+  // digitos encontrados na auditoria) ficam INVALID, nunca "consertados"
+  // por adivinhacao. Devolve só o digito, nunca o texto original bruto.
+  function gbNormalizeDocumentForMatch(v) {
+    // Artefato Excel: uma celula numerica lida/serializada como texto pode
+    // trazer ".0" no final (ex.: "8608388898.0") -- remove ANTES de tirar
+    // os pontos, senao o "0" apos o ponto gruda nos digitos e desloca o
+    // valor inteiro (corrompe o documento em vez de só reparar zero à
+    // esquerda perdido). Só remove um ".0" literal no final, nunca dígitos
+    // decimais reais (documento não tem parte decimal).
+    let s = (v ?? '').toString().trim();
+    if (s.endsWith('.0')) s = s.slice(0, -2);
+    const digits = gbOnlyDigits(s);
+    if (!digits) return { normalized: null, shape: 'BLANK' };
+    if (digits.length === 11) return { normalized: digits, shape: 'VALID_CPF_SHAPE' };
+    if (digits.length === 14) return { normalized: digits, shape: 'VALID_CNPJ_SHAPE' };
+    if (digits.length === 9 || digits.length === 10) {
+      return { normalized: digits.padStart(11, '0'), shape: 'REPAIRED_CPF_SHAPE' };
+    }
+    if (digits.length === 12 || digits.length === 13) {
+      return { normalized: digits.padStart(14, '0'), shape: 'REPAIRED_CNPJ_SHAPE' };
+    }
+    return { normalized: null, shape: 'INVALID_OTHER' };
+  }
   function gbParseDateBR(v) {
     if (!v) return null;
     if (v instanceof Date && !isNaN(v.getTime())) {
@@ -284,6 +313,16 @@
       // enviada ao import — Análise por Modelos dependia de um backfill manual
       // feito fora do fluxo de importação, que não se repetia em cargas novas.
       vehicle_model: String(gbGetCol(raw, ['Modelo'])).trim() || null,
+      // Incidente T35918/M4 -- documento do CLIENTE (nunca do vendedor),
+      // normalizado e reparado no navegador (formatação apenas, não é
+      // segredo); a chave de casamento em si (HMAC) só é calculada no
+      // servidor, dentro de master_operational_import_sales -- este campo
+      // nunca é persistido como está, só usado para computar a chave e
+      // então descartado. Coluna real comprovada por auditoria: "Cód.
+      // Cliente" -- apesar do nome genérico, contém o CPF/CNPJ do
+      // cliente nesta base (diferente de Base 02, onde a mesma coluna é
+      // outra coisa -- ver gbBuildBase02Row, nunca usar lá).
+      client_document_normalized: gbNormalizeDocumentForMatch(gbGetCol(raw, ['Cód. Cliente'])).normalized,
       _diagOk: !!(chassis && gbParseDateBR(gbGetCol(raw, ['Data venda', 'Data Venda'])) && ['NOVOS', 'SEMINOVOS'].includes(department))
     };
   }
@@ -351,19 +390,6 @@
   }
 
   // ---------------- mapeamento BASE 03 (Complementar / F&I) ----------------
-  // Mesma prioridade oficial de classificação já validada no restante do projeto
-  // (planTypeFromFields / scoreB03PlanRow): SUBSIDIADO > REVERSÃO > COPARTICIPADO > BALÃO.
-  function gbScoreBase03Row(codigoIFRaw, tcDevolvidaRaw, balaoRaw) {
-    const ifTxt = gbNormalize(codigoIFRaw);
-    const ifNum = gbAsNumber(codigoIFRaw);
-    const tcNum = gbAsNumber(tcDevolvidaRaw);
-    const balaoNum = gbAsNumber(balaoRaw);
-    if (ifNum === 999 || ifTxt.includes('SUBSIDIADO')) return 100;
-    if (ifNum === 777 || ifTxt.includes('REVERSAO')) return 90;
-    if (tcNum === 1 || ifTxt.includes('COPARTICIPADO')) return 85;
-    if (balaoNum > 0) return 80;
-    return 0;
-  }
   function gbContainsSpfExtra(nomeOpcional) {
     return gbNormalize(nomeOpcional).includes('SPF EXTRA');
   }
@@ -395,30 +421,51 @@
       tc_returned: String(gbGetCol(raw, ['Tabela - TC Devolvida (R$)'])).trim() || null
     };
   }
-  // Constrói, por cliente, o melhor sinal de classificação da Base 03 —
-  // usado para enriquecer o lote FINANCE aberto na mesma sessão.
-  function gbBuildBase03ClientIndex(base03Rows) {
-    const bestByClient = {};
+  // Incidente T35918/M4 -- SUBSTITUI inteiramente a seleção por nome
+  // (gbBuildBase03ClientIndex) e a prioridade de plano como critério de
+  // ELEGIBILIDADE (gbScoreBase03Row) -- provado incorreto: uma operação
+  // ENCERRADA com Código IF=999 vencia uma PAGA com TC Devolvida=1 só
+  // porque 999 tem prioridade de PLANO mais alta, mesmo a PAGA sendo a
+  // realizada de verdade. Esta função não decide mais nada sozinha --
+  // ela só prepara, por linha, os dados brutos (documento normalizado,
+  // NUNCA a chave HMAC, que só o servidor calcula) que
+  // master_operational_apply_base03 usa para: (1) achar a operação
+  // elegível por DOCUMENTO (nunca nome, nunca chave do cliente),
+  // restrito a Op - Situação em (PAGA, FATURADA) -- reforçado outra vez
+  // no servidor, nunca confia só neste filtro do navegador; (2) só
+  // aplicar automaticamente quando existe EXATAMENTE UMA operação
+  // elegível por documento -- múltiplas operações nunca são resolvidas
+  // aqui por prioridade de plano, ordem de array, ou proximidade de
+  // valor (esse limiar foi só uma ferramenta de auditoria, nunca
+  // autoridade de produto). A prioridade de classificação em si
+  // (SUBSIDIADO>REVERSÃO>COPARTICIPADO>BALÃO>LINEAR) continua intocada,
+  // decidida só depois, em operational_metrics() no banco.
+  function gbBuildBase03FinanceRows(base03Rows) {
+    const REALIZED = { PAGA: true, FATURADA: true };
+    const rows = [];
     base03Rows.forEach(raw => {
-      const clientKey = gbNormalize(gbGetCol(raw, ['Cli - Nome']));
-      if (!clientKey) return;
+      const status = gbNormalize(gbGetCol(raw, ['Op - Situação']));
+      if (!REALIZED[status]) return; // otimização de banda -- o servidor reforça o mesmo filtro.
+      const opCode = String(gbGetCol(raw, ['Op - Código']) ?? '').trim();
+      if (!opCode) return;
+      const doc = gbNormalizeDocumentForMatch(gbGetCol(raw, ['Cli - CPF/CNPJ']));
+      if (!doc.normalized) return; // sem documento utilizável -- não há como casar com Base01.
       const codigoIFRaw = gbGetCol(raw, ['Tabela - Código IF']);
       const tcDevolvidaRaw = gbGetCol(raw, ['Tabela - TC Devolvida (R$)']);
       const balaoRaw = gbGetCol(raw, ['Op Fin - Balão PMT (R$)']);
-      const score = gbScoreBase03Row(codigoIFRaw, tcDevolvidaRaw, balaoRaw);
-      const prev = bestByClient[clientKey];
-      if (!prev || score > prev.score) {
-        bestByClient[clientKey] = {
-          score,
-          codigoIF: codigoIFRaw !== '' ? String(codigoIFRaw).trim() : null,
-          tcDevolvida: tcDevolvidaRaw !== '' ? gbAsNumber(tcDevolvidaRaw) : null,
-          balaoValor: balaoRaw !== '' ? gbAsNumber(balaoRaw) : null,
-          parcelas: gbAsNumber(gbGetCol(raw, ['Op Fin - Quantidade Parcelas'])) || null,
-          pmt: gbAsNumber(gbGetCol(raw, ['Op Fin - PMT (R$)'])) || null
-        };
-      }
+      rows.push({
+        client_document_normalized: doc.normalized,
+        op_code: opCode,
+        status,
+        plan_codigo_if: codigoIFRaw !== '' && codigoIFRaw != null ? String(codigoIFRaw).trim() : null,
+        tc_devolvida: tcDevolvidaRaw !== '' && tcDevolvidaRaw != null ? gbAsNumber(tcDevolvidaRaw) : null,
+        balloon_value: balaoRaw !== '' && balaoRaw != null ? gbAsNumber(balaoRaw) : null,
+        installments: gbAsNumber(gbGetCol(raw, ['Op Fin - Quantidade Parcelas'])) || null,
+        installment_value: gbAsNumber(gbGetCol(raw, ['Op Fin - PMT (R$)'])) || null,
+        vehicle_model: ''
+      });
     });
-    return bestByClient;
+    return rows;
   }
 
   // ---------------- chamadas RPC em lotes de até 500 ----------------
@@ -811,22 +858,14 @@
       sincronismoHtml = '<p class="note gbWarn">⚠️ Não foi possível validar o sincronismo com a Base 02.</p>';
     }
 
-    // Enriquecimento financeiro — um registro por cliente (client_match_key),
-    // já resolvido aqui no navegador (o backend casa direto contra a Base 02
-    // oficial pela mesma chave, sem depender de sessão nem de source_row_number
-    // da Base 02 — ver master_operational_apply_base03).
-    const clientIndex = gbBuildBase03ClientIndex(rawRows);
-    const financeRows = Object.entries(clientIndex)
-      .map(([clientKey, sig]) => ({
-        client_match_key: clientKey,
-        vehicle_model: '',
-        installments: sig.parcelas,
-        installment_value: sig.pmt,
-        balloon_value: sig.balaoValor,
-        tc_devolvida: sig.tcDevolvida,
-        plan_codigo_if: sig.codigoIF
-      }))
-      .filter(r => r.tc_devolvida !== null || r.plan_codigo_if || r.balloon_value !== null || r.installments !== null);
+    // Incidente T35918/M4 -- enriquecimento financeiro por DOCUMENTO do
+    // cliente (nunca por nome). Uma linha por operação PAGA/FATURADA
+    // candidata (não mais um registro pré-agregado por cliente) -- a
+    // agregação/seleção/casamento em si agora acontece inteiramente no
+    // servidor, dentro de master_operational_apply_base03, porque só lá
+    // a chave HMAC pode ser calculada (o navegador nunca vê nem calcula
+    // a chave, só envia o documento normalizado por linha).
+    const financeRows = gbBuildBase03FinanceRows(rawRows);
 
     // Prévia (dry_run): consulta a Base 02 oficial no banco e informa quantos
     // clientes realmente casam, sem gravar nada — a gravação real só ocorre
