@@ -3116,7 +3116,16 @@ function sameDayPreviousMonth(d){
   const m = d.getMonth() - 1;
   const targetY = m < 0 ? y - 1 : y;
   const targetM = (m + 12) % 12;
-  const day = Math.min(d.getDate(), lastDayOfMonth(targetY, targetM));
+  const isLastDayOfOwnMonth =
+    d.getDate() === lastDayOfMonth(y, d.getMonth());
+
+  const day = isLastDayOfOwnMonth
+    ? lastDayOfMonth(targetY, targetM)
+    : Math.min(
+        d.getDate(),
+        lastDayOfMonth(targetY, targetM)
+      );
+
   return new Date(targetY, targetM, day);
 }
 function getPreviousMonthComparablePeriod(start, end){
