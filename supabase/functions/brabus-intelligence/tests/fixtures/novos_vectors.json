@@ -1,0 +1,5801 @@
+{
+ "gerado_em": "2026-10-02T20:16:00.840Z",
+ "node": "v22.22.0",
+ "tz": "America/Sao_Paulo",
+ "fonte_padrao": "FALLBACK",
+ "total": 82,
+ "vetores": [
+  {
+   "id": "V001",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 90000,
+    "pctEntrada": 0.5,
+    "pctEntrada_txt": "50,0",
+    "faixa": 0.5,
+    "faixa_txt": "50%",
+    "itens": [
+     {
+      "prazo": 12,
+      "taxa": 0.0231,
+      "baseCalculo": 94467.32114039807,
+      "coef": 0.09636905085502852,
+      "parcela": 9103.726075117333,
+      "parcela_txt": "R$ 9.103,73",
+      "best": false
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0203,
+      "baseCalculo": 95932.08462896042,
+      "coef": 0.06687816983749625,
+      "parcela": 6415.762248680679,
+      "parcela_txt": "R$ 6.415,76",
+      "best": false
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0188,
+      "baseCalculo": 97442.98732340262,
+      "coef": 0.05215511372497567,
+      "parcela": 5082.150085553426,
+      "parcela_txt": "R$ 5.082,15",
+      "best": false
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0195,
+      "baseCalculo": 99002.24414570685,
+      "coef": 0.044343537099543036,
+      "parcela": 4390.109686213169,
+      "parcela_txt": "R$ 4.390,11",
+      "best": false
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0189,
+      "baseCalculo": 100612.21409369353,
+      "coef": 0.03854313445514627,
+      "parcela": 3877.910095643192,
+      "parcela_txt": "R$ 3.877,91",
+      "best": false
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0191,
+      "baseCalculo": 102275.41214944897,
+      "coef": 0.03483786827389827,
+      "parcela": 3563.057336121158,
+      "parcela_txt": "R$ 3.563,06",
+      "best": false
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0188,
+      "baseCalculo": 103994.52238873957,
+      "coef": 0.03181088354907298,
+      "parcela": 3308.157641449657,
+      "parcela_txt": "R$ 3.308,16",
+      "best": false
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0185,
+      "baseCalculo": 107612.14942257835,
+      "coef": 0.02773274555119534,
+      "parcela": 2984.380358153578,
+      "parcela_txt": "R$ 2.984,38",
+      "best": true
+     }
+    ],
+    "menor": 2984.380358153578,
+    "erro": null,
+    "vazio": null
+   }
+  },
+  {
+   "id": "V002",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 36000
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 144000,
+    "pctEntrada": 0.2,
+    "pctEntrada_txt": "20,0",
+    "faixa": 0.2,
+    "faixa_txt": "20%",
+    "itens": [
+     {
+      "prazo": 12,
+      "taxa": 0.0268,
+      "baseCalculo": 150328.61960524684,
+      "coef": 0.0985526751212109,
+      "parcela": 14815.287609375988,
+      "parcela_txt": "R$ 14.815,29",
+      "best": false
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0231,
+      "baseCalculo": 152659.5407177074,
+      "coef": 0.06853387043515533,
+      "parcela": 10462.349184237677,
+      "parcela_txt": "R$ 10.462,35",
+      "best": false
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0217,
+      "baseCalculo": 155063.88450211278,
+      "coef": 0.05389474328567589,
+      "parcela": 8357.128248121064,
+      "parcela_txt": "R$ 8.357,13",
+      "best": false
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0208,
+      "baseCalculo": 157545.17562879447,
+      "coef": 0.04514257137384776,
+      "parcela": 7111.994335428235,
+      "parcela_txt": "R$ 7.111,99",
+      "best": false
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0201,
+      "baseCalculo": 160107.16804019216,
+      "coef": 0.03929588693042507,
+      "parcela": 6291.553172057958,
+      "parcela_txt": "R$ 6.291,55",
+      "best": false
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0203,
+      "baseCalculo": 162753.86390108414,
+      "coef": 0.0356115797215644,
+      "parcela": 5795.922199306101,
+      "parcela_txt": "R$ 5.795,92",
+      "best": false
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.02,
+      "baseCalculo": 165489.5344599827,
+      "coef": 0.03260183554726608,
+      "parcela": 5395.262587257979,
+      "parcela_txt": "R$ 5.395,26",
+      "best": false
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0198,
+      "baseCalculo": 171246.370492576,
+      "coef": 0.028628829626099125,
+      "parcela": 4902.583164919807,
+      "parcela_txt": "R$ 4.902,58",
+      "best": true
+     }
+    ],
+    "menor": 4902.583164919807,
+    "erro": null,
+    "vazio": null
+   }
+  },
+  {
+   "id": "V003",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 0
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 180000,
+    "pctEntrada": 0,
+    "pctEntrada_txt": "0,0",
+    "faixa": 0,
+    "faixa_txt": "0%",
+    "itens": [
+     {
+      "prazo": 12,
+      "taxa": 0.0281,
+      "baseCalculo": 187569.48524847935,
+      "coef": 0.09932604695690464,
+      "parcela": 18630.53549947289,
+      "parcela_txt": "R$ 18.630,54",
+      "best": false
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0245,
+      "baseCalculo": 190477.84477687202,
+      "coef": 0.06937008650165226,
+      "parcela": 13213.464568819903,
+      "parcela_txt": "R$ 13.213,46",
+      "best": false
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.023,
+      "baseCalculo": 193477.8159545862,
+      "coef": 0.05468487786380789,
+      "parcela": 10580.310734832849,
+      "parcela_txt": "R$ 10.580,31",
+      "best": false
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0221,
+      "baseCalculo": 196573.79661751952,
+      "coef": 0.04594948433095665,
+      "parcela": 9032.464587553372,
+      "parcela_txt": "R$ 9.032,46",
+      "best": false
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0215,
+      "baseCalculo": 199770.47067119123,
+      "coef": 0.04018415693128238,
+      "parcela": 8027.607943687293,
+      "parcela_txt": "R$ 8.027,61",
+      "best": false
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0216,
+      "baseCalculo": 203072.83173550759,
+      "coef": 0.03646004136318561,
+      "parcela": 7404.043844815838,
+      "parcela_txt": "R$ 7.404,04",
+      "best": false
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0212,
+      "baseCalculo": 206486.20917414478,
+      "coef": 0.03340300743457644,
+      "parcela": 6897.260380181465,
+      "parcela_txt": "R$ 6.897,26",
+      "best": false
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0211,
+      "baseCalculo": 213669.1845392411,
+      "coef": 0.029539223896963316,
+      "parcela": 6311.621881986215,
+      "parcela_txt": "R$ 6.311,62",
+      "best": true
+     }
+    ],
+    "menor": 6311.621881986215,
+    "erro": null,
+    "vazio": null
+   }
+  },
+  {
+   "id": "V004",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 54000
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 126000,
+    "pctEntrada": 0.3,
+    "pctEntrada_txt": "30,0",
+    "faixa": 0.3,
+    "faixa_txt": "30%",
+    "itens": [
+     {
+      "prazo": 12,
+      "taxa": 0.0263,
+      "baseCalculo": 131708.18678363058,
+      "coef": 0.09825607431745377,
+      "parcela": 12941.129388829488,
+      "parcela_txt": "R$ 12.941,13",
+      "best": false
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0226,
+      "baseCalculo": 133750.38868812507,
+      "coef": 0.06823657046877263,
+      "parcela": 9126.667822942976,
+      "parcela_txt": "R$ 9.126,67",
+      "best": false
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0211,
+      "baseCalculo": 135856.91877587605,
+      "coef": 0.05353221017560309,
+      "parcela": 7272.721129720035,
+      "parcela_txt": "R$ 7.272,72",
+      "best": false
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0202,
+      "baseCalculo": 138030.86513443192,
+      "coef": 0.044772804184174994,
+      "parcela": 6180.028896036188,
+      "parcela_txt": "R$ 6.180,03",
+      "best": false
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0196,
+      "baseCalculo": 140275.5167246926,
+      "coef": 0.03898126891509372,
+      "parcela": 5468.117639648969,
+      "parcela_txt": "R$ 5.468,12",
+      "best": false
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0198,
+      "baseCalculo": 142594.3799838724,
+      "coef": 0.035288087983280224,
+      "parcela": 5031.883026792182,
+      "parcela_txt": "R$ 5.031,88",
+      "best": false
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0195,
+      "baseCalculo": 144991.19710290164,
+      "coef": 0.032271023017124374,
+      "parcela": 4679.014258988156,
+      "parcela_txt": "R$ 4.679,01",
+      "best": false
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0193,
+      "baseCalculo": 150034.96346924346,
+      "coef": 0.028282473243173387,
+      "parcela": 4243.359839859375,
+      "parcela_txt": "R$ 4.243,36",
+      "best": true
+     }
+    ],
+    "menor": 4243.359839859375,
+    "erro": null,
+    "vazio": null
+   }
+  },
+  {
+   "id": "V005",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 72000
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 108000,
+    "pctEntrada": 0.4,
+    "pctEntrada_txt": "40,0",
+    "faixa": 0.4,
+    "faixa_txt": "40%",
+    "itens": [
+     {
+      "prazo": 12,
+      "taxa": 0.0231,
+      "baseCalculo": 113087.75396201432,
+      "coef": 0.09636905085502852,
+      "parcela": 10898.15951264631,
+      "parcela_txt": "R$ 10.898,16",
+      "best": false
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0203,
+      "baseCalculo": 114841.23665854274,
+      "coef": 0.06687816983749625,
+      "parcela": 7680.371729598122,
+      "parcela_txt": "R$ 7.680,37",
+      "best": false
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0188,
+      "baseCalculo": 116649.95304963934,
+      "coef": 0.05215511372497567,
+      "parcela": 6083.891567317012,
+      "parcela_txt": "R$ 6.083,89",
+      "best": false
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0196,
+      "baseCalculo": 118516.55464006939,
+      "coef": 0.04440472038534515,
+      "parcela": 5262.694469826762,
+      "parcela_txt": "R$ 5.262,69",
+      "best": false
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.019,
+      "baseCalculo": 120443.86540919307,
+      "coef": 0.038605558223685256,
+      "parcela": 4649.802658740314,
+      "parcela_txt": "R$ 4.649,80",
+      "best": false
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0192,
+      "baseCalculo": 122434.89606666069,
+      "coef": 0.03490199418512256,
+      "parcela": 4273.222030574677,
+      "parcela_txt": "R$ 4.273,22",
+      "best": false
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0189,
+      "baseCalculo": 124492.8597458206,
+      "coef": 0.03187640282622421,
+      "parcela": 3968.3845462464105,
+      "parcela_txt": "R$ 3.968,38",
+      "best": false
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0186,
+      "baseCalculo": 128823.5564459109,
+      "coef": 0.02780116076025062,
+      "parcela": 3581.4444024599893,
+      "parcela_txt": "R$ 3.581,44",
+      "best": true
+     }
+    ],
+    "menor": 3581.4444024599893,
+    "erro": null,
+    "vazio": null
+   }
+  },
+  {
+   "id": "V006",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 100000,
+    "entrada": 19999
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 80001,
+    "pctEntrada": 0.19999,
+    "pctEntrada_txt": "20,0",
+    "faixa": 0,
+    "faixa_txt": "0%",
+    "itens": [
+     {
+      "prazo": 12,
+      "taxa": 0.0281,
+      "baseCalculo": 84123.67070799024,
+      "coef": 0.09932604695690464,
+      "parcela": 8355.671666929022,
+      "parcela_txt": "R$ 8.355,67",
+      "best": false
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0245,
+      "baseCalculo": 85428.05067652743,
+      "coef": 0.06937008650165226,
+      "parcela": 5926.15126509824,
+      "parcela_txt": "R$ 5.926,15",
+      "best": false
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.023,
+      "baseCalculo": 86773.51786247813,
+      "coef": 0.05468487786380789,
+      "parcela": 4745.199226122569,
+      "parcela_txt": "R$ 4.745,20",
+      "best": false
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0221,
+      "baseCalculo": 88162.04466608846,
+      "coef": 0.04594948433095665,
+      "parcela": 4051.0004899695323,
+      "parcela_txt": "R$ 4.051,00",
+      "best": false
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0215,
+      "baseCalculo": 89595.73178793355,
+      "coef": 0.04018415693128238,
+      "parcela": 3600.3289465394073,
+      "parcela_txt": "R$ 3.600,33",
+      "best": false
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0216,
+      "baseCalculo": 91076.81883343786,
+      "coef": 0.03646004136318561,
+      "parcela": 3320.664581894507,
+      "parcela_txt": "R$ 3.320,66",
+      "best": false
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0212,
+      "baseCalculo": 92607.69598688107,
+      "coef": 0.03340300743457644,
+      "parcela": 3093.375557548783,
+      "parcela_txt": "R$ 3.093,38",
+      "best": false
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0211,
+      "baseCalculo": 95829.21282111714,
+      "coef": 0.029539223896963316,
+      "parcela": 2830.7205733927267,
+      "parcela_txt": "R$ 2.830,72",
+      "best": true
+     }
+    ],
+    "menor": 2830.7205733927267,
+    "erro": null,
+    "vazio": null
+   }
+  },
+  {
+   "id": "V007",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 100000,
+    "entrada": 100000
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 0,
+    "pctEntrada": 1,
+    "pctEntrada_txt": "100,0",
+    "faixa": null,
+    "faixa_txt": "--",
+    "itens": [],
+    "menor": null,
+    "erro": "⚠️ A entrada deve ser menor que o valor do bem.",
+    "vazio": "A entrada deve ser menor que o valor do bem."
+   }
+  },
+  {
+   "id": "V008",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 0,
+    "entrada": 0
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 0,
+    "pctEntrada": 0,
+    "pctEntrada_txt": "0,0",
+    "faixa": null,
+    "faixa_txt": "--",
+    "itens": [],
+    "menor": null,
+    "erro": null,
+    "vazio": "Preencha o valor do bem e a entrada para visualizar todos os prazos."
+   }
+  },
+  {
+   "id": "V009",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 0,
+    "entrada": 5000
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 0,
+    "pctEntrada": 0,
+    "pctEntrada_txt": "0,0",
+    "faixa": null,
+    "faixa_txt": "--",
+    "itens": [],
+    "menor": null,
+    "erro": "⚠️ Informe o Valor do Bem.",
+    "vazio": "Informe um valor do bem válido."
+   }
+  },
+  {
+   "id": "V010",
+   "plano": "LINEAR",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 250000,
+    "entrada": 125000
+   },
+   "output": {
+    "plano": "LINEAR",
+    "financiado": 125000,
+    "pctEntrada": 0.5,
+    "pctEntrada_txt": "50,0",
+    "faixa": 0.5,
+    "faixa_txt": "50%",
+    "itens": [
+     {
+      "prazo": 12,
+      "taxa": 0.0231,
+      "baseCalculo": 130673.71829354078,
+      "coef": 0.09636905085502852,
+      "parcela": 12592.902203645901,
+      "parcela_txt": "R$ 12.592,90",
+      "best": false
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0203,
+      "baseCalculo": 132699.88024203715,
+      "coef": 0.06687816983749625,
+      "parcela": 8874.725128242375,
+      "parcela_txt": "R$ 8.874,73",
+      "best": false
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0188,
+      "baseCalculo": 134789.86512441846,
+      "coef": 0.05215511372497567,
+      "parcela": 7029.980744538177,
+      "parcela_txt": "R$ 7.029,98",
+      "best": false
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0195,
+      "baseCalculo": 136946.736773634,
+      "coef": 0.044343537099543036,
+      "parcela": 6072.7027027829945,
+      "parcela_txt": "R$ 6.072,70",
+      "best": false
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0189,
+      "baseCalculo": 139173.75831827597,
+      "coef": 0.03854313445514627,
+      "parcela": 5364.192879489342,
+      "parcela_txt": "R$ 5.364,19",
+      "best": false
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0191,
+      "baseCalculo": 141474.40865513842,
+      "coef": 0.03483786827389827,
+      "parcela": 4928.6668128553665,
+      "parcela_txt": "R$ 4.928,67",
+      "best": false
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0188,
+      "baseCalculo": 143852.4005830638,
+      "coef": 0.03181088354907298,
+      "parcela": 4576.071963202441,
+      "parcela_txt": "R$ 4.576,07",
+      "best": false
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0185,
+      "baseCalculo": 148856.5519679472,
+      "coef": 0.02773274555119534,
+      "parcela": 4128.200879355365,
+      "parcela_txt": "R$ 4.128,20",
+      "best": true
+     }
+    ],
+    "menor": 4128.200879355365,
+    "erro": null,
+    "vazio": null
+   }
+  },
+  {
+   "id": "V011",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 48,
+    "baloes": []
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "pe_txt": "50,0",
+    "prazo": 48,
+    "taxa": 0.0177,
+    "taxa_txt": "1,77%",
+    "limitePct_txt": "100%",
+    "limite": 90000,
+    "totalBaloes": 0,
+    "parcela": 3121.8432566004526,
+    "parcela_txt": "R$ 3.121,84",
+    "fluxo": [],
+    "erro": null,
+    "entradaFaixa": 0.2,
+    "taxaInterna": 0.01782,
+    "base": 100147.00649399224,
+    "fator": 32.0794473848914,
+    "vpBaloes": 0,
+    "saldo": 100147.00649399224
+   }
+  },
+  {
+   "id": "V012",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 48,
+    "baloes": [
+     {
+      "mes": 48,
+      "valor": 30000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "pe_txt": "50,0",
+    "prazo": 48,
+    "taxa": 0.0177,
+    "taxa_txt": "1,77%",
+    "limitePct_txt": "100%",
+    "limite": 90000,
+    "totalBaloes": 30000,
+    "parcela": 2721.2650523110224,
+    "parcela_txt": "R$ 2.721,27",
+    "fluxo": [
+     {
+      "mes": 48,
+      "total": 32721.26505231102,
+      "total_txt": "R$ 32.721,27",
+      "parcela": 2721.2650523110224,
+      "balao": 30000
+     }
+    ],
+    "erro": null,
+    "entradaFaixa": 0.2,
+    "taxaInterna": 0.01782,
+    "base": 100147.00649399224,
+    "fator": 32.0794473848914,
+    "vpBaloes": 12850.327428037057,
+    "saldo": 87296.67906595519
+   }
+  },
+  {
+   "id": "V013",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 36000,
+    "prazo": 48,
+    "baloes": [
+     {
+      "mes": 12,
+      "valor": 10000
+     },
+     {
+      "mes": 24,
+      "valor": 10000
+     },
+     {
+      "mes": 36,
+      "valor": 10000
+     },
+     {
+      "mes": 48,
+      "valor": 20000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 144000,
+    "pe": 0.2,
+    "pe_txt": "20,0",
+    "prazo": 48,
+    "taxa": 0.0177,
+    "taxa_txt": "1,77%",
+    "limitePct_txt": "100%",
+    "limite": 144000,
+    "totalBaloes": 50000,
+    "parcela": 4081.138981676159,
+    "parcela_txt": "R$ 4.081,14",
+    "fluxo": [
+     {
+      "mes": 12,
+      "total": 14081.138981676158,
+      "total_txt": "R$ 14.081,14",
+      "parcela": 4081.138981676159,
+      "balao": 10000
+     },
+     {
+      "mes": 24,
+      "total": 14081.138981676158,
+      "total_txt": "R$ 14.081,14",
+      "parcela": 4081.138981676159,
+      "balao": 10000
+     },
+     {
+      "mes": 36,
+      "total": 14081.138981676158,
+      "total_txt": "R$ 14.081,14",
+      "parcela": 4081.138981676159,
+      "balao": 10000
+     },
+     {
+      "mes": 48,
+      "total": 24081.13898167616,
+      "total_txt": "R$ 24.081,14",
+      "parcela": 4081.138981676159,
+      "balao": 20000
+     }
+    ],
+    "erro": null,
+    "entradaFaixa": 0.2,
+    "taxaInterna": 0.01782,
+    "base": 159417.1049928894,
+    "fator": 32.0794473848914,
+    "vpBaloes": 28496.421759779776,
+    "saldo": 130920.68323310962
+   }
+  },
+  {
+   "id": "V014",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 18000,
+    "prazo": 12,
+    "baloes": [
+     {
+      "mes": 12,
+      "valor": 50000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 162000,
+    "pe": 0.1,
+    "pe_txt": "10,0",
+    "prazo": 12,
+    "taxa": 0.023540000000000002,
+    "taxa_txt": "2,35%",
+    "limitePct_txt": "100%",
+    "limite": 162000,
+    "totalBaloes": 50000,
+    "parcela": 13673.832478282804,
+    "parcela_txt": "R$ 13.673,83",
+    "fluxo": [
+     {
+      "mes": 12,
+      "total": 63673.832478282806,
+      "total_txt": "R$ 63.673,83",
+      "parcela": 13673.832478282804,
+      "balao": 50000
+     }
+    ],
+    "erro": null,
+    "entradaFaixa": 0.1,
+    "taxaInterna": 0.02366,
+    "base": 179173.80449252177,
+    "fator": 10.341488825273247,
+    "vpBaloes": 37766.01871970175,
+    "saldo": 141407.78577282
+   }
+  },
+  {
+   "id": "V015",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 18000,
+    "prazo": 24,
+    "baloes": [
+     {
+      "mes": 24,
+      "valor": 50000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 162000,
+    "pe": 0.1,
+    "pe_txt": "10,0",
+    "prazo": 24,
+    "taxa": 0.019995,
+    "taxa_txt": "2%",
+    "limitePct_txt": "100%",
+    "limite": 162000,
+    "totalBaloes": 50000,
+    "parcela": 7844.211116930055,
+    "parcela_txt": "R$ 7.844,21",
+    "fluxo": [
+     {
+      "mes": 24,
+      "total": 57844.211116930055,
+      "total_txt": "R$ 57.844,21",
+      "parcela": 7844.211116930055,
+      "balao": 50000
+     }
+    ],
+    "erro": null,
+    "entradaFaixa": 0.1,
+    "taxaInterna": 0.020114999999999997,
+    "base": 179173.80449252177,
+    "fator": 18.889308907924434,
+    "vpBaloes": 31002.077565855,
+    "saldo": 148171.72692666677
+   }
+  },
+  {
+   "id": "V016",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 18000,
+    "prazo": 30,
+    "baloes": [
+     {
+      "mes": 30,
+      "valor": 50000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 162000,
+    "pe": 0.1,
+    "pe_txt": "10,0",
+    "prazo": 30,
+    "taxa": 0.019714999999999996,
+    "taxa_txt": "1,97%",
+    "limitePct_txt": "100%",
+    "limite": 162000,
+    "totalBaloes": 50000,
+    "parcela": 6746.273213682178,
+    "parcela_txt": "R$ 6.746,27",
+    "fluxo": [
+     {
+      "mes": 30,
+      "total": 56746.27321368218,
+      "total_txt": "R$ 56.746,27",
+      "parcela": 6746.273213682178,
+      "balao": 50000
+     }
+    ],
+    "erro": null,
+    "entradaFaixa": 0.1,
+    "taxaInterna": 0.019834999999999995,
+    "base": 179173.80449252177,
+    "fator": 22.44735136099427,
+    "vpBaloes": 27737.83928773394,
+    "saldo": 151435.96520478782
+   }
+  },
+  {
+   "id": "V017",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 18000,
+    "prazo": 36,
+    "baloes": [
+     {
+      "mes": 36,
+      "valor": 50000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 162000,
+    "pe": 0.1,
+    "pe_txt": "10,0",
+    "prazo": 36,
+    "taxa": 0.019144999999999995,
+    "taxa_txt": "1,91%",
+    "limitePct_txt": "100%",
+    "limite": 162000,
+    "totalBaloes": 50000,
+    "parcela": 5971.479919680279,
+    "parcela_txt": "R$ 5.971,48",
+    "fluxo": [
+     {
+      "mes": 36,
+      "total": 55971.47991968028,
+      "total_txt": "R$ 55.971,48",
+      "parcela": 5971.479919680279,
+      "balao": 50000
+     }
+    ],
+    "erro": null,
+    "entradaFaixa": 0.1,
+    "taxaInterna": 0.019264999999999994,
+    "base": 179173.80449252177,
+    "fator": 25.792307175220124,
+    "vpBaloes": 25155.56011346922,
+    "saldo": 154018.24437905254
+   }
+  },
+  {
+   "id": "V018",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 18000,
+    "prazo": 40,
+    "baloes": [
+     {
+      "mes": 40,
+      "valor": 50000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 162000,
+    "pe": 0.1,
+    "pe_txt": "10,0",
+    "prazo": 40,
+    "taxa": 0.018760000000000002,
+    "taxa_txt": "1,88%",
+    "limitePct_txt": "100%",
+    "limite": 162000,
+    "totalBaloes": 50000,
+    "parcela": 5573.786982831949,
+    "parcela_txt": "R$ 5.573,79",
+    "fluxo": [
+     {
+      "mes": 40,
+      "total": 55573.78698283195,
+      "total_txt": "R$ 55.573,79",
+      "parcela": 5573.786982831949,
+      "balao": 50000
+     }
+    ],
+    "erro": null,
+    "entradaFaixa": 0.1,
+    "taxaInterna": 0.01888,
+    "base": 179173.80449252177,
+    "fator": 27.90059347687498,
+    "vpBaloes": 23661.839757830014,
+    "saldo": 155511.96473469175
+   }
+  },
+  {
+   "id": "V019",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 18000,
+    "prazo": 42,
+    "baloes": [
+     {
+      "mes": 42,
+      "valor": 50000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 162000,
+    "pe": 0.1,
+    "pe_txt": "10,0",
+    "prazo": 42,
+    "taxa": 0.01875,
+    "taxa_txt": "1,88%",
+    "limitePct_txt": "100%",
+    "limite": 162000,
+    "totalBaloes": 50000,
+    "parcela": 5424.619511975009,
+    "parcela_txt": "R$ 5.424,62",
+    "fluxo": [
+     {
+      "mes": 42,
+      "total": 55424.61951197501,
+      "total_txt": "R$ 55.424,62",
+      "parcela": 5424.619511975009,
+      "balao": 50000
+     }
+    ],
+    "erro": null,
+    "entradaFaixa": 0.1,
+    "taxaInterna": 0.018869999999999998,
+    "base": 179173.80449252177,
+    "fator": 28.8262350841854,
+    "vpBaloes": 22802.447198071077,
+    "saldo": 156371.3572944507
+   }
+  },
+  {
+   "id": "V020",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 17000,
+    "prazo": 48,
+    "baloes": []
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 163000,
+    "pe": 0.09444444444444444,
+    "pe_txt": "9,4",
+    "prazo": 48,
+    "taxa": null,
+    "taxa_txt": "-",
+    "limitePct_txt": "Automático",
+    "limite": 0,
+    "totalBaloes": null,
+    "parcela": null,
+    "parcela_txt": "R$ 0,00",
+    "fluxo": [],
+    "erro": "⚠️ A entrada mínima permitida para este plano é de 10%."
+   }
+  },
+  {
+   "id": "V021",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 18,
+    "baloes": []
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "pe_txt": "50,0",
+    "prazo": 18,
+    "taxa": null,
+    "taxa_txt": "-",
+    "limitePct_txt": "Automático",
+    "limite": 0,
+    "totalBaloes": null,
+    "parcela": null,
+    "parcela_txt": "R$ 0,00",
+    "fluxo": [],
+    "erro": "⚠️ Prazo sem regra cadastrada na tabela para a faixa de entrada informada."
+   }
+  },
+  {
+   "id": "V022",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 48,
+    "baloes": [
+     {
+      "mes": 48,
+      "valor": 95000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "pe_txt": "50,0",
+    "prazo": 48,
+    "taxa": 0.0177,
+    "taxa_txt": "1,77%",
+    "limitePct_txt": "100%",
+    "limite": 90000,
+    "totalBaloes": 95000,
+    "parcela": null,
+    "parcela_txt": "R$ 0,00",
+    "fluxo": [],
+    "erro": "⚠️ A soma dos balões (R$ 95.000,00) ultrapassa o valor máximo de balão permitido (R$ 90.000,00), calculado sobre o valor financiado.",
+    "entradaFaixa": 0.2
+   }
+  },
+  {
+   "id": "V023",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 24,
+    "baloes": [
+     {
+      "mes": 30,
+      "valor": 1000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "pe_txt": "50,0",
+    "prazo": 24,
+    "taxa": null,
+    "taxa_txt": "-",
+    "limitePct_txt": "Automático",
+    "limite": 0,
+    "totalBaloes": null,
+    "parcela": null,
+    "parcela_txt": "R$ 0,00",
+    "fluxo": [],
+    "erro": "⚠️ Existe balão fora do prazo. Use parcelas entre 1 e 24."
+   }
+  },
+  {
+   "id": "V024",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 24,
+    "baloes": [
+     {
+      "mes": 12,
+      "valor": 1000
+     },
+     {
+      "mes": 12,
+      "valor": 2000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "pe_txt": "50,0",
+    "prazo": 24,
+    "taxa": null,
+    "taxa_txt": "-",
+    "limitePct_txt": "Automático",
+    "limite": 0,
+    "totalBaloes": null,
+    "parcela": null,
+    "parcela_txt": "R$ 0,00",
+    "fluxo": [],
+    "erro": "⚠️ Não é permitido inserir dois balões na mesma parcela."
+   }
+  },
+  {
+   "id": "V025",
+   "plano": "BALAO_TRADICIONAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 12,
+    "baloes": [
+     {
+      "mes": 12,
+      "valor": 90000
+     }
+    ]
+   },
+   "output": {
+    "plano": "BALAO_TRADICIONAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "pe_txt": "50,0",
+    "prazo": 12,
+    "taxa": 0.0225,
+    "taxa_txt": "2,25%",
+    "limitePct_txt": "100%",
+    "limite": 90000,
+    "totalBaloes": 90000,
+    "parcela": 3010.8022774972733,
+    "parcela_txt": "R$ 3.010,80",
+    "fluxo": [
+     {
+      "mes": 12,
+      "total": 93010.80227749728,
+      "total_txt": "R$ 93.010,80",
+      "parcela": 3010.8022774972733,
+      "balao": 90000
+     }
+    ],
+    "erro": null,
+    "entradaFaixa": 0.2,
+    "taxaInterna": 0.022619999999999998,
+    "base": 100147.00649399224,
+    "fator": 10.407161837650799,
+    "vpBaloes": 68813.09993091051,
+    "saldo": 31333.906563081735
+   }
+  },
+  {
+   "id": "V026",
+   "plano": "SEMESTRAL_ANUAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 24,
+    "tipo": "semestral"
+   },
+   "output": {
+    "plano": "SEMESTRAL_ANUAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "prazo": 24,
+    "tipo": "semestral",
+    "taxa": 0.0199,
+    "parcela": 33410.000266858464,
+    "parcela_txt": "R$ 33.410,00",
+    "meses": [
+     6,
+     12,
+     18,
+     24
+    ],
+    "erro": null,
+    "taxa_txt": "1,99%",
+    "taxaInterna": 0.02002,
+    "base": 100147.00649399224,
+    "denom": 2.9975158842885294
+   }
+  },
+  {
+   "id": "V027",
+   "plano": "SEMESTRAL_ANUAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 24,
+    "tipo": "anual"
+   },
+   "output": {
+    "plano": "SEMESTRAL_ANUAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "prazo": 24,
+    "tipo": "anual",
+    "taxa": 0.0199,
+    "parcela": 71039.5136927762,
+    "parcela_txt": "R$ 71.039,51",
+    "meses": [
+     12,
+     24
+    ],
+    "erro": null,
+    "taxa_txt": "1,99%",
+    "taxaInterna": 0.02002,
+    "base": 100147.00649399224,
+    "denom": 1.4097366562374973
+   }
+  },
+  {
+   "id": "V028",
+   "plano": "SEMESTRAL_ANUAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 36,
+    "tipo": "semestral"
+   },
+   "output": {
+    "plano": "SEMESTRAL_ANUAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "prazo": 36,
+    "tipo": "semestral",
+    "taxa": 0.0189,
+    "parcela": 24336.669302673225,
+    "parcela_txt": "R$ 24.336,67",
+    "meses": [
+     6,
+     12,
+     18,
+     24,
+     30,
+     36
+    ],
+    "erro": null,
+    "taxa_txt": "1,89%",
+    "taxaInterna": 0.01902,
+    "base": 100147.00649399224,
+    "denom": 4.115066250376001
+   }
+  },
+  {
+   "id": "V029",
+   "plano": "SEMESTRAL_ANUAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 36,
+    "tipo": "anual"
+   },
+   "output": {
+    "plano": "SEMESTRAL_ANUAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "prazo": 36,
+    "tipo": "anual",
+    "taxa": 0.0189,
+    "parcela": 51586.09715146519,
+    "parcela_txt": "R$ 51.586,10",
+    "meses": [
+     12,
+     24,
+     36
+    ],
+    "erro": null,
+    "taxa_txt": "1,89%",
+    "taxaInterna": 0.01902,
+    "base": 100147.00649399224,
+    "denom": 1.941356528677568
+   }
+  },
+  {
+   "id": "V030",
+   "plano": "SEMESTRAL_ANUAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 48,
+    "tipo": "semestral"
+   },
+   "output": {
+    "plano": "SEMESTRAL_ANUAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "prazo": 48,
+    "tipo": "semestral",
+    "taxa": 0.019,
+    "parcela": 20184.213943368974,
+    "parcela_txt": "R$ 20.184,21",
+    "meses": [
+     6,
+     12,
+     18,
+     24,
+     30,
+     36,
+     42,
+     48
+    ],
+    "erro": null,
+    "taxa_txt": "1,9%",
+    "taxaInterna": 0.019119999999999998,
+    "base": 100147.00649399224,
+    "denom": 4.961650068463185
+   }
+  },
+  {
+   "id": "V031",
+   "plano": "SEMESTRAL_ANUAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "prazo": 48,
+    "tipo": "anual"
+   },
+   "output": {
+    "plano": "SEMESTRAL_ANUAL",
+    "fin": 90000,
+    "pe": 0.5,
+    "prazo": 48,
+    "tipo": "anual",
+    "taxa": 0.019,
+    "parcela": 42797.505827293164,
+    "parcela_txt": "R$ 42.797,51",
+    "meses": [
+     12,
+     24,
+     36,
+     48
+    ],
+    "erro": null,
+    "taxa_txt": "1,9%",
+    "taxaInterna": 0.019119999999999998,
+    "base": 100147.00649399224,
+    "denom": 2.3400196940945492
+   }
+  },
+  {
+   "id": "V032",
+   "plano": "SEMESTRAL_ANUAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 30000,
+    "prazo": 48,
+    "tipo": "semestral"
+   },
+   "output": {
+    "plano": "SEMESTRAL_ANUAL",
+    "fin": 150000,
+    "pe": 0.16666666666666666,
+    "prazo": 48,
+    "tipo": "semestral",
+    "taxa": null,
+    "parcela": null,
+    "parcela_txt": "R$ 0,00",
+    "meses": [],
+    "erro": "⚠️ A entrada mínima permitida para este plano é de 20%."
+   }
+  },
+  {
+   "id": "V033",
+   "plano": "SEMESTRAL_ANUAL",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 36000,
+    "prazo": 36,
+    "tipo": "anual"
+   },
+   "output": {
+    "plano": "SEMESTRAL_ANUAL",
+    "fin": 144000,
+    "pe": 0.2,
+    "prazo": 36,
+    "tipo": "anual",
+    "taxa": 0.0189,
+    "parcela": 82116.3462960009,
+    "parcela_txt": "R$ 82.116,35",
+    "meses": [
+     12,
+     24,
+     36
+    ],
+    "erro": null,
+    "taxa_txt": "1,89%",
+    "taxaInterna": 0.01902,
+    "base": 159417.1049928894,
+    "denom": 1.941356528677568
+   }
+  },
+  {
+   "id": "V034",
+   "plano": "PARCELA_UNICA",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000
+   },
+   "output": {
+    "plano": "PARCELA_UNICA",
+    "fin": 90000,
+    "pe": 0.5,
+    "taxa_txt": "1,77%",
+    "coef": 1.6831,
+    "mesPagamento": 25,
+    "carenciaMeses": 24,
+    "parcela": 151479,
+    "parcela_txt": "R$ 151.479,00",
+    "erro": null
+   }
+  },
+  {
+   "id": "V035",
+   "plano": "PARCELA_UNICA",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 100000,
+    "entrada": 50000
+   },
+   "output": {
+    "plano": "PARCELA_UNICA",
+    "fin": 50000,
+    "pe": 0.5,
+    "taxa_txt": "1,77%",
+    "coef": 1.6831,
+    "mesPagamento": 25,
+    "carenciaMeses": 24,
+    "parcela": 84155,
+    "parcela_txt": "R$ 84.155,00",
+    "erro": null
+   }
+  },
+  {
+   "id": "V036",
+   "plano": "PARCELA_UNICA",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 80000
+   },
+   "output": {
+    "plano": "PARCELA_UNICA",
+    "fin": 100000,
+    "pe": 0.4444444444444444,
+    "taxa_txt": "1,77%",
+    "coef": 1.6831,
+    "mesPagamento": 25,
+    "carenciaMeses": 24,
+    "parcela": null,
+    "parcela_txt": "R$ 0,00",
+    "erro": "⚠️ A entrada mínima permitida para Parcela Única é de 50%."
+   }
+  },
+  {
+   "id": "V037",
+   "plano": "PARCELA_UNICA",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 150000
+   },
+   "output": {
+    "plano": "PARCELA_UNICA",
+    "fin": 30000,
+    "pe": 0.8333333333333334,
+    "taxa_txt": "1,77%",
+    "coef": 1.6831,
+    "mesPagamento": 25,
+    "carenciaMeses": 24,
+    "parcela": 50493,
+    "parcela_txt": "R$ 50.493,00",
+    "erro": null
+   }
+  },
+  {
+   "id": "V038",
+   "plano": "PARCELA_UNICA",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 180000
+   },
+   "output": {
+    "plano": "PARCELA_UNICA",
+    "fin": 0,
+    "pe": 1,
+    "taxa_txt": "1,77%",
+    "coef": 1.6831,
+    "mesPagamento": 25,
+    "carenciaMeses": 24,
+    "parcela": null,
+    "parcela_txt": "R$ 0,00",
+    "erro": "⚠️ A entrada deve ser menor que o valor do bem."
+   }
+  },
+  {
+   "id": "V039",
+   "plano": "TAXAS_SUBSIDIADAS",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "minVenda": 0,
+    "taxaSelecionada": 0
+   },
+   "output": {
+    "plano": "TAXAS_SUBSIDIADAS",
+    "bem": 180000,
+    "entrada": 90000,
+    "minVenda": 0,
+    "financiado": 90000,
+    "pctEntrada": 0.5,
+    "rows": [
+     {
+      "prazo": 12,
+      "taxa": 0,
+      "coef": 0.09008,
+      "rebate": 0.1105,
+      "baseParcela": 90000,
+      "parcela": 8107.2,
+      "rebateValor": 9945,
+      "valorFinalVenda": 170055,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 8.107,20",
+      "rebate_txt": "11,05%",
+      "rebateValor_txt": "R$ 9.945,00",
+      "valorFinalVenda_txt": "R$ 170.055,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0,
+      "coef": 0.07227,
+      "rebate": 0.1337,
+      "baseParcela": 90000,
+      "parcela": 6504.3,
+      "rebateValor": 12033.000000000002,
+      "valorFinalVenda": 167967,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 6.504,30",
+      "rebate_txt": "13,37%",
+      "rebateValor_txt": "R$ 12.033,00",
+      "valorFinalVenda_txt": "R$ 167.967,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0,
+      "coef": 0.06034,
+      "rebate": 0.156,
+      "baseParcela": 90000,
+      "parcela": 5430.599999999999,
+      "rebateValor": 14040,
+      "valorFinalVenda": 165960,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 5.430,60",
+      "rebate_txt": "15,60%",
+      "rebateValor_txt": "R$ 14.040,00",
+      "valorFinalVenda_txt": "R$ 165.960,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0,
+      "coef": 0.04536,
+      "rebate": 0.1807,
+      "baseParcela": 90000,
+      "parcela": 4082.3999999999996,
+      "rebateValor": 16263,
+      "valorFinalVenda": 163737,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 4.082,40",
+      "rebate_txt": "18,07%",
+      "rebateValor_txt": "R$ 16.263,00",
+      "valorFinalVenda_txt": "R$ 163.737,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0,
+      "coef": 0.03634,
+      "rebate": 0.2206,
+      "baseParcela": 92500,
+      "parcela": 3361.45,
+      "rebateValor": 19854,
+      "valorFinalVenda": 160146,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 3.361,45",
+      "rebate_txt": "22,06%",
+      "rebateValor_txt": "R$ 19.854,00",
+      "valorFinalVenda_txt": "R$ 160.146,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0,
+      "coef": 0.03031,
+      "rebate": 0.2554,
+      "baseParcela": 92500,
+      "parcela": 2803.675,
+      "rebateValor": 22986,
+      "valorFinalVenda": 157014,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 2.803,68",
+      "rebate_txt": "25,54%",
+      "rebateValor_txt": "R$ 22.986,00",
+      "valorFinalVenda_txt": "R$ 157.014,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0,
+      "coef": 0.02276,
+      "rebate": 0.313,
+      "baseParcela": 92500,
+      "parcela": 2105.2999999999997,
+      "rebateValor": 28170,
+      "valorFinalVenda": 151830,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 2.105,30",
+      "rebate_txt": "31,30%",
+      "rebateValor_txt": "R$ 28.170,00",
+      "valorFinalVenda_txt": "R$ 151.830,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0,
+      "coef": 0.01822,
+      "rebate": 0.3683,
+      "baseParcela": 92500,
+      "parcela": 1685.35,
+      "rebateValor": 33147,
+      "valorFinalVenda": 146853,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 1.685,35",
+      "rebate_txt": "36,83%",
+      "rebateValor_txt": "R$ 33.147,00",
+      "valorFinalVenda_txt": "R$ 146.853,00"
+     },
+     {
+      "prazo": 12,
+      "taxa": 0.0049,
+      "coef": 0.09298,
+      "rebate": 0.082,
+      "baseParcela": 90000,
+      "parcela": 8368.199999999999,
+      "rebateValor": 7380,
+      "valorFinalVenda": 172620,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 8.368,20",
+      "rebate_txt": "8,20%",
+      "rebateValor_txt": "R$ 7.380,00",
+      "valorFinalVenda_txt": "R$ 172.620,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0.0049,
+      "coef": 0.07513,
+      "rebate": 0.0993,
+      "baseParcela": 90000,
+      "parcela": 6761.7,
+      "rebateValor": 8937,
+      "valorFinalVenda": 171063,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 6.761,70",
+      "rebate_txt": "9,93%",
+      "rebateValor_txt": "R$ 8.937,00",
+      "valorFinalVenda_txt": "R$ 171.063,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0049,
+      "coef": 0.06319,
+      "rebate": 0.1162,
+      "baseParcela": 90000,
+      "parcela": 5687.099999999999,
+      "rebateValor": 10458,
+      "valorFinalVenda": 169542,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 5.687,10",
+      "rebate_txt": "11,62%",
+      "rebateValor_txt": "R$ 10.458,00",
+      "valorFinalVenda_txt": "R$ 169.542,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0049,
+      "coef": 0.04819,
+      "rebate": 0.1296,
+      "baseParcela": 90000,
+      "parcela": 4337.099999999999,
+      "rebateValor": 11664,
+      "valorFinalVenda": 168336,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 4.337,10",
+      "rebate_txt": "12,96%",
+      "rebateValor_txt": "R$ 11.664,00",
+      "valorFinalVenda_txt": "R$ 168.336,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0049,
+      "coef": 0.03916,
+      "rebate": 0.16,
+      "baseParcela": 92500,
+      "parcela": 3622.3,
+      "rebateValor": 14400,
+      "valorFinalVenda": 165600,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 3.622,30",
+      "rebate_txt": "16,00%",
+      "rebateValor_txt": "R$ 14.400,00",
+      "valorFinalVenda_txt": "R$ 165.600,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0049,
+      "coef": 0.03314,
+      "rebate": 0.186,
+      "baseParcela": 92500,
+      "parcela": 3065.4500000000003,
+      "rebateValor": 16740,
+      "valorFinalVenda": 163260,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 3.065,45",
+      "rebate_txt": "18,60%",
+      "rebateValor_txt": "R$ 16.740,00",
+      "valorFinalVenda_txt": "R$ 163.260,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0049,
+      "coef": 0.0256,
+      "rebate": 0.2273,
+      "baseParcela": 92500,
+      "parcela": 2368,
+      "rebateValor": 20457,
+      "valorFinalVenda": 159543,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 2.368,00",
+      "rebate_txt": "22,73%",
+      "rebateValor_txt": "R$ 20.457,00",
+      "valorFinalVenda_txt": "R$ 159.543,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0049,
+      "coef": 0.02107,
+      "rebate": 0.2693,
+      "baseParcela": 92500,
+      "parcela": 1948.975,
+      "rebateValor": 24237,
+      "valorFinalVenda": 155763,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 1.948,98",
+      "rebate_txt": "26,93%",
+      "rebateValor_txt": "R$ 24.237,00",
+      "valorFinalVenda_txt": "R$ 155.763,00"
+     },
+     {
+      "prazo": 12,
+      "taxa": 0.0099,
+      "coef": 0.09598,
+      "rebate": 0.0523,
+      "baseParcela": 90000,
+      "parcela": 8638.199999999999,
+      "rebateValor": 4707,
+      "valorFinalVenda": 175293,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 8.638,20",
+      "rebate_txt": "5,23%",
+      "rebateValor_txt": "R$ 4.707,00",
+      "valorFinalVenda_txt": "R$ 175.293,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0.0099,
+      "coef": 0.07812,
+      "rebate": 0.0635,
+      "baseParcela": 90000,
+      "parcela": 7030.799999999999,
+      "rebateValor": 5715,
+      "valorFinalVenda": 174285,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 7.030,80",
+      "rebate_txt": "6,35%",
+      "rebateValor_txt": "R$ 5.715,00",
+      "valorFinalVenda_txt": "R$ 174.285,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0099,
+      "coef": 0.06617,
+      "rebate": 0.0744,
+      "baseParcela": 90000,
+      "parcela": 5955.3,
+      "rebateValor": 6695.999999999999,
+      "valorFinalVenda": 173304,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 5.955,30",
+      "rebate_txt": "7,44%",
+      "rebateValor_txt": "R$ 6.696,00",
+      "valorFinalVenda_txt": "R$ 173.304,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0099,
+      "coef": 0.05118,
+      "rebate": 0.0755,
+      "baseParcela": 90000,
+      "parcela": 4606.200000000001,
+      "rebateValor": 6795,
+      "valorFinalVenda": 173205,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 4.606,20",
+      "rebate_txt": "7,55%",
+      "rebateValor_txt": "R$ 6.795,00",
+      "valorFinalVenda_txt": "R$ 173.205,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0099,
+      "coef": 0.04218,
+      "rebate": 0.0953,
+      "baseParcela": 92500,
+      "parcela": 3901.65,
+      "rebateValor": 8577,
+      "valorFinalVenda": 171423,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 3.901,65",
+      "rebate_txt": "9,53%",
+      "rebateValor_txt": "R$ 8.577,00",
+      "valorFinalVenda_txt": "R$ 171.423,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0099,
+      "coef": 0.03618,
+      "rebate": 0.1112,
+      "baseParcela": 92500,
+      "parcela": 3346.6499999999996,
+      "rebateValor": 10008,
+      "valorFinalVenda": 169992,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 3.346,65",
+      "rebate_txt": "11,12%",
+      "rebateValor_txt": "R$ 10.008,00",
+      "valorFinalVenda_txt": "R$ 169.992,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0099,
+      "coef": 0.02871,
+      "rebate": 0.1335,
+      "baseParcela": 92500,
+      "parcela": 2655.6749999999997,
+      "rebateValor": 12015,
+      "valorFinalVenda": 167985,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 2.655,67",
+      "rebate_txt": "13,35%",
+      "rebateValor_txt": "R$ 12.015,00",
+      "valorFinalVenda_txt": "R$ 167.985,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0099,
+      "coef": 0.02425,
+      "rebate": 0.1592,
+      "baseParcela": 92500,
+      "parcela": 2243.125,
+      "rebateValor": 14328,
+      "valorFinalVenda": 165672,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 2.243,13",
+      "rebate_txt": "15,92%",
+      "rebateValor_txt": "R$ 14.328,00",
+      "valorFinalVenda_txt": "R$ 165.672,00"
+     },
+     {
+      "prazo": 12,
+      "taxa": 0.0119,
+      "coef": 0.0972,
+      "rebate": 0.0403,
+      "baseParcela": 90000,
+      "parcela": 8748,
+      "rebateValor": 3627,
+      "valorFinalVenda": 176373,
+      "folga": null,
+      "viavel": true,
+      "melhor": true,
+      "status": "Simulado",
+      "parcela_txt": "R$ 8.748,00",
+      "rebate_txt": "4,03%",
+      "rebateValor_txt": "R$ 3.627,00",
+      "valorFinalVenda_txt": "R$ 176.373,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0.0119,
+      "coef": 0.07934,
+      "rebate": 0.0489,
+      "baseParcela": 90000,
+      "parcela": 7140.599999999999,
+      "rebateValor": 4401,
+      "valorFinalVenda": 175599,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 7.140,60",
+      "rebate_txt": "4,89%",
+      "rebateValor_txt": "R$ 4.401,00",
+      "valorFinalVenda_txt": "R$ 175.599,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0119,
+      "coef": 0.06739,
+      "rebate": 0.0574,
+      "baseParcela": 90000,
+      "parcela": 6065.1,
+      "rebateValor": 5166,
+      "valorFinalVenda": 174834,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 6.065,10",
+      "rebate_txt": "5,74%",
+      "rebateValor_txt": "R$ 5.166,00",
+      "valorFinalVenda_txt": "R$ 174.834,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0119,
+      "coef": 0.05241,
+      "rebate": 0.0533,
+      "baseParcela": 90000,
+      "parcela": 4716.9,
+      "rebateValor": 4797,
+      "valorFinalVenda": 175203,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 4.716,90",
+      "rebate_txt": "5,33%",
+      "rebateValor_txt": "R$ 4.797,00",
+      "valorFinalVenda_txt": "R$ 175.203,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0119,
+      "coef": 0.04342,
+      "rebate": 0.0687,
+      "baseParcela": 92500,
+      "parcela": 4016.35,
+      "rebateValor": 6183,
+      "valorFinalVenda": 173817,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 4.016,35",
+      "rebate_txt": "6,87%",
+      "rebateValor_txt": "R$ 6.183,00",
+      "valorFinalVenda_txt": "R$ 173.817,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0119,
+      "coef": 0.03744,
+      "rebate": 0.0802,
+      "baseParcela": 92500,
+      "parcela": 3463.2000000000003,
+      "rebateValor": 7217.999999999999,
+      "valorFinalVenda": 172782,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 3.463,20",
+      "rebate_txt": "8,02%",
+      "rebateValor_txt": "R$ 7.218,00",
+      "valorFinalVenda_txt": "R$ 172.782,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0119,
+      "coef": 0.03001,
+      "rebate": 0.0942,
+      "baseParcela": 92500,
+      "parcela": 2775.9249999999997,
+      "rebateValor": 8478,
+      "valorFinalVenda": 171522,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 2.775,92",
+      "rebate_txt": "9,42%",
+      "rebateValor_txt": "R$ 8.478,00",
+      "valorFinalVenda_txt": "R$ 171.522,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0119,
+      "coef": 0.0256,
+      "rebate": 0.1125,
+      "baseParcela": 92500,
+      "parcela": 2368,
+      "rebateValor": 10125,
+      "valorFinalVenda": 169875,
+      "folga": null,
+      "viavel": true,
+      "melhor": false,
+      "status": "Simulado",
+      "parcela_txt": "R$ 2.368,00",
+      "rebate_txt": "11,25%",
+      "rebateValor_txt": "R$ 10.125,00",
+      "valorFinalVenda_txt": "R$ 169.875,00"
+     }
+    ],
+    "melhor": {
+     "taxa": 0.0119,
+     "prazo": 12
+    },
+    "leituraTaxaSelecionada": [
+     {
+      "prazo": 12,
+      "parcela": 8107.2,
+      "rebate": 0.1105,
+      "valorFinalVenda": 170055,
+      "cls": "ok"
+     },
+     {
+      "prazo": 15,
+      "parcela": 6504.3,
+      "rebate": 0.1337,
+      "valorFinalVenda": 167967,
+      "cls": "ok"
+     },
+     {
+      "prazo": 18,
+      "parcela": 5430.599999999999,
+      "rebate": 0.156,
+      "valorFinalVenda": 165960,
+      "cls": "ok"
+     },
+     {
+      "prazo": 24,
+      "parcela": 4082.3999999999996,
+      "rebate": 0.1807,
+      "valorFinalVenda": 163737,
+      "cls": "ok"
+     },
+     {
+      "prazo": 30,
+      "parcela": 3361.45,
+      "rebate": 0.2206,
+      "valorFinalVenda": 160146,
+      "cls": "ok"
+     },
+     {
+      "prazo": 36,
+      "parcela": 2803.675,
+      "rebate": 0.2554,
+      "valorFinalVenda": 157014,
+      "cls": "ok"
+     },
+     {
+      "prazo": 48,
+      "parcela": 2105.2999999999997,
+      "rebate": 0.313,
+      "valorFinalVenda": 151830,
+      "cls": "ok"
+     },
+     {
+      "prazo": 60,
+      "parcela": 1685.35,
+      "rebate": 0.3683,
+      "valorFinalVenda": 146853,
+      "cls": "ok"
+     }
+    ]
+   }
+  },
+  {
+   "id": "V040",
+   "plano": "TAXAS_SUBSIDIADAS",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "minVenda": 170000,
+    "taxaSelecionada": 0.0099
+   },
+   "output": {
+    "plano": "TAXAS_SUBSIDIADAS",
+    "bem": 180000,
+    "entrada": 90000,
+    "minVenda": 170000,
+    "financiado": 90000,
+    "pctEntrada": 0.5,
+    "rows": [
+     {
+      "prazo": 12,
+      "taxa": 0,
+      "coef": 0.09008,
+      "rebate": 0.1105,
+      "baseParcela": 90000,
+      "parcela": 8107.2,
+      "rebateValor": 9945,
+      "valorFinalVenda": 170055,
+      "folga": 55,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 8.107,20",
+      "rebate_txt": "11,05%",
+      "rebateValor_txt": "R$ 9.945,00",
+      "valorFinalVenda_txt": "R$ 170.055,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0,
+      "coef": 0.07227,
+      "rebate": 0.1337,
+      "baseParcela": 90000,
+      "parcela": 6504.3,
+      "rebateValor": 12033.000000000002,
+      "valorFinalVenda": 167967,
+      "folga": -2033,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 6.504,30",
+      "rebate_txt": "13,37%",
+      "rebateValor_txt": "R$ 12.033,00",
+      "valorFinalVenda_txt": "R$ 167.967,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0,
+      "coef": 0.06034,
+      "rebate": 0.156,
+      "baseParcela": 90000,
+      "parcela": 5430.599999999999,
+      "rebateValor": 14040,
+      "valorFinalVenda": 165960,
+      "folga": -4040,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 5.430,60",
+      "rebate_txt": "15,60%",
+      "rebateValor_txt": "R$ 14.040,00",
+      "valorFinalVenda_txt": "R$ 165.960,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0,
+      "coef": 0.04536,
+      "rebate": 0.1807,
+      "baseParcela": 90000,
+      "parcela": 4082.3999999999996,
+      "rebateValor": 16263,
+      "valorFinalVenda": 163737,
+      "folga": -6263,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 4.082,40",
+      "rebate_txt": "18,07%",
+      "rebateValor_txt": "R$ 16.263,00",
+      "valorFinalVenda_txt": "R$ 163.737,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0,
+      "coef": 0.03634,
+      "rebate": 0.2206,
+      "baseParcela": 92500,
+      "parcela": 3361.45,
+      "rebateValor": 19854,
+      "valorFinalVenda": 160146,
+      "folga": -9854,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 3.361,45",
+      "rebate_txt": "22,06%",
+      "rebateValor_txt": "R$ 19.854,00",
+      "valorFinalVenda_txt": "R$ 160.146,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0,
+      "coef": 0.03031,
+      "rebate": 0.2554,
+      "baseParcela": 92500,
+      "parcela": 2803.675,
+      "rebateValor": 22986,
+      "valorFinalVenda": 157014,
+      "folga": -12986,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 2.803,68",
+      "rebate_txt": "25,54%",
+      "rebateValor_txt": "R$ 22.986,00",
+      "valorFinalVenda_txt": "R$ 157.014,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0,
+      "coef": 0.02276,
+      "rebate": 0.313,
+      "baseParcela": 92500,
+      "parcela": 2105.2999999999997,
+      "rebateValor": 28170,
+      "valorFinalVenda": 151830,
+      "folga": -18170,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 2.105,30",
+      "rebate_txt": "31,30%",
+      "rebateValor_txt": "R$ 28.170,00",
+      "valorFinalVenda_txt": "R$ 151.830,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0,
+      "coef": 0.01822,
+      "rebate": 0.3683,
+      "baseParcela": 92500,
+      "parcela": 1685.35,
+      "rebateValor": 33147,
+      "valorFinalVenda": 146853,
+      "folga": -23147,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 1.685,35",
+      "rebate_txt": "36,83%",
+      "rebateValor_txt": "R$ 33.147,00",
+      "valorFinalVenda_txt": "R$ 146.853,00"
+     },
+     {
+      "prazo": 12,
+      "taxa": 0.0049,
+      "coef": 0.09298,
+      "rebate": 0.082,
+      "baseParcela": 90000,
+      "parcela": 8368.199999999999,
+      "rebateValor": 7380,
+      "valorFinalVenda": 172620,
+      "folga": 2620,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 8.368,20",
+      "rebate_txt": "8,20%",
+      "rebateValor_txt": "R$ 7.380,00",
+      "valorFinalVenda_txt": "R$ 172.620,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0.0049,
+      "coef": 0.07513,
+      "rebate": 0.0993,
+      "baseParcela": 90000,
+      "parcela": 6761.7,
+      "rebateValor": 8937,
+      "valorFinalVenda": 171063,
+      "folga": 1063,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 6.761,70",
+      "rebate_txt": "9,93%",
+      "rebateValor_txt": "R$ 8.937,00",
+      "valorFinalVenda_txt": "R$ 171.063,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0049,
+      "coef": 0.06319,
+      "rebate": 0.1162,
+      "baseParcela": 90000,
+      "parcela": 5687.099999999999,
+      "rebateValor": 10458,
+      "valorFinalVenda": 169542,
+      "folga": -458,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 5.687,10",
+      "rebate_txt": "11,62%",
+      "rebateValor_txt": "R$ 10.458,00",
+      "valorFinalVenda_txt": "R$ 169.542,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0049,
+      "coef": 0.04819,
+      "rebate": 0.1296,
+      "baseParcela": 90000,
+      "parcela": 4337.099999999999,
+      "rebateValor": 11664,
+      "valorFinalVenda": 168336,
+      "folga": -1664,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 4.337,10",
+      "rebate_txt": "12,96%",
+      "rebateValor_txt": "R$ 11.664,00",
+      "valorFinalVenda_txt": "R$ 168.336,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0049,
+      "coef": 0.03916,
+      "rebate": 0.16,
+      "baseParcela": 92500,
+      "parcela": 3622.3,
+      "rebateValor": 14400,
+      "valorFinalVenda": 165600,
+      "folga": -4400,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 3.622,30",
+      "rebate_txt": "16,00%",
+      "rebateValor_txt": "R$ 14.400,00",
+      "valorFinalVenda_txt": "R$ 165.600,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0049,
+      "coef": 0.03314,
+      "rebate": 0.186,
+      "baseParcela": 92500,
+      "parcela": 3065.4500000000003,
+      "rebateValor": 16740,
+      "valorFinalVenda": 163260,
+      "folga": -6740,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 3.065,45",
+      "rebate_txt": "18,60%",
+      "rebateValor_txt": "R$ 16.740,00",
+      "valorFinalVenda_txt": "R$ 163.260,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0049,
+      "coef": 0.0256,
+      "rebate": 0.2273,
+      "baseParcela": 92500,
+      "parcela": 2368,
+      "rebateValor": 20457,
+      "valorFinalVenda": 159543,
+      "folga": -10457,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 2.368,00",
+      "rebate_txt": "22,73%",
+      "rebateValor_txt": "R$ 20.457,00",
+      "valorFinalVenda_txt": "R$ 159.543,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0049,
+      "coef": 0.02107,
+      "rebate": 0.2693,
+      "baseParcela": 92500,
+      "parcela": 1948.975,
+      "rebateValor": 24237,
+      "valorFinalVenda": 155763,
+      "folga": -14237,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 1.948,98",
+      "rebate_txt": "26,93%",
+      "rebateValor_txt": "R$ 24.237,00",
+      "valorFinalVenda_txt": "R$ 155.763,00"
+     },
+     {
+      "prazo": 12,
+      "taxa": 0.0099,
+      "coef": 0.09598,
+      "rebate": 0.0523,
+      "baseParcela": 90000,
+      "parcela": 8638.199999999999,
+      "rebateValor": 4707,
+      "valorFinalVenda": 175293,
+      "folga": 5293,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 8.638,20",
+      "rebate_txt": "5,23%",
+      "rebateValor_txt": "R$ 4.707,00",
+      "valorFinalVenda_txt": "R$ 175.293,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0.0099,
+      "coef": 0.07812,
+      "rebate": 0.0635,
+      "baseParcela": 90000,
+      "parcela": 7030.799999999999,
+      "rebateValor": 5715,
+      "valorFinalVenda": 174285,
+      "folga": 4285,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 7.030,80",
+      "rebate_txt": "6,35%",
+      "rebateValor_txt": "R$ 5.715,00",
+      "valorFinalVenda_txt": "R$ 174.285,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0099,
+      "coef": 0.06617,
+      "rebate": 0.0744,
+      "baseParcela": 90000,
+      "parcela": 5955.3,
+      "rebateValor": 6695.999999999999,
+      "valorFinalVenda": 173304,
+      "folga": 3304,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 5.955,30",
+      "rebate_txt": "7,44%",
+      "rebateValor_txt": "R$ 6.696,00",
+      "valorFinalVenda_txt": "R$ 173.304,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0099,
+      "coef": 0.05118,
+      "rebate": 0.0755,
+      "baseParcela": 90000,
+      "parcela": 4606.200000000001,
+      "rebateValor": 6795,
+      "valorFinalVenda": 173205,
+      "folga": 3205,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 4.606,20",
+      "rebate_txt": "7,55%",
+      "rebateValor_txt": "R$ 6.795,00",
+      "valorFinalVenda_txt": "R$ 173.205,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0099,
+      "coef": 0.04218,
+      "rebate": 0.0953,
+      "baseParcela": 92500,
+      "parcela": 3901.65,
+      "rebateValor": 8577,
+      "valorFinalVenda": 171423,
+      "folga": 1423,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 3.901,65",
+      "rebate_txt": "9,53%",
+      "rebateValor_txt": "R$ 8.577,00",
+      "valorFinalVenda_txt": "R$ 171.423,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0099,
+      "coef": 0.03618,
+      "rebate": 0.1112,
+      "baseParcela": 92500,
+      "parcela": 3346.6499999999996,
+      "rebateValor": 10008,
+      "valorFinalVenda": 169992,
+      "folga": -8,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 3.346,65",
+      "rebate_txt": "11,12%",
+      "rebateValor_txt": "R$ 10.008,00",
+      "valorFinalVenda_txt": "R$ 169.992,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0099,
+      "coef": 0.02871,
+      "rebate": 0.1335,
+      "baseParcela": 92500,
+      "parcela": 2655.6749999999997,
+      "rebateValor": 12015,
+      "valorFinalVenda": 167985,
+      "folga": -2015,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 2.655,67",
+      "rebate_txt": "13,35%",
+      "rebateValor_txt": "R$ 12.015,00",
+      "valorFinalVenda_txt": "R$ 167.985,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0099,
+      "coef": 0.02425,
+      "rebate": 0.1592,
+      "baseParcela": 92500,
+      "parcela": 2243.125,
+      "rebateValor": 14328,
+      "valorFinalVenda": 165672,
+      "folga": -4328,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 2.243,13",
+      "rebate_txt": "15,92%",
+      "rebateValor_txt": "R$ 14.328,00",
+      "valorFinalVenda_txt": "R$ 165.672,00"
+     },
+     {
+      "prazo": 12,
+      "taxa": 0.0119,
+      "coef": 0.0972,
+      "rebate": 0.0403,
+      "baseParcela": 90000,
+      "parcela": 8748,
+      "rebateValor": 3627,
+      "valorFinalVenda": 176373,
+      "folga": 6373,
+      "viavel": true,
+      "melhor": true,
+      "status": "Melhor opção",
+      "parcela_txt": "R$ 8.748,00",
+      "rebate_txt": "4,03%",
+      "rebateValor_txt": "R$ 3.627,00",
+      "valorFinalVenda_txt": "R$ 176.373,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0.0119,
+      "coef": 0.07934,
+      "rebate": 0.0489,
+      "baseParcela": 90000,
+      "parcela": 7140.599999999999,
+      "rebateValor": 4401,
+      "valorFinalVenda": 175599,
+      "folga": 5599,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 7.140,60",
+      "rebate_txt": "4,89%",
+      "rebateValor_txt": "R$ 4.401,00",
+      "valorFinalVenda_txt": "R$ 175.599,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0119,
+      "coef": 0.06739,
+      "rebate": 0.0574,
+      "baseParcela": 90000,
+      "parcela": 6065.1,
+      "rebateValor": 5166,
+      "valorFinalVenda": 174834,
+      "folga": 4834,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 6.065,10",
+      "rebate_txt": "5,74%",
+      "rebateValor_txt": "R$ 5.166,00",
+      "valorFinalVenda_txt": "R$ 174.834,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0119,
+      "coef": 0.05241,
+      "rebate": 0.0533,
+      "baseParcela": 90000,
+      "parcela": 4716.9,
+      "rebateValor": 4797,
+      "valorFinalVenda": 175203,
+      "folga": 5203,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 4.716,90",
+      "rebate_txt": "5,33%",
+      "rebateValor_txt": "R$ 4.797,00",
+      "valorFinalVenda_txt": "R$ 175.203,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0119,
+      "coef": 0.04342,
+      "rebate": 0.0687,
+      "baseParcela": 92500,
+      "parcela": 4016.35,
+      "rebateValor": 6183,
+      "valorFinalVenda": 173817,
+      "folga": 3817,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 4.016,35",
+      "rebate_txt": "6,87%",
+      "rebateValor_txt": "R$ 6.183,00",
+      "valorFinalVenda_txt": "R$ 173.817,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0119,
+      "coef": 0.03744,
+      "rebate": 0.0802,
+      "baseParcela": 92500,
+      "parcela": 3463.2000000000003,
+      "rebateValor": 7217.999999999999,
+      "valorFinalVenda": 172782,
+      "folga": 2782,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 3.463,20",
+      "rebate_txt": "8,02%",
+      "rebateValor_txt": "R$ 7.218,00",
+      "valorFinalVenda_txt": "R$ 172.782,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0119,
+      "coef": 0.03001,
+      "rebate": 0.0942,
+      "baseParcela": 92500,
+      "parcela": 2775.9249999999997,
+      "rebateValor": 8478,
+      "valorFinalVenda": 171522,
+      "folga": 1522,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 2.775,92",
+      "rebate_txt": "9,42%",
+      "rebateValor_txt": "R$ 8.478,00",
+      "valorFinalVenda_txt": "R$ 171.522,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0119,
+      "coef": 0.0256,
+      "rebate": 0.1125,
+      "baseParcela": 92500,
+      "parcela": 2368,
+      "rebateValor": 10125,
+      "valorFinalVenda": 169875,
+      "folga": -125,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 2.368,00",
+      "rebate_txt": "11,25%",
+      "rebateValor_txt": "R$ 10.125,00",
+      "valorFinalVenda_txt": "R$ 169.875,00"
+     }
+    ],
+    "melhor": {
+     "taxa": 0.0119,
+     "prazo": 12
+    },
+    "leituraTaxaSelecionada": [
+     {
+      "prazo": 12,
+      "parcela": 8638.199999999999,
+      "rebate": 0.0523,
+      "valorFinalVenda": 175293,
+      "cls": "ok"
+     },
+     {
+      "prazo": 15,
+      "parcela": 7030.799999999999,
+      "rebate": 0.0635,
+      "valorFinalVenda": 174285,
+      "cls": "ok"
+     },
+     {
+      "prazo": 18,
+      "parcela": 5955.3,
+      "rebate": 0.0744,
+      "valorFinalVenda": 173304,
+      "cls": "ok"
+     },
+     {
+      "prazo": 24,
+      "parcela": 4606.200000000001,
+      "rebate": 0.0755,
+      "valorFinalVenda": 173205,
+      "cls": "ok"
+     },
+     {
+      "prazo": 30,
+      "parcela": 3901.65,
+      "rebate": 0.0953,
+      "valorFinalVenda": 171423,
+      "cls": "ok"
+     },
+     {
+      "prazo": 36,
+      "parcela": 3346.6499999999996,
+      "rebate": 0.1112,
+      "valorFinalVenda": 169992,
+      "cls": "bad"
+     },
+     {
+      "prazo": 48,
+      "parcela": 2655.6749999999997,
+      "rebate": 0.1335,
+      "valorFinalVenda": 167985,
+      "cls": "bad"
+     },
+     {
+      "prazo": 60,
+      "parcela": 2243.125,
+      "rebate": 0.1592,
+      "valorFinalVenda": 165672,
+      "cls": "bad"
+     }
+    ]
+   }
+  },
+  {
+   "id": "V041",
+   "plano": "TAXAS_SUBSIDIADAS",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 80000,
+    "minVenda": 0,
+    "taxaSelecionada": 0
+   },
+   "output": {
+    "plano": "TAXAS_SUBSIDIADAS",
+    "financiado": 100000,
+    "pctEntrada": 0.4444444444444444,
+    "erro": "⚠️ A entrada mínima permitida para esta modalidade é de 50%."
+   }
+  },
+  {
+   "id": "V042",
+   "plano": "TAXAS_SUBSIDIADAS",
+   "fonte": "FALLBACK",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "minVenda": 180000,
+    "taxaSelecionada": 0
+   },
+   "output": {
+    "plano": "TAXAS_SUBSIDIADAS",
+    "financiado": 90000,
+    "pctEntrada": 0.5,
+    "erro": "⚠️ O valor mínimo de venda deve ser menor que o valor do bem."
+   }
+  },
+  {
+   "id": "V043",
+   "plano": "TAXAS_SUBSIDIADAS",
+   "fonte": "XLSX",
+   "input": {
+    "bem": 180000,
+    "entrada": 90000,
+    "minVenda": 160000,
+    "taxaSelecionada": 0.0049
+   },
+   "output": {
+    "plano": "TAXAS_SUBSIDIADAS",
+    "bem": 180000,
+    "entrada": 90000,
+    "minVenda": 160000,
+    "financiado": 90000,
+    "pctEntrada": 0.5,
+    "rows": [
+     {
+      "prazo": 12,
+      "taxa": 0,
+      "coef": 0.09008,
+      "rebate": 0.1127,
+      "baseParcela": 90000,
+      "parcela": 8107.2,
+      "rebateValor": 10143,
+      "valorFinalVenda": 169857,
+      "folga": 9857,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 8.107,20",
+      "rebate_txt": "11,27%",
+      "rebateValor_txt": "R$ 10.143,00",
+      "valorFinalVenda_txt": "R$ 169.857,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0,
+      "coef": 0.07227,
+      "rebate": 0.1337,
+      "baseParcela": 90000,
+      "parcela": 6504.3,
+      "rebateValor": 12033.000000000002,
+      "valorFinalVenda": 167967,
+      "folga": 7967,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 6.504,30",
+      "rebate_txt": "13,37%",
+      "rebateValor_txt": "R$ 12.033,00",
+      "valorFinalVenda_txt": "R$ 167.967,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0,
+      "coef": 0.06034,
+      "rebate": 0.156,
+      "baseParcela": 90000,
+      "parcela": 5430.599999999999,
+      "rebateValor": 14040,
+      "valorFinalVenda": 165960,
+      "folga": 5960,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 5.430,60",
+      "rebate_txt": "15,60%",
+      "rebateValor_txt": "R$ 14.040,00",
+      "valorFinalVenda_txt": "R$ 165.960,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0,
+      "coef": 0.04536,
+      "rebate": 0.1807,
+      "baseParcela": 90000,
+      "parcela": 4082.3999999999996,
+      "rebateValor": 16263,
+      "valorFinalVenda": 163737,
+      "folga": 3737,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 4.082,40",
+      "rebate_txt": "18,07%",
+      "rebateValor_txt": "R$ 16.263,00",
+      "valorFinalVenda_txt": "R$ 163.737,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0,
+      "coef": 0.03634,
+      "rebate": 0.2206,
+      "baseParcela": 92500,
+      "parcela": 3361.45,
+      "rebateValor": 19854,
+      "valorFinalVenda": 160146,
+      "folga": 146,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 3.361,45",
+      "rebate_txt": "22,06%",
+      "rebateValor_txt": "R$ 19.854,00",
+      "valorFinalVenda_txt": "R$ 160.146,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0,
+      "coef": 0.03031,
+      "rebate": 0.2554,
+      "baseParcela": 92500,
+      "parcela": 2803.675,
+      "rebateValor": 22986,
+      "valorFinalVenda": 157014,
+      "folga": -2986,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 2.803,68",
+      "rebate_txt": "25,54%",
+      "rebateValor_txt": "R$ 22.986,00",
+      "valorFinalVenda_txt": "R$ 157.014,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0,
+      "coef": 0.02276,
+      "rebate": 0.313,
+      "baseParcela": 92500,
+      "parcela": 2105.2999999999997,
+      "rebateValor": 28170,
+      "valorFinalVenda": 151830,
+      "folga": -8170,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 2.105,30",
+      "rebate_txt": "31,30%",
+      "rebateValor_txt": "R$ 28.170,00",
+      "valorFinalVenda_txt": "R$ 151.830,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0,
+      "coef": 0.01822,
+      "rebate": 0.3683,
+      "baseParcela": 92500,
+      "parcela": 1685.35,
+      "rebateValor": 33147,
+      "valorFinalVenda": 146853,
+      "folga": -13147,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 1.685,35",
+      "rebate_txt": "36,83%",
+      "rebateValor_txt": "R$ 33.147,00",
+      "valorFinalVenda_txt": "R$ 146.853,00"
+     },
+     {
+      "prazo": 12,
+      "taxa": 0.0049,
+      "coef": 0.09298,
+      "rebate": 0.0842,
+      "baseParcela": 90000,
+      "parcela": 8368.199999999999,
+      "rebateValor": 7578,
+      "valorFinalVenda": 172422,
+      "folga": 12422,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 8.368,20",
+      "rebate_txt": "8,42%",
+      "rebateValor_txt": "R$ 7.578,00",
+      "valorFinalVenda_txt": "R$ 172.422,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0.0049,
+      "coef": 0.07513,
+      "rebate": 0.0993,
+      "baseParcela": 90000,
+      "parcela": 6761.7,
+      "rebateValor": 8937,
+      "valorFinalVenda": 171063,
+      "folga": 11063,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 6.761,70",
+      "rebate_txt": "9,93%",
+      "rebateValor_txt": "R$ 8.937,00",
+      "valorFinalVenda_txt": "R$ 171.063,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0049,
+      "coef": 0.06319,
+      "rebate": 0.1162,
+      "baseParcela": 90000,
+      "parcela": 5687.099999999999,
+      "rebateValor": 10458,
+      "valorFinalVenda": 169542,
+      "folga": 9542,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 5.687,10",
+      "rebate_txt": "11,62%",
+      "rebateValor_txt": "R$ 10.458,00",
+      "valorFinalVenda_txt": "R$ 169.542,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0049,
+      "coef": 0.04819,
+      "rebate": 0.1296,
+      "baseParcela": 90000,
+      "parcela": 4337.099999999999,
+      "rebateValor": 11664,
+      "valorFinalVenda": 168336,
+      "folga": 8336,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 4.337,10",
+      "rebate_txt": "12,96%",
+      "rebateValor_txt": "R$ 11.664,00",
+      "valorFinalVenda_txt": "R$ 168.336,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0049,
+      "coef": 0.03916,
+      "rebate": 0.16,
+      "baseParcela": 92500,
+      "parcela": 3622.3,
+      "rebateValor": 14400,
+      "valorFinalVenda": 165600,
+      "folga": 5600,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 3.622,30",
+      "rebate_txt": "16,00%",
+      "rebateValor_txt": "R$ 14.400,00",
+      "valorFinalVenda_txt": "R$ 165.600,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0049,
+      "coef": 0.03314,
+      "rebate": 0.186,
+      "baseParcela": 92500,
+      "parcela": 3065.4500000000003,
+      "rebateValor": 16740,
+      "valorFinalVenda": 163260,
+      "folga": 3260,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 3.065,45",
+      "rebate_txt": "18,60%",
+      "rebateValor_txt": "R$ 16.740,00",
+      "valorFinalVenda_txt": "R$ 163.260,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0049,
+      "coef": 0.0256,
+      "rebate": 0.2273,
+      "baseParcela": 92500,
+      "parcela": 2368,
+      "rebateValor": 20457,
+      "valorFinalVenda": 159543,
+      "folga": -457,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 2.368,00",
+      "rebate_txt": "22,73%",
+      "rebateValor_txt": "R$ 20.457,00",
+      "valorFinalVenda_txt": "R$ 159.543,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0049,
+      "coef": 0.02107,
+      "rebate": 0.2693,
+      "baseParcela": 92500,
+      "parcela": 1948.975,
+      "rebateValor": 24237,
+      "valorFinalVenda": 155763,
+      "folga": -4237,
+      "viavel": false,
+      "melhor": false,
+      "status": "Abaixo do mínimo",
+      "parcela_txt": "R$ 1.948,98",
+      "rebate_txt": "26,93%",
+      "rebateValor_txt": "R$ 24.237,00",
+      "valorFinalVenda_txt": "R$ 155.763,00"
+     },
+     {
+      "prazo": 12,
+      "taxa": 0.0099,
+      "coef": 0.09598,
+      "rebate": 0.0546,
+      "baseParcela": 90000,
+      "parcela": 8638.199999999999,
+      "rebateValor": 4914,
+      "valorFinalVenda": 175086,
+      "folga": 15086,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 8.638,20",
+      "rebate_txt": "5,46%",
+      "rebateValor_txt": "R$ 4.914,00",
+      "valorFinalVenda_txt": "R$ 175.086,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0.0099,
+      "coef": 0.07812,
+      "rebate": 0.0635,
+      "baseParcela": 90000,
+      "parcela": 7030.799999999999,
+      "rebateValor": 5715,
+      "valorFinalVenda": 174285,
+      "folga": 14285,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 7.030,80",
+      "rebate_txt": "6,35%",
+      "rebateValor_txt": "R$ 5.715,00",
+      "valorFinalVenda_txt": "R$ 174.285,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0099,
+      "coef": 0.06617,
+      "rebate": 0.0744,
+      "baseParcela": 90000,
+      "parcela": 5955.3,
+      "rebateValor": 6695.999999999999,
+      "valorFinalVenda": 173304,
+      "folga": 13304,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 5.955,30",
+      "rebate_txt": "7,44%",
+      "rebateValor_txt": "R$ 6.696,00",
+      "valorFinalVenda_txt": "R$ 173.304,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0099,
+      "coef": 0.05118,
+      "rebate": 0.0755,
+      "baseParcela": 90000,
+      "parcela": 4606.200000000001,
+      "rebateValor": 6795,
+      "valorFinalVenda": 173205,
+      "folga": 13205,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 4.606,20",
+      "rebate_txt": "7,55%",
+      "rebateValor_txt": "R$ 6.795,00",
+      "valorFinalVenda_txt": "R$ 173.205,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0099,
+      "coef": 0.04218,
+      "rebate": 0.0953,
+      "baseParcela": 92500,
+      "parcela": 3901.65,
+      "rebateValor": 8577,
+      "valorFinalVenda": 171423,
+      "folga": 11423,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 3.901,65",
+      "rebate_txt": "9,53%",
+      "rebateValor_txt": "R$ 8.577,00",
+      "valorFinalVenda_txt": "R$ 171.423,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0099,
+      "coef": 0.03618,
+      "rebate": 0.1112,
+      "baseParcela": 92500,
+      "parcela": 3346.6499999999996,
+      "rebateValor": 10008,
+      "valorFinalVenda": 169992,
+      "folga": 9992,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 3.346,65",
+      "rebate_txt": "11,12%",
+      "rebateValor_txt": "R$ 10.008,00",
+      "valorFinalVenda_txt": "R$ 169.992,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0099,
+      "coef": 0.02871,
+      "rebate": 0.1335,
+      "baseParcela": 92500,
+      "parcela": 2655.6749999999997,
+      "rebateValor": 12015,
+      "valorFinalVenda": 167985,
+      "folga": 7985,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 2.655,67",
+      "rebate_txt": "13,35%",
+      "rebateValor_txt": "R$ 12.015,00",
+      "valorFinalVenda_txt": "R$ 167.985,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0099,
+      "coef": 0.02425,
+      "rebate": 0.1592,
+      "baseParcela": 92500,
+      "parcela": 2243.125,
+      "rebateValor": 14328,
+      "valorFinalVenda": 165672,
+      "folga": 5672,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 2.243,13",
+      "rebate_txt": "15,92%",
+      "rebateValor_txt": "R$ 14.328,00",
+      "valorFinalVenda_txt": "R$ 165.672,00"
+     },
+     {
+      "prazo": 12,
+      "taxa": 0.0119,
+      "coef": 0.0972,
+      "rebate": 0.0426,
+      "baseParcela": 90000,
+      "parcela": 8748,
+      "rebateValor": 3834,
+      "valorFinalVenda": 176166,
+      "folga": 16166,
+      "viavel": true,
+      "melhor": true,
+      "status": "Melhor opção",
+      "parcela_txt": "R$ 8.748,00",
+      "rebate_txt": "4,26%",
+      "rebateValor_txt": "R$ 3.834,00",
+      "valorFinalVenda_txt": "R$ 176.166,00"
+     },
+     {
+      "prazo": 15,
+      "taxa": 0.0119,
+      "coef": 0.07934,
+      "rebate": 0.0489,
+      "baseParcela": 90000,
+      "parcela": 7140.599999999999,
+      "rebateValor": 4401,
+      "valorFinalVenda": 175599,
+      "folga": 15599,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 7.140,60",
+      "rebate_txt": "4,89%",
+      "rebateValor_txt": "R$ 4.401,00",
+      "valorFinalVenda_txt": "R$ 175.599,00"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0119,
+      "coef": 0.06739,
+      "rebate": 0.0574,
+      "baseParcela": 90000,
+      "parcela": 6065.1,
+      "rebateValor": 5166,
+      "valorFinalVenda": 174834,
+      "folga": 14834,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 6.065,10",
+      "rebate_txt": "5,74%",
+      "rebateValor_txt": "R$ 5.166,00",
+      "valorFinalVenda_txt": "R$ 174.834,00"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0119,
+      "coef": 0.05241,
+      "rebate": 0.0533,
+      "baseParcela": 90000,
+      "parcela": 4716.9,
+      "rebateValor": 4797,
+      "valorFinalVenda": 175203,
+      "folga": 15203,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 4.716,90",
+      "rebate_txt": "5,33%",
+      "rebateValor_txt": "R$ 4.797,00",
+      "valorFinalVenda_txt": "R$ 175.203,00"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0119,
+      "coef": 0.04342,
+      "rebate": 0.0687,
+      "baseParcela": 92500,
+      "parcela": 4016.35,
+      "rebateValor": 6183,
+      "valorFinalVenda": 173817,
+      "folga": 13817,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 4.016,35",
+      "rebate_txt": "6,87%",
+      "rebateValor_txt": "R$ 6.183,00",
+      "valorFinalVenda_txt": "R$ 173.817,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0119,
+      "coef": 0.03744,
+      "rebate": 0.0802,
+      "baseParcela": 92500,
+      "parcela": 3463.2000000000003,
+      "rebateValor": 7217.999999999999,
+      "valorFinalVenda": 172782,
+      "folga": 12782,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 3.463,20",
+      "rebate_txt": "8,02%",
+      "rebateValor_txt": "R$ 7.218,00",
+      "valorFinalVenda_txt": "R$ 172.782,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0119,
+      "coef": 0.03001,
+      "rebate": 0.0942,
+      "baseParcela": 92500,
+      "parcela": 2775.9249999999997,
+      "rebateValor": 8478,
+      "valorFinalVenda": 171522,
+      "folga": 11522,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 2.775,92",
+      "rebate_txt": "9,42%",
+      "rebateValor_txt": "R$ 8.478,00",
+      "valorFinalVenda_txt": "R$ 171.522,00"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0119,
+      "coef": 0.0256,
+      "rebate": 0.1125,
+      "baseParcela": 92500,
+      "parcela": 2368,
+      "rebateValor": 10125,
+      "valorFinalVenda": 169875,
+      "folga": 9875,
+      "viavel": true,
+      "melhor": false,
+      "status": "Dentro do mínimo",
+      "parcela_txt": "R$ 2.368,00",
+      "rebate_txt": "11,25%",
+      "rebateValor_txt": "R$ 10.125,00",
+      "valorFinalVenda_txt": "R$ 169.875,00"
+     }
+    ],
+    "melhor": {
+     "taxa": 0.0119,
+     "prazo": 12
+    },
+    "leituraTaxaSelecionada": [
+     {
+      "prazo": 12,
+      "parcela": 8368.199999999999,
+      "rebate": 0.0842,
+      "valorFinalVenda": 172422,
+      "cls": "ok"
+     },
+     {
+      "prazo": 15,
+      "parcela": 6761.7,
+      "rebate": 0.0993,
+      "valorFinalVenda": 171063,
+      "cls": "ok"
+     },
+     {
+      "prazo": 18,
+      "parcela": 5687.099999999999,
+      "rebate": 0.1162,
+      "valorFinalVenda": 169542,
+      "cls": "ok"
+     },
+     {
+      "prazo": 24,
+      "parcela": 4337.099999999999,
+      "rebate": 0.1296,
+      "valorFinalVenda": 168336,
+      "cls": "ok"
+     },
+     {
+      "prazo": 30,
+      "parcela": 3622.3,
+      "rebate": 0.16,
+      "valorFinalVenda": 165600,
+      "cls": "ok"
+     },
+     {
+      "prazo": 36,
+      "parcela": 3065.4500000000003,
+      "rebate": 0.186,
+      "valorFinalVenda": 163260,
+      "cls": "ok"
+     },
+     {
+      "prazo": 48,
+      "parcela": 2368,
+      "rebate": 0.2273,
+      "valorFinalVenda": 159543,
+      "cls": "bad"
+     },
+     {
+      "prazo": 60,
+      "parcela": 1948.975,
+      "rebate": 0.2693,
+      "valorFinalVenda": 155763,
+      "cls": "bad"
+     }
+    ]
+   }
+  },
+  {
+   "id": "V044",
+   "plano": "COPIAR_TAXA_BANCO",
+   "fonte": "FALLBACK",
+   "input": {
+    "prazo": 12
+   },
+   "output": {
+    "plano": "COPIAR_TAXA_BANCO",
+    "prazo": 12,
+    "taxa": 0.01783,
+    "texto": "1,783%"
+   }
+  },
+  {
+   "id": "V045",
+   "plano": "COPIAR_TAXA_BANCO",
+   "fonte": "FALLBACK",
+   "input": {
+    "prazo": 36
+   },
+   "output": {
+    "plano": "COPIAR_TAXA_BANCO",
+    "prazo": 36,
+    "taxa": 0.01661,
+    "texto": "1,661%"
+   }
+  },
+  {
+   "id": "V046",
+   "plano": "COPIAR_TAXA_BANCO",
+   "fonte": "FALLBACK",
+   "input": {
+    "prazo": 60
+   },
+   "output": {
+    "plano": "COPIAR_TAXA_BANCO",
+    "prazo": 60,
+    "taxa": 0.01558,
+    "texto": "1,558%"
+   }
+  },
+  {
+   "id": "V047",
+   "plano": "COPIAR_TAXA_BANCO",
+   "fonte": "FALLBACK",
+   "input": {
+    "prazo": 13
+   },
+   "output": {
+    "plano": "COPIAR_TAXA_BANCO",
+    "erro": "Selecione um prazo válido."
+   }
+  },
+  {
+   "id": "V048",
+   "plano": "COPIAR_TAXA_BANCO",
+   "fonte": "XLSX",
+   "input": {
+    "prazo": 48
+   },
+   "output": {
+    "plano": "COPIAR_TAXA_BANCO",
+    "prazo": 48,
+    "taxa": 0.016599,
+    "texto": "1,660%"
+   }
+  },
+  {
+   "id": "V049",
+   "plano": "COPARTICIPADO",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "ECLIPSE CROSS HPE-S S-AWC",
+    "venda": 180000,
+    "entrada": 108000
+   },
+   "output": {
+    "plano": "COPARTICIPADO",
+    "modelo": "ECLIPSE CROSS HPE-S S-AWC",
+    "entradaMinima": 0.6,
+    "minEntryLabel": "Entrada mínima 60,00%",
+    "entryPct": 0.6,
+    "minValue": 108000,
+    "invalid": false,
+    "valid": true,
+    "financed": 72000,
+    "financed_txt": "R$ 72.000,00",
+    "termos": [
+     {
+      "prazo": 12,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.08783725,
+      "acrescimo": 0.0411,
+      "parcela": 6584.2099902,
+      "parcela_txt": "R$ 6.584,21"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.05882875,
+      "acrescimo": 0.0411,
+      "parcela": 4409.756037,
+      "parcela_txt": "R$ 4.409,76"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.044224,
+      "acrescimo": 0.0411,
+      "parcela": 3314.9956607999998,
+      "parcela_txt": "R$ 3.315,00"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0049,
+      "taxa_txt": "0,49%",
+      "coef": 0.03229575,
+      "acrescimo": 0.0622,
+      "parcela": 2469.9272868000003,
+      "parcela_txt": "R$ 2.469,93"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0069,
+      "taxa_txt": "0,69%",
+      "coef": 0.02612875,
+      "acrescimo": 0.0622,
+      "parcela": 1998.284994,
+      "parcela_txt": "R$ 1.998,28"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0079,
+      "taxa_txt": "0,79%",
+      "coef": 0.02236025,
+      "acrescimo": 0.0622,
+      "parcela": 1710.0761436000003,
+      "parcela_txt": "R$ 1.710,08"
+     }
+    ],
+    "rebateTotal": 12273.28514932497,
+    "rebateBrabus": 4500.204554752489,
+    "rebateHpe": 7773.08059457248,
+    "rebateTotalPct_txt": "17,05%",
+    "rebateBrabusPct_txt": "36,67%",
+    "rebateHpePct_txt": "63,33%",
+    "valorFinalVenda": 175499.79544524752,
+    "valorFinalVenda_txt": "R$ 175.499,80"
+   }
+  },
+  {
+   "id": "V050",
+   "plano": "COPARTICIPADO",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "TRITON HPE",
+    "venda": 180000,
+    "entrada": 90000
+   },
+   "output": {
+    "plano": "COPARTICIPADO",
+    "modelo": "TRITON HPE",
+    "entradaMinima": 0.6,
+    "minEntryLabel": "Entrada mínima 60,00%",
+    "entryPct": 0.5,
+    "minValue": 108000,
+    "invalid": true,
+    "valid": false,
+    "financed": 0,
+    "financed_txt": "—",
+    "termos": [
+     {
+      "prazo": 12,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.08783725,
+      "acrescimo": 0.0411,
+      "parcela": null,
+      "parcela_txt": "—"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.05882875,
+      "acrescimo": 0.0411,
+      "parcela": null,
+      "parcela_txt": "—"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.044224,
+      "acrescimo": 0.0411,
+      "parcela": null,
+      "parcela_txt": "—"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0029,
+      "taxa_txt": "0,29%",
+      "coef": 0.03115675,
+      "acrescimo": 0.0622,
+      "parcela": null,
+      "parcela_txt": "—"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0049,
+      "taxa_txt": "0,49%",
+      "coef": 0.02494575,
+      "acrescimo": 0.0622,
+      "parcela": null,
+      "parcela_txt": "—"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0069,
+      "taxa_txt": "0,69%",
+      "coef": 0.0217425,
+      "acrescimo": 0.0622,
+      "parcela": null,
+      "parcela_txt": "—"
+     }
+    ],
+    "rebateTotal": null,
+    "rebateBrabus": null,
+    "rebateHpe": null,
+    "rebateTotalPct_txt": "0,00%",
+    "rebateBrabusPct_txt": "0,00%",
+    "rebateHpePct_txt": "0,00%",
+    "valorFinalVenda": null,
+    "valorFinalVenda_txt": "—"
+   }
+  },
+  {
+   "id": "V051",
+   "plano": "COPARTICIPADO",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "TRITON GLS AT",
+    "venda": 250000,
+    "entrada": 150000
+   },
+   "output": {
+    "plano": "COPARTICIPADO",
+    "modelo": "TRITON GLS AT",
+    "entradaMinima": 0.6,
+    "minEntryLabel": "Entrada mínima 60,00%",
+    "entryPct": 0.6,
+    "minValue": 150000,
+    "invalid": false,
+    "valid": true,
+    "financed": 100000,
+    "financed_txt": "R$ 100.000,00",
+    "termos": [
+     {
+      "prazo": 12,
+      "taxa": 0.0019,
+      "taxa_txt": "0,19%",
+      "coef": 0.08892075,
+      "acrescimo": 0.0411,
+      "parcela": 9257.5392825,
+      "parcela_txt": "R$ 9.257,54"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0059,
+      "taxa_txt": "0,59%",
+      "coef": 0.0621635,
+      "acrescimo": 0.0411,
+      "parcela": 6471.841984999999,
+      "parcela_txt": "R$ 6.471,84"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0069,
+      "taxa_txt": "0,69%",
+      "coef": 0.04811975,
+      "acrescimo": 0.0411,
+      "parcela": 5009.7471725,
+      "parcela_txt": "R$ 5.009,75"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0099,
+      "taxa_txt": "0,99%",
+      "coef": 0.03524925,
+      "acrescimo": 0.0622,
+      "parcela": 3744.1753350000004,
+      "parcela_txt": "R$ 3.744,18"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0099,
+      "taxa_txt": "0,99%",
+      "coef": 0.027964,
+      "acrescimo": 0.0622,
+      "parcela": 2970.33608,
+      "parcela_txt": "R$ 2.970,34"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0109,
+      "taxa_txt": "1,09%",
+      "coef": 0.02427325,
+      "acrescimo": 0.0622,
+      "parcela": 2578.304615,
+      "parcela_txt": "R$ 2.578,30"
+     }
+    ],
+    "rebateTotal": 10000.40001600064,
+    "rebateBrabus": 5000.20000800032,
+    "rebateHpe": 5000.20000800032,
+    "rebateTotalPct_txt": "10,00%",
+    "rebateBrabusPct_txt": "50,00%",
+    "rebateHpePct_txt": "50,00%",
+    "valorFinalVenda": 244999.7999919997,
+    "valorFinalVenda_txt": "R$ 244.999,80"
+   }
+  },
+  {
+   "id": "V052",
+   "plano": "COPARTICIPADO",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "OUTLANDER SIGNATURE",
+    "venda": 300000,
+    "entrada": 200000
+   },
+   "output": {
+    "plano": "COPARTICIPADO",
+    "modelo": "OUTLANDER SIGNATURE",
+    "entradaMinima": 0.6,
+    "minEntryLabel": "Entrada mínima 60,00%",
+    "entryPct": 0.6666666666666666,
+    "minValue": 180000,
+    "invalid": false,
+    "valid": true,
+    "financed": 100000,
+    "financed_txt": "R$ 100.000,00",
+    "termos": [
+     {
+      "prazo": 12,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.08783725,
+      "acrescimo": 0.0411,
+      "parcela": 9144.7360975,
+      "parcela_txt": "R$ 9.144,74"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.05882875,
+      "acrescimo": 0.0411,
+      "parcela": 6124.661162499999,
+      "parcela_txt": "R$ 6.124,66"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.044224,
+      "acrescimo": 0.0411,
+      "parcela": 4604.160639999999,
+      "parcela_txt": "R$ 4.604,16"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0049,
+      "taxa_txt": "0,49%",
+      "coef": 0.03229575,
+      "acrescimo": 0.0622,
+      "parcela": 3430.454565,
+      "parcela_txt": "R$ 3.430,45"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0069,
+      "taxa_txt": "0,69%",
+      "coef": 0.02612875,
+      "acrescimo": 0.0622,
+      "parcela": 2775.395825,
+      "parcela_txt": "R$ 2.775,40"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0079,
+      "taxa_txt": "0,79%",
+      "coef": 0.02236025,
+      "acrescimo": 0.0622,
+      "parcela": 2375.105755,
+      "parcela_txt": "R$ 2.375,11"
+     }
+    ],
+    "rebateTotal": 17123.756815255212,
+    "rebateBrabus": 8219.403271322502,
+    "rebateHpe": 8904.35354393271,
+    "rebateTotalPct_txt": "17,12%",
+    "rebateBrabusPct_txt": "48,00%",
+    "rebateHpePct_txt": "52,00%",
+    "valorFinalVenda": 291780.5967286775,
+    "valorFinalVenda_txt": "R$ 291.780,60"
+   }
+  },
+  {
+   "id": "V053",
+   "plano": "COPARTICIPADO",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "ECLIPSE CROSS RUSH",
+    "venda": 180000,
+    "entrada": 108000
+   },
+   "output": {
+    "plano": "COPARTICIPADO",
+    "modelo": "ECLIPSE CROSS RUSH",
+    "entradaMinima": 0.6,
+    "minEntryLabel": "Entrada mínima 60,00%",
+    "entryPct": 0.6,
+    "minValue": 108000,
+    "invalid": false,
+    "valid": true,
+    "financed": 72000,
+    "financed_txt": "R$ 72.000,00",
+    "termos": [
+     {
+      "prazo": 12,
+      "taxa": 0.0049,
+      "taxa_txt": "0,49%",
+      "coef": 0.090641,
+      "acrescimo": 0.0411,
+      "parcela": 6794.376847199999,
+      "parcela_txt": "R$ 6.794,38"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0089,
+      "taxa_txt": "0,89%",
+      "coef": 0.0639005,
+      "acrescimo": 0.0411,
+      "parcela": 4789.9303596,
+      "parcela_txt": "R$ 4.789,93"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0089,
+      "taxa_txt": "0,89%",
+      "coef": 0.049284,
+      "acrescimo": 0.0411,
+      "parcela": 3694.2892128,
+      "parcela_txt": "R$ 3.694,29"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0109,
+      "taxa_txt": "1,09%",
+      "coef": 0.0358585,
+      "acrescimo": 0.0622,
+      "parcela": 2742.4007064,
+      "parcela_txt": "R$ 2.742,40"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0109,
+      "taxa_txt": "1,09%",
+      "coef": 0.028592,
+      "acrescimo": 0.0622,
+      "parcela": 2186.6704128,
+      "parcela_txt": "R$ 2.186,67"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0119,
+      "taxa_txt": "1,19%",
+      "coef": 0.0249315,
+      "acrescimo": 0.0622,
+      "parcela": 1906.7212296,
+      "parcela_txt": "R$ 1.906,72"
+     }
+    ],
+    "rebateTotal": 5625.35158447403,
+    "rebateBrabus": 3937.7461091318205,
+    "rebateHpe": 1687.6054753422088,
+    "rebateTotalPct_txt": "7,81%",
+    "rebateBrabusPct_txt": "70,00%",
+    "rebateHpePct_txt": "30,00%",
+    "valorFinalVenda": 176062.2538908682,
+    "valorFinalVenda_txt": "R$ 176.062,25"
+   }
+  },
+  {
+   "id": "V054",
+   "plano": "COPARTICIPADO",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "MODELO INEXISTENTE",
+    "venda": 180000,
+    "entrada": 120000
+   },
+   "output": {
+    "plano": "COPARTICIPADO",
+    "modelo": "TRITON GLS AT",
+    "entradaMinima": 0.6,
+    "minEntryLabel": "Entrada mínima 60,00%",
+    "entryPct": 0.6666666666666666,
+    "minValue": 108000,
+    "invalid": false,
+    "valid": true,
+    "financed": 60000,
+    "financed_txt": "R$ 60.000,00",
+    "termos": [
+     {
+      "prazo": 12,
+      "taxa": 0.0019,
+      "taxa_txt": "0,19%",
+      "coef": 0.08892075,
+      "acrescimo": 0.0411,
+      "parcela": 5554.5235695,
+      "parcela_txt": "R$ 5.554,52"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0059,
+      "taxa_txt": "0,59%",
+      "coef": 0.0621635,
+      "acrescimo": 0.0411,
+      "parcela": 3883.105190999999,
+      "parcela_txt": "R$ 3.883,11"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0069,
+      "taxa_txt": "0,69%",
+      "coef": 0.04811975,
+      "acrescimo": 0.0411,
+      "parcela": 3005.8483035,
+      "parcela_txt": "R$ 3.005,85"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0099,
+      "taxa_txt": "0,99%",
+      "coef": 0.03524925,
+      "acrescimo": 0.0622,
+      "parcela": 2246.5052010000004,
+      "parcela_txt": "R$ 2.246,51"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0099,
+      "taxa_txt": "0,99%",
+      "coef": 0.027964,
+      "acrescimo": 0.0622,
+      "parcela": 1782.201648,
+      "parcela_txt": "R$ 1.782,20"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0109,
+      "taxa_txt": "1,09%",
+      "coef": 0.02427325,
+      "acrescimo": 0.0622,
+      "parcela": 1546.982769,
+      "parcela_txt": "R$ 1.546,98"
+     }
+    ],
+    "rebateTotal": 6000.240009600385,
+    "rebateBrabus": 3000.1200048001924,
+    "rebateHpe": 3000.1200048001924,
+    "rebateTotalPct_txt": "10,00%",
+    "rebateBrabusPct_txt": "50,00%",
+    "rebateHpePct_txt": "50,00%",
+    "valorFinalVenda": 176999.8799951998,
+    "valorFinalVenda_txt": "R$ 176.999,88"
+   }
+  },
+  {
+   "id": "V055",
+   "plano": "COPARTICIPADO",
+   "fonte": "XLSX",
+   "input": {
+    "modelo": "ECLIPSE CROSS RUSH",
+    "venda": 180000,
+    "entrada": 108000
+   },
+   "output": {
+    "plano": "COPARTICIPADO",
+    "modelo": "ECLIPSE CROSS RUSH",
+    "entradaMinima": 0.6,
+    "minEntryLabel": "Entrada mínima 60,00%",
+    "entryPct": 0.6,
+    "minValue": 108000,
+    "invalid": false,
+    "valid": true,
+    "financed": 72000,
+    "financed_txt": "R$ 72.000,00",
+    "termos": [
+     {
+      "prazo": 12,
+      "taxa": 0.0039,
+      "taxa_txt": "0,39%",
+      "coef": 0.0934975,
+      "acrescimo": 0.0411,
+      "parcela": 7008.497802,
+      "parcela_txt": "R$ 7.008,50"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0079,
+      "taxa_txt": "0,79%",
+      "coef": 0.0657415,
+      "acrescimo": 0.0411,
+      "parcela": 4927.9302468,
+      "parcela_txt": "R$ 4.927,93"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0089,
+      "taxa_txt": "0,89%",
+      "coef": 0.049284,
+      "acrescimo": 0.0411,
+      "parcela": 3694.2892128,
+      "parcela_txt": "R$ 3.694,29"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0109,
+      "taxa_txt": "1,09%",
+      "coef": 0.0358585,
+      "acrescimo": 0.0622,
+      "parcela": 2742.4007064,
+      "parcela_txt": "R$ 2.742,40"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0109,
+      "taxa_txt": "1,09%",
+      "coef": 0.028592,
+      "acrescimo": 0.0622,
+      "parcela": 2186.6704128,
+      "parcela_txt": "R$ 2.186,67"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0119,
+      "taxa_txt": "1,19%",
+      "coef": 0.0249315,
+      "acrescimo": 0.0622,
+      "parcela": 1906.7212296,
+      "parcela_txt": "R$ 1.906,72"
+     }
+    ],
+    "rebateTotal": 5769.600615424066,
+    "rebateBrabus": 4038.720430796846,
+    "rebateHpe": 1730.8801846272197,
+    "rebateTotalPct_txt": "8,01%",
+    "rebateBrabusPct_txt": "70,00%",
+    "rebateHpePct_txt": "30,00%",
+    "valorFinalVenda": 175961.27956920315,
+    "valorFinalVenda_txt": "R$ 175.961,28"
+   }
+  },
+  {
+   "id": "V056",
+   "plano": "COPARTICIPADO",
+   "fonte": "XLSX",
+   "input": {
+    "modelo": "TRITON TARMAC",
+    "venda": 280000,
+    "entrada": 170000
+   },
+   "output": {
+    "plano": "COPARTICIPADO",
+    "modelo": "TRITON TARMAC",
+    "entradaMinima": 0.6,
+    "minEntryLabel": "Entrada mínima 60,00%",
+    "entryPct": 0.6071428571428571,
+    "minValue": 168000,
+    "invalid": false,
+    "valid": true,
+    "financed": 110000,
+    "financed_txt": "R$ 110.000,00",
+    "termos": [
+     {
+      "prazo": 12,
+      "taxa": 0,
+      "taxa_txt": "0,00%",
+      "coef": 0.08783725,
+      "acrescimo": 0.0411,
+      "parcela": 10059.20970725,
+      "parcela_txt": "R$ 10.059,21"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0029,
+      "taxa_txt": "0,29%",
+      "coef": 0.06276849999999999,
+      "acrescimo": 0.0411,
+      "parcela": 7188.311388499998,
+      "parcela_txt": "R$ 7.188,31"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0049,
+      "taxa_txt": "0,49%",
+      "coef": 0.04697025,
+      "acrescimo": 0.0411,
+      "parcela": 5379.080000249999,
+      "parcela_txt": "R$ 5.379,08"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0089,
+      "taxa_txt": "0,89%",
+      "coef": 0.034647,
+      "acrescimo": 0.0622,
+      "parcela": 4048.224774,
+      "parcela_txt": "R$ 4.048,22"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0089,
+      "taxa_txt": "0,89%",
+      "coef": 0.02734425,
+      "acrescimo": 0.0622,
+      "parcela": 3194.9568585,
+      "parcela_txt": "R$ 3.194,96"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0099,
+      "taxa_txt": "0,99%",
+      "coef": 0.02362575,
+      "acrescimo": 0.0622,
+      "parcela": 2760.4798815,
+      "parcela_txt": "R$ 2.760,48"
+     }
+    ],
+    "rebateTotal": 13200.528021120845,
+    "rebateBrabus": 6600.264010560422,
+    "rebateHpe": 6600.264010560422,
+    "rebateTotalPct_txt": "12,00%",
+    "rebateBrabusPct_txt": "50,00%",
+    "rebateHpePct_txt": "50,00%",
+    "valorFinalVenda": 273399.7359894396,
+    "valorFinalVenda_txt": "R$ 273.399,74"
+   }
+  },
+  {
+   "id": "V057",
+   "plano": "SEMESTRAL_TRITON_OUTLANDER",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "TRITON HPE",
+    "bem": 275990
+   },
+   "output": {
+    "plano": "SEMESTRAL_TRITON_OUTLANDER",
+    "modelo": "TRITON HPE",
+    "entradaPct": 0.6,
+    "entrada": 165594,
+    "financiado": 110396,
+    "valido": true,
+    "totalParcelar": 121938.28435722775,
+    "parcela": 30484.571089306937,
+    "meses": [
+     6,
+     12,
+     18,
+     24
+    ],
+    "rebateTotal": 23000,
+    "rebateHpe": 15000,
+    "rebateBrabus": 8000,
+    "valorFinalVenda": 267990,
+    "rebateTotalPct": 20.834088191601143,
+    "rebateBrabusPct": 7.246639370991701,
+    "rebateHpePct": 13.58744882060944,
+    "parcela_txt": "R$ 30.484,57",
+    "valorFinalVenda_txt": "R$ 267.990,00"
+   }
+  },
+  {
+   "id": "V058",
+   "plano": "SEMESTRAL_TRITON_OUTLANDER",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "TRITON HPE-S",
+    "bem": 275990
+   },
+   "output": {
+    "plano": "SEMESTRAL_TRITON_OUTLANDER",
+    "modelo": "TRITON HPE-S",
+    "entradaPct": 0.6,
+    "entrada": 165594,
+    "financiado": 110396,
+    "valido": true,
+    "totalParcelar": 121938.28435722775,
+    "parcela": 30484.571089306937,
+    "meses": [
+     6,
+     12,
+     18,
+     24
+    ],
+    "rebateTotal": 22999.933331111035,
+    "rebateHpe": 15639.954665155505,
+    "rebateBrabus": 7359.978665955531,
+    "valorFinalVenda": 268630.02133404446,
+    "rebateTotalPct": 20.834027800926698,
+    "rebateBrabusPct": 6.666888896296543,
+    "rebateHpePct": 14.167138904630155,
+    "parcela_txt": "R$ 30.484,57",
+    "valorFinalVenda_txt": "R$ 268.630,02"
+   }
+  },
+  {
+   "id": "V059",
+   "plano": "SEMESTRAL_TRITON_OUTLANDER",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "TRITON KATANA",
+    "bem": 275990
+   },
+   "output": {
+    "plano": "SEMESTRAL_TRITON_OUTLANDER",
+    "modelo": "TRITON KATANA",
+    "entradaPct": 0.6,
+    "entrada": 165594,
+    "financiado": 110396,
+    "valido": true,
+    "totalParcelar": 121938.28435722775,
+    "parcela": 30484.571089306937,
+    "meses": [
+     6,
+     12,
+     18,
+     24
+    ],
+    "rebateTotal": 24627.557771008338,
+    "rebateHpe": 14436.844210591093,
+    "rebateBrabus": 10190.713560417244,
+    "valorFinalVenda": 265799.28643958276,
+    "rebateTotalPct": 22.30837871934521,
+    "rebateBrabusPct": 9.231053263177328,
+    "rebateHpePct": 13.077325456167879,
+    "parcela_txt": "R$ 30.484,57",
+    "valorFinalVenda_txt": "R$ 265.799,29"
+   }
+  },
+  {
+   "id": "V060",
+   "plano": "SEMESTRAL_TRITON_OUTLANDER",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "TRITON SAVANA",
+    "bem": 275990
+   },
+   "output": {
+    "plano": "SEMESTRAL_TRITON_OUTLANDER",
+    "modelo": "TRITON SAVANA",
+    "entradaPct": 0.6,
+    "entrada": 165594,
+    "financiado": 110396,
+    "valido": true,
+    "totalParcelar": 121938.28435722775,
+    "parcela": 30484.571089306937,
+    "meses": [
+     6,
+     12,
+     18,
+     24
+    ],
+    "rebateTotal": 23892.384847308876,
+    "rebateHpe": 14005.880772560375,
+    "rebateBrabus": 9886.5040747485,
+    "valorFinalVenda": 266103.4959252515,
+    "rebateTotalPct": 21.64243708767426,
+    "rebateBrabusPct": 8.955491208692797,
+    "rebateHpePct": 12.686945878981462,
+    "parcela_txt": "R$ 30.484,57",
+    "valorFinalVenda_txt": "R$ 266.103,50"
+   }
+  },
+  {
+   "id": "V061",
+   "plano": "SEMESTRAL_TRITON_OUTLANDER",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "TRITON TERRA",
+    "bem": 275990
+   },
+   "output": {
+    "plano": "SEMESTRAL_TRITON_OUTLANDER",
+    "modelo": "TRITON TERRA",
+    "entradaPct": 0.6,
+    "entrada": 165594,
+    "financiado": 110396,
+    "valido": true,
+    "totalParcelar": 121938.28435722775,
+    "parcela": 30484.571089306937,
+    "meses": [
+     6,
+     12,
+     18,
+     24
+    ],
+    "rebateTotal": 23199.831879184905,
+    "rebateHpe": 13599.901446418737,
+    "rebateBrabus": 9599.930432766167,
+    "valorFinalVenda": 266390.06956723385,
+    "rebateTotalPct": 21.015101887011216,
+    "rebateBrabusPct": 8.69590422910809,
+    "rebateHpePct": 12.319197657903127,
+    "parcela_txt": "R$ 30.484,57",
+    "valorFinalVenda_txt": "R$ 266.390,07"
+   }
+  },
+  {
+   "id": "V062",
+   "plano": "SEMESTRAL_TRITON_OUTLANDER",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "TRITON HPE",
+    "bem": 180000
+   },
+   "output": {
+    "plano": "SEMESTRAL_TRITON_OUTLANDER",
+    "modelo": "TRITON HPE",
+    "entradaPct": 0.6,
+    "entrada": 108000,
+    "financiado": 72000,
+    "valido": true,
+    "totalParcelar": 79527.84950288414,
+    "parcela": 19881.962375721036,
+    "meses": [
+     6,
+     12,
+     18,
+     24
+    ],
+    "rebateTotal": 15000.543497952824,
+    "rebateHpe": 9782.963150838797,
+    "rebateBrabus": 5217.580347114025,
+    "valorFinalVenda": 174782.41965288596,
+    "rebateTotalPct": 20.834088191601143,
+    "rebateBrabusPct": 7.246639370991701,
+    "rebateHpePct": 13.58744882060944,
+    "parcela_txt": "R$ 19.881,96",
+    "valorFinalVenda_txt": "R$ 174.782,42"
+   }
+  },
+  {
+   "id": "V063",
+   "plano": "SEMESTRAL_TRITON_OUTLANDER",
+   "fonte": "XLSX",
+   "input": {
+    "modelo": "OUTLANDER HPE-S",
+    "bem": 300000
+   },
+   "output": {
+    "plano": "SEMESTRAL_TRITON_OUTLANDER",
+    "modelo": "OUTLANDER HPE-S",
+    "entradaPct": 0.7,
+    "entrada": 210000,
+    "financiado": 90000,
+    "valido": true,
+    "totalParcelar": 99409.81187860518,
+    "parcela": 24852.452969651295,
+    "meses": [
+     6,
+     12,
+     18,
+     24
+    ],
+    "rebateTotal": 17308.22486845749,
+    "rebateHpe": 9000.276931597897,
+    "rebateBrabus": 8307.947936859595,
+    "valorFinalVenda": 291692.0520631404,
+    "rebateTotalPct": 19.231360964952767,
+    "rebateBrabusPct": 9.231053263177328,
+    "rebateHpePct": 10.000307701775439,
+    "parcela_txt": "R$ 24.852,45",
+    "valorFinalVenda_txt": "R$ 291.692,05"
+   }
+  },
+  {
+   "id": "V064",
+   "plano": "SEMESTRAL_TRITON_OUTLANDER",
+   "fonte": "FALLBACK",
+   "input": {
+    "modelo": "TRITON HPE",
+    "bem": 0
+   },
+   "output": {
+    "plano": "SEMESTRAL_TRITON_OUTLANDER",
+    "modelo": "TRITON HPE",
+    "entradaPct": 0.6,
+    "entrada": 0,
+    "financiado": 0,
+    "valido": false,
+    "msg": "Informe o valor de venda para calcular a campanha. A entrada será calculada automaticamente em 60,00%."
+   }
+  },
+  {
+   "id": "V065",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 90000,
+    "prazo": 12,
+    "parcela": 8500
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 90000,
+    "n": 12,
+    "pmt": 8500,
+    "taxaNet": 0.012633730840414789,
+    "taxaCetMes": 0.01980164624537674,
+    "total": 102000,
+    "juros": 12000,
+    "erro": null,
+    "valorTotalFinanciadoEstimado": 94095.19017899851,
+    "taxaNet_txt": "1,26% a.m.",
+    "taxaCetMes_txt": "1,98% a.m.",
+    "total_txt": "R$ 102.000,00",
+    "juros_txt": "R$ 12.000,00"
+   }
+  },
+  {
+   "id": "V066",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 90000,
+    "prazo": 24,
+    "parcela": 4700
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 90000,
+    "n": 24,
+    "pmt": 4700,
+    "taxaNet": 0.015043656304219544,
+    "taxaCetMes": 0.018912865701101143,
+    "total": 112800,
+    "juros": 22800,
+    "erro": null,
+    "valorTotalFinanciadoEstimado": 94095.19017899851,
+    "taxaNet_txt": "1,50% a.m.",
+    "taxaCetMes_txt": "1,89% a.m.",
+    "total_txt": "R$ 112.800,00",
+    "juros_txt": "R$ 22.800,00"
+   }
+  },
+  {
+   "id": "V067",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 90000,
+    "prazo": 36,
+    "parcela": 3400
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 90000,
+    "n": 36,
+    "pmt": 3400,
+    "taxaNet": 0.014968808431116771,
+    "taxaCetMes": 0.017666577229556717,
+    "total": 122400,
+    "juros": 32400,
+    "erro": null,
+    "valorTotalFinanciadoEstimado": 94095.19017899851,
+    "taxaNet_txt": "1,50% a.m.",
+    "taxaCetMes_txt": "1,77% a.m.",
+    "total_txt": "R$ 122.400,00",
+    "juros_txt": "R$ 32.400,00"
+   }
+  },
+  {
+   "id": "V068",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 90000,
+    "prazo": 48,
+    "parcela": 2750
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 90000,
+    "n": 48,
+    "pmt": 2750,
+    "taxaNet": 0.01476160282046934,
+    "taxaCetMes": 0.016862259735608953,
+    "total": 132000,
+    "juros": 42000,
+    "erro": null,
+    "valorTotalFinanciadoEstimado": 94095.19017899851,
+    "taxaNet_txt": "1,48% a.m.",
+    "taxaCetMes_txt": "1,69% a.m.",
+    "total_txt": "R$ 132.000,00",
+    "juros_txt": "R$ 42.000,00"
+   }
+  },
+  {
+   "id": "V069",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 90000,
+    "prazo": 60,
+    "parcela": 2400
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 90000,
+    "n": 60,
+    "pmt": 2400,
+    "taxaNet": 0.015172372476540012,
+    "taxaCetMes": 0.016924998963240075,
+    "total": 144000,
+    "juros": 54000,
+    "erro": null,
+    "valorTotalFinanciadoEstimado": 94095.19017899851,
+    "taxaNet_txt": "1,52% a.m.",
+    "taxaCetMes_txt": "1,69% a.m.",
+    "total_txt": "R$ 144.000,00",
+    "juros_txt": "R$ 54.000,00"
+   }
+  },
+  {
+   "id": "V070",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 90000,
+    "prazo": 60,
+    "parcela": 1800
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 90000,
+    "n": 60,
+    "pmt": 1800,
+    "taxaNet": 0.004634588366311214,
+    "taxaCetMes": 0.006183413161253747,
+    "total": 108000,
+    "juros": 18000,
+    "erro": null,
+    "valorTotalFinanciadoEstimado": 94095.19017899851,
+    "taxaNet_txt": "0,46% a.m.",
+    "taxaCetMes_txt": "0,62% a.m.",
+    "total_txt": "R$ 108.000,00",
+    "juros_txt": "R$ 18.000,00"
+   }
+  },
+  {
+   "id": "V071",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 90000,
+    "prazo": 48,
+    "parcela": 1800
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 90000,
+    "n": 48,
+    "pmt": 1800,
+    "taxaNet": null,
+    "taxaCetMes": null,
+    "total": null,
+    "juros": null,
+    "erro": "⚠️ Parcela incompatível com os dados informados. Revise os valores."
+   }
+  },
+  {
+   "id": "V072",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 90000,
+    "prazo": 61,
+    "parcela": 1800
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 90000,
+    "n": 61,
+    "pmt": 1800,
+    "taxaNet": null,
+    "taxaCetMes": null,
+    "total": null,
+    "juros": null,
+    "erro": "⚠️ Informe um prazo válido entre 1 e 60 meses."
+   }
+  },
+  {
+   "id": "V073",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 180000,
+    "prazo": 60,
+    "parcela": 1800
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 180000,
+    "n": 60,
+    "pmt": 1800,
+    "taxaNet": null,
+    "taxaCetMes": null,
+    "total": null,
+    "juros": null,
+    "erro": "⚠️ Parcela incompatível com os dados informados. Revise os valores."
+   }
+  },
+  {
+   "id": "V074",
+   "plano": "CALCULADORA_TAXA",
+   "fonte": "FALLBACK",
+   "input": {
+    "financiado": 90000,
+    "prazo": 36,
+    "parcela": 2500
+   },
+   "output": {
+    "plano": "CALCULADORA_TAXA",
+    "pv": 90000,
+    "n": 36,
+    "pmt": 2500,
+    "taxaNet": null,
+    "taxaCetMes": null,
+    "total": null,
+    "juros": null,
+    "erro": "⚠️ Parcela incompatível com os dados informados. Revise os valores.",
+    "valorTotalFinanciadoEstimado": 94095.19017899851
+   }
+  },
+  {
+   "id": "V075",
+   "plano": "ANTECIPACAO",
+   "fonte": "FALLBACK",
+   "input": {
+    "prazo": 48,
+    "parcela": 2500,
+    "primeiroVenc": "2026-01-10",
+    "data": "2026-10-02",
+    "baloes": [],
+    "tipo": "todo"
+   },
+   "output": {
+    "plano": "ANTECIPACAO",
+    "erro": null,
+    "rows": [
+     {
+      "num": 10,
+      "venc": "2026-10-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 1,
+      "desconto": 0,
+      "valorDesconto": 0,
+      "final": 2500
+     },
+     {
+      "num": 11,
+      "venc": "2026-11-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 2,
+      "desconto": 0.014887713377036316,
+      "valorDesconto": 37.219283442590786,
+      "final": 2462.780716557409
+     },
+     {
+      "num": 12,
+      "venc": "2026-12-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 3,
+      "desconto": 0.030590802881806933,
+      "valorDesconto": 76.47700720451734,
+      "final": 2423.522992795483
+     },
+     {
+      "num": 13,
+      "venc": "2027-01-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 4,
+      "desconto": 0.04655757123385473,
+      "valorDesconto": 116.39392808463683,
+      "final": 2383.6060719153634
+     },
+     {
+      "num": 14,
+      "venc": "2027-02-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 5,
+      "desconto": 0.06225660414097478,
+      "valorDesconto": 155.64151035243694,
+      "final": 2344.358489647563
+     },
+     {
+      "num": 15,
+      "venc": "2027-03-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 6,
+      "desconto": 0.077209223080418,
+      "valorDesconto": 193.023057701045,
+      "final": 2306.976942298955
+     },
+     {
+      "num": 16,
+      "venc": "2027-04-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 7,
+      "desconto": 0.09240523787888621,
+      "valorDesconto": 231.01309469721554,
+      "final": 2268.9869053027846
+     },
+     {
+      "num": 17,
+      "venc": "2027-05-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 8,
+      "desconto": 0.10687512169792956,
+      "valorDesconto": 267.1878042448239,
+      "final": 2232.812195755176
+     },
+     {
+      "num": 18,
+      "venc": "2027-06-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 9,
+      "desconto": 0.1215802881806971,
+      "valorDesconto": 303.95072045174277,
+      "final": 2196.0492795482573
+     },
+     {
+      "num": 19,
+      "venc": "2027-07-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 10,
+      "desconto": 0.13605017199974045,
+      "valorDesconto": 340.1254299993511,
+      "final": 2159.874570000649
+     },
+     {
+      "num": 20,
+      "venc": "2027-08-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 11,
+      "desconto": 0.1489095865515675,
+      "valorDesconto": 372.2739663789187,
+      "final": 2127.726033621081
+     },
+     {
+      "num": 21,
+      "venc": "2027-09-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 12,
+      "desconto": 0.16292513143376397,
+      "valorDesconto": 407.31282858440994,
+      "final": 2092.68717141559
+     },
+     {
+      "num": 22,
+      "venc": "2027-10-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 13,
+      "desconto": 0.17627133770364123,
+      "valorDesconto": 440.6783442591031,
+      "final": 2059.321655740897
+     },
+     {
+      "num": 23,
+      "venc": "2027-11-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 14,
+      "desconto": 0.18983660024664106,
+      "valorDesconto": 474.5915006166027,
+      "final": 2025.4084993833974
+     },
+     {
+      "num": 24,
+      "venc": "2027-12-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 15,
+      "desconto": 0.2027528071655741,
+      "valorDesconto": 506.8820179139352,
+      "final": 1993.1179820860648
+     },
+     {
+      "num": 25,
+      "venc": "2028-01-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 16,
+      "desconto": 0.21587995716232877,
+      "valorDesconto": 539.6998929058219,
+      "final": 1960.3001070941782
+     },
+     {
+      "num": 26,
+      "venc": "2028-02-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 17,
+      "desconto": 0.2287961640812618,
+      "valorDesconto": 571.9904102031545,
+      "final": 1928.0095897968454
+     },
+     {
+      "num": 27,
+      "venc": "2028-03-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 18,
+      "desconto": 0.24108765496203022,
+      "valorDesconto": 602.7191374050756,
+      "final": 1897.2808625949244
+     },
+     {
+      "num": 28,
+      "venc": "2028-04-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 19,
+      "desconto": 0.25358603232297006,
+      "valorDesconto": 633.9650808074251,
+      "final": 1866.0349191925748
+     },
+     {
+      "num": 29,
+      "venc": "2028-05-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 20,
+      "desconto": 0.2654880898292983,
+      "valorDesconto": 663.7202245732457,
+      "final": 1836.2797754267544
+     },
+     {
+      "num": 30,
+      "venc": "2028-06-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 21,
+      "desconto": 0.27758486402284677,
+      "valorDesconto": 693.9621600571169,
+      "final": 1806.0378399428832
+     },
+     {
+      "num": 31,
+      "venc": "2028-07-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 22,
+      "desconto": 0.2894788083338742,
+      "valorDesconto": 723.6970208346854,
+      "final": 1776.3029791653146
+     },
+     {
+      "num": 32,
+      "venc": "2028-08-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 23,
+      "desconto": 0.3004316219900045,
+      "valorDesconto": 751.0790549750112,
+      "final": 1748.9209450249887
+     },
+     {
+      "num": 33,
+      "venc": "2028-09-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 24,
+      "desconto": 0.31195235931719345,
+      "valorDesconto": 779.8808982929836,
+      "final": 1720.1191017070164
+     },
+     {
+      "num": 34,
+      "venc": "2028-10-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 25,
+      "desconto": 0.3229213993639255,
+      "valorDesconto": 807.3034984098138,
+      "final": 1692.6965015901862
+     },
+     {
+      "num": 35,
+      "venc": "2028-11-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 26,
+      "desconto": 0.3340729863049263,
+      "valorDesconto": 835.1824657623158,
+      "final": 1664.8175342376842
+     },
+     {
+      "num": 36,
+      "venc": "2028-12-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 27,
+      "desconto": 0.34468910235607186,
+      "valorDesconto": 861.7227558901797,
+      "final": 1638.2772441098205
+     },
+     {
+      "num": 37,
+      "venc": "2029-01-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 28,
+      "desconto": 0.3554796521061855,
+      "valorDesconto": 888.6991302654637,
+      "final": 1611.3008697345363
+     },
+     {
+      "num": 38,
+      "venc": "2029-02-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 29,
+      "desconto": 0.366095768157331,
+      "valorDesconto": 915.2394203933276,
+      "final": 1584.7605796066723
+     },
+     {
+      "num": 39,
+      "venc": "2029-03-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 30,
+      "desconto": 0.3762007529045239,
+      "valorDesconto": 940.5018822613098,
+      "final": 1559.4981177386903
+     },
+     {
+      "num": 40,
+      "venc": "2029-04-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 31,
+      "desconto": 0.38647611475303423,
+      "valorDesconto": 966.1902868825856,
+      "final": 1533.8097131174145
+     },
+     {
+      "num": 41,
+      "venc": "2029-05-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 32,
+      "desconto": 0.3962565716881936,
+      "valorDesconto": 990.641429220484,
+      "final": 1509.358570779516
+     },
+     {
+      "num": 42,
+      "venc": "2029-06-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 33,
+      "desconto": 0.4061992925293697,
+      "valorDesconto": 1015.4982313234243,
+      "final": 1484.5017686765757
+     },
+     {
+      "num": 43,
+      "venc": "2029-07-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 34,
+      "desconto": 0.41597569286687863,
+      "valorDesconto": 1039.9392321671967,
+      "final": 1460.0607678328033
+     },
+     {
+      "num": 44,
+      "venc": "2029-08-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 35,
+      "desconto": 0.4246730382293762,
+      "valorDesconto": 1061.6825955734405,
+      "final": 1438.3174044265595
+     },
+     {
+      "num": 45,
+      "venc": "2029-09-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 36,
+      "desconto": 0.4341451937431037,
+      "valorDesconto": 1085.3629843577592,
+      "final": 1414.6370156422408
+     },
+     {
+      "num": 46,
+      "venc": "2029-10-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 37,
+      "desconto": 0.44316706691763474,
+      "valorDesconto": 1107.9176672940869,
+      "final": 1392.0823327059131
+     },
+     {
+      "num": 47,
+      "venc": "2029-11-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 38,
+      "desconto": 0.45233903420523136,
+      "valorDesconto": 1130.8475855130785,
+      "final": 1369.1524144869215
+     },
+     {
+      "num": 48,
+      "venc": "2029-12-10",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 39,
+      "desconto": 0.46106883234893226,
+      "valorDesconto": 1152.6720808723308,
+      "final": 1347.3279191276692
+     }
+    ],
+    "descTipo": "Antecipação do contrato todo",
+    "qtd": 39,
+    "qtdBaloes": 0,
+    "brutoTotal": 97500,
+    "baloesTotal": 0,
+    "descTotal": 24682.88562017265,
+    "finalTotal": 72817.11437982734,
+    "finalTotal_txt": "R$ 72.817,11",
+    "aviso": null
+   }
+  },
+  {
+   "id": "V076",
+   "plano": "ANTECIPACAO",
+   "fonte": "FALLBACK",
+   "input": {
+    "prazo": 48,
+    "parcela": 2500,
+    "primeiroVenc": "2026-01-31",
+    "data": "2026-10-02",
+    "baloes": [
+     {
+      "mes": 24,
+      "valor": 20000
+     },
+     {
+      "mes": 48,
+      "valor": 30000
+     }
+    ],
+    "tipo": "algumas",
+    "de": 20,
+    "ate": 30
+   },
+   "output": {
+    "plano": "ANTECIPACAO",
+    "erro": null,
+    "rows": [
+     {
+      "num": 20,
+      "venc": "2027-08-31",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 11,
+      "desconto": 0.1489095865515675,
+      "valorDesconto": 372.2739663789187,
+      "final": 2127.726033621081
+     },
+     {
+      "num": 21,
+      "venc": "2027-09-30",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 12,
+      "desconto": 0.16292513143376397,
+      "valorDesconto": 407.31282858440994,
+      "final": 2092.68717141559
+     },
+     {
+      "num": 22,
+      "venc": "2027-10-31",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 13,
+      "desconto": 0.17627133770364123,
+      "valorDesconto": 440.6783442591031,
+      "final": 2059.321655740897
+     },
+     {
+      "num": 23,
+      "venc": "2027-11-30",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 14,
+      "desconto": 0.18983660024664106,
+      "valorDesconto": 474.5915006166027,
+      "final": 2025.4084993833974
+     },
+     {
+      "num": 24,
+      "venc": "2027-12-31",
+      "tipo": "Balão",
+      "valorBalao": 20000,
+      "valorOriginal": 20000,
+      "bruto": 20000,
+      "meses": 15,
+      "desconto": 0.2027528071655741,
+      "valorDesconto": 4055.0561433114817,
+      "final": 15944.943856688518
+     },
+     {
+      "num": 25,
+      "venc": "2028-01-31",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 16,
+      "desconto": 0.21587995716232877,
+      "valorDesconto": 539.6998929058219,
+      "final": 1960.3001070941782
+     },
+     {
+      "num": 26,
+      "venc": "2028-02-29",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 17,
+      "desconto": 0.2287961640812618,
+      "valorDesconto": 571.9904102031545,
+      "final": 1928.0095897968454
+     },
+     {
+      "num": 27,
+      "venc": "2028-03-31",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 18,
+      "desconto": 0.24108765496203022,
+      "valorDesconto": 602.7191374050756,
+      "final": 1897.2808625949244
+     },
+     {
+      "num": 28,
+      "venc": "2028-04-30",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 19,
+      "desconto": 0.25358603232297006,
+      "valorDesconto": 633.9650808074251,
+      "final": 1866.0349191925748
+     },
+     {
+      "num": 29,
+      "venc": "2028-05-31",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 20,
+      "desconto": 0.2654880898292983,
+      "valorDesconto": 663.7202245732457,
+      "final": 1836.2797754267544
+     },
+     {
+      "num": 30,
+      "venc": "2028-06-30",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 2500,
+      "bruto": 2500,
+      "meses": 21,
+      "desconto": 0.27758486402284677,
+      "valorDesconto": 693.9621600571169,
+      "final": 1806.0378399428832
+     }
+    ],
+    "descTipo": "Antecipação de algumas parcelas",
+    "qtd": 11,
+    "qtdBaloes": 1,
+    "brutoTotal": 45000,
+    "baloesTotal": 20000,
+    "descTotal": 9455.969689102354,
+    "finalTotal": 35544.030310897644,
+    "finalTotal_txt": "R$ 35.544,03",
+    "aviso": null
+   }
+  },
+  {
+   "id": "V077",
+   "plano": "ANTECIPACAO",
+   "fonte": "FALLBACK",
+   "input": {
+    "prazo": 36,
+    "parcela": 3100,
+    "primeiroVenc": "2025-11-15",
+    "data": "2026-10-02",
+    "baloes": [],
+    "tipo": "uma",
+    "parcelaEscolhida": 36
+   },
+   "output": {
+    "plano": "ANTECIPACAO",
+    "erro": null,
+    "rows": [
+     {
+      "num": 36,
+      "venc": "2028-10-15",
+      "tipo": "Parcela mensal",
+      "valorBalao": 0,
+      "valorOriginal": 3100,
+      "bruto": 3100,
+      "meses": 25,
+      "desconto": 0.3229213993639255,
+      "valorDesconto": 1001.0563380281691,
+      "final": 2098.943661971831
+     }
+    ],
+    "descTipo": "Antecipação de apenas uma parcela",
+    "qtd": 1,
+    "qtdBaloes": 0,
+    "brutoTotal": 3100,
+    "baloesTotal": 0,
+    "descTotal": 1001.0563380281691,
+    "finalTotal": 2098.943661971831,
+    "finalTotal_txt": "R$ 2.098,94",
+    "aviso": null
+   }
+  },
+  {
+   "id": "V078",
+   "plano": "ANTECIPACAO",
+   "fonte": "FALLBACK",
+   "input": {
+    "prazo": 12,
+    "parcela": 3100,
+    "primeiroVenc": "2025-01-15",
+    "data": "2026-10-02",
+    "baloes": [],
+    "tipo": "todo"
+   },
+   "output": {
+    "plano": "ANTECIPACAO",
+    "erro": "⚠️ Nenhuma parcela futura encontrada para antecipação. Revise a data de antecipação e as parcelas escolhidas.",
+    "rows": []
+   }
+  },
+  {
+   "id": "V079",
+   "plano": "CASH_CONVERSION",
+   "fonte": "FALLBACK",
+   "input": {
+    "capital": 90000,
+    "parcela": 3418.54,
+    "prazoMeses": 36,
+    "taxaAplicacao": 0.018
+   },
+   "output": {
+    "plano": "CASH_CONVERSION",
+    "capital": 90000,
+    "parcela": 3418.54,
+    "prazoMeses": 36,
+    "taxaAplicacao": 0.018,
+    "valorFinalFinanciamento": 123067.44,
+    "valorFuturoAplicacao": 171065.53401694266,
+    "rendimentoAplicacao": 81065.53401694266,
+    "diferencaProjetada": 47998.09401694266,
+    "classificacao": "FINANCIAR"
+   }
+  },
+  {
+   "id": "V080",
+   "plano": "CASH_CONVERSION",
+   "fonte": "FALLBACK",
+   "input": {
+    "capital": 90000,
+    "parcela": 1800,
+    "prazoMeses": 60,
+    "taxaAplicacao": 0.01
+   },
+   "output": {
+    "plano": "CASH_CONVERSION",
+    "capital": 90000,
+    "parcela": 1800,
+    "prazoMeses": 60,
+    "taxaAplicacao": 0.01,
+    "valorFinalFinanciamento": 108000,
+    "valorFuturoAplicacao": 163502.70287076823,
+    "rendimentoAplicacao": 73502.70287076823,
+    "diferencaProjetada": 55502.70287076823,
+    "classificacao": "FINANCIAR"
+   }
+  },
+  {
+   "id": "V081",
+   "plano": "CASH_CONVERSION",
+   "fonte": "FALLBACK",
+   "input": {
+    "capital": 100000,
+    "parcela": 5000,
+    "prazoMeses": 24,
+    "taxaAplicacao": 0.005
+   },
+   "output": {
+    "plano": "CASH_CONVERSION",
+    "capital": 100000,
+    "parcela": 5000,
+    "prazoMeses": 24,
+    "taxaAplicacao": 0.005,
+    "valorFinalFinanciamento": 120000,
+    "valorFuturoAplicacao": 112715.97762053889,
+    "rendimentoAplicacao": 12715.977620538892,
+    "diferencaProjetada": -7284.022379461108,
+    "classificacao": "UTILIZAR"
+   }
+  },
+  {
+   "id": "V082",
+   "plano": "CASH_CONVERSION",
+   "fonte": "FALLBACK",
+   "input": {
+    "capital": 120000,
+    "parcela": 10000,
+    "prazoMeses": 12,
+    "taxaAplicacao": 0
+   },
+   "output": {
+    "plano": "CASH_CONVERSION",
+    "capital": 120000,
+    "parcela": 10000,
+    "prazoMeses": 12,
+    "taxaAplicacao": 0,
+    "valorFinalFinanciamento": 120000,
+    "valorFuturoAplicacao": 120000,
+    "rendimentoAplicacao": 0,
+    "diferencaProjetada": 0,
+    "classificacao": "EQUIVALENTE"
+   }
+  }
+ ]
+}

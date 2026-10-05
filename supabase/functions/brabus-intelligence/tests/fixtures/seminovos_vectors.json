@@ -1,0 +1,2533 @@
+{
+ "gerado_em": "2026-10-02T20:20:15.175Z",
+ "tz": "America/Sao_Paulo",
+ "fonte": "seminovos_engine_ref.js (tabelas FALLBACK) — cada vetor conferido contra o código original em jsdom",
+ "conferencia_dom": {
+  "divergencias": 0
+ },
+ "nota_precisao": "valores numéricos arredondados a 6 casas para o JSON; *_exibido = formatação pt-BR original (2 casas)",
+ "total": 40,
+ "vectors": [
+  {
+   "id": "linear_1",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": 2010,
+    "valorVeiculo": 40000,
+    "valorEntrada": 0
+   },
+   "expected": {
+    "faixaAno": "2007-2013",
+    "faixaEntrada": "0",
+    "financiado": 40000,
+    "invalid": false,
+    "status": "",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": 0.0303,
+      "iof": 1435.05908,
+      "baseTotal": 44504.05908,
+      "parcela": 4478.98107,
+      "parcela_exibida": "R$ 4.478,98"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0266,
+      "iof": 1452.71737,
+      "baseTotal": 44521.71737,
+      "parcela": 3144.782758,
+      "parcela_exibida": "R$ 3.144,78"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0251,
+      "iof": 1452.71737,
+      "baseTotal": 44521.71737,
+      "parcela": 2492.085706,
+      "parcela_exibida": "R$ 2.492,09"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0242,
+      "iof": 1452.71737,
+      "baseTotal": 44521.71737,
+      "parcela": 2104.517849,
+      "parcela_exibida": "R$ 2.104,52"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0236,
+      "iof": 1452.71737,
+      "baseTotal": 44521.71737,
+      "parcela": 1849.283489,
+      "parcela_exibida": "R$ 1.849,28"
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0238,
+      "iof": 1452.71737,
+      "baseTotal": 44521.71737,
+      "parcela": 1688.25977,
+      "parcela_exibida": "R$ 1.688,26"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0235,
+      "iof": 1452.71737,
+      "baseTotal": 44521.71737,
+      "parcela": 1556.776732,
+      "parcela_exibida": "R$ 1.556,78"
+     },
+     {
+      "prazo": 50,
+      "taxa": 0.0237,
+      "iof": 1452.71737,
+      "baseTotal": 44521.71737,
+      "parcela": 1529.229176,
+      "parcela_exibida": "R$ 1.529,23"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0233,
+      "iof": 1452.71737,
+      "baseTotal": 44521.71737,
+      "parcela": 1385.146035,
+      "parcela_exibida": "R$ 1.385,15"
+     }
+    ]
+   }
+  },
+  {
+   "id": "linear_2",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": 2015,
+    "valorVeiculo": 65000,
+    "valorEntrada": 13000
+   },
+   "expected": {
+    "faixaAno": "2014-2017",
+    "faixaEntrada": "20",
+    "financiado": 52000,
+    "invalid": false,
+    "status": "",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": 0.0286,
+      "iof": 1844.89508,
+      "baseTotal": 57213.89508,
+      "parcela": 5699.896886,
+      "parcela_exibida": "R$ 5.699,90"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0249,
+      "iof": 1867.59637,
+      "baseTotal": 57236.59637,
+      "parcela": 3984.240915,
+      "parcela_exibida": "R$ 3.984,24"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0234,
+      "iof": 1867.59637,
+      "baseTotal": 57236.59637,
+      "parcela": 3143.964539,
+      "parcela_exibida": "R$ 3.143,96"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0225,
+      "iof": 1867.59637,
+      "baseTotal": 57236.59637,
+      "parcela": 2644.2931,
+      "parcela_exibida": "R$ 2.644,29"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0219,
+      "iof": 1867.59637,
+      "baseTotal": 57236.59637,
+      "parcela": 2314.64366,
+      "parcela_exibida": "R$ 2.314,64"
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0221,
+      "iof": 1867.59637,
+      "baseTotal": 57236.59637,
+      "parcela": 2105.688243,
+      "parcela_exibida": "R$ 2.105,69"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0217,
+      "iof": 1867.59637,
+      "baseTotal": 57236.59637,
+      "parcela": 1931.152175,
+      "parcela_exibida": "R$ 1.931,15"
+     },
+     {
+      "prazo": 50,
+      "taxa": 0.022,
+      "iof": 1867.59637,
+      "baseTotal": 57236.59637,
+      "parcela": 1898.865417,
+      "parcela_exibida": "R$ 1.898,87"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0216,
+      "iof": 1867.59637,
+      "baseTotal": 57236.59637,
+      "parcela": 1710.980808,
+      "parcela_exibida": "R$ 1.710,98"
+     }
+    ]
+   }
+  },
+  {
+   "id": "linear_3",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": 2020,
+    "valorVeiculo": 80000,
+    "valorEntrada": 20000
+   },
+   "expected": {
+    "faixaAno": "2018-2021",
+    "faixaEntrada": "20",
+    "financiado": 60000,
+    "invalid": false,
+    "status": "",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": 0.0283,
+      "iof": 2118.11908,
+      "baseTotal": 65687.11908,
+      "parcela": 6532.275928,
+      "parcela_exibida": "R$ 6.532,28"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0246,
+      "iof": 2144.18237,
+      "baseTotal": 65713.18237,
+      "parcela": 4562.468141,
+      "parcela_exibida": "R$ 4.562,47"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0231,
+      "iof": 2144.18237,
+      "baseTotal": 65713.18237,
+      "parcela": 3597.528632,
+      "parcela_exibida": "R$ 3.597,53"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0222,
+      "iof": 2144.18237,
+      "baseTotal": 65713.18237,
+      "parcela": 3023.587022,
+      "parcela_exibida": "R$ 3.023,59"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0216,
+      "iof": 2144.18237,
+      "baseTotal": 65713.18237,
+      "parcela": 2644.825271,
+      "parcela_exibida": "R$ 2.644,83"
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0218,
+      "iof": 2144.18237,
+      "baseTotal": 65713.18237,
+      "parcela": 2404.544906,
+      "parcela_exibida": "R$ 2.404,54"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0214,
+      "iof": 2144.18237,
+      "baseTotal": 65713.18237,
+      "parcela": 2203.857217,
+      "parcela_exibida": "R$ 2.203,86"
+     },
+     {
+      "prazo": 50,
+      "taxa": 0.0216,
+      "iof": 2144.18237,
+      "baseTotal": 65713.18237,
+      "parcela": 2162.154475,
+      "parcela_exibida": "R$ 2.162,15"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0213,
+      "iof": 2144.18237,
+      "baseTotal": 65713.18237,
+      "parcela": 1950.402526,
+      "parcela_exibida": "R$ 1.950,40"
+     }
+    ]
+   }
+  },
+  {
+   "id": "linear_4",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": 2023,
+    "valorVeiculo": 120000,
+    "valorEntrada": 48000
+   },
+   "expected": {
+    "faixaAno": "2022-2024",
+    "faixaEntrada": "40",
+    "financiado": 72000,
+    "invalid": false,
+    "status": "",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": 0.0231,
+      "iof": 2527.95508,
+      "baseTotal": 78396.95508,
+      "parcela": 7555.040151,
+      "parcela_exibida": "R$ 7.555,04"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0203,
+      "iof": 2559.06137,
+      "baseTotal": 78428.06137,
+      "parcela": 5245.125208,
+      "parcela_exibida": "R$ 5.245,13"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0188,
+      "iof": 2559.06137,
+      "baseTotal": 78428.06137,
+      "parcela": 4090.42446,
+      "parcela_exibida": "R$ 4.090,42"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0206,
+      "iof": 2559.06137,
+      "baseTotal": 78428.06137,
+      "parcela": 3530.763005,
+      "parcela_exibida": "R$ 3.530,76"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.02,
+      "iof": 2559.06137,
+      "baseTotal": 78428.06137,
+      "parcela": 3076.956571,
+      "parcela_exibida": "R$ 3.076,96"
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0202,
+      "iof": 2559.06137,
+      "baseTotal": 78428.06137,
+      "parcela": 2787.863057,
+      "parcela_exibida": "R$ 2.787,86"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0199,
+      "iof": 2559.06137,
+      "baseTotal": 78428.06137,
+      "parcela": 2551.698607,
+      "parcela_exibida": "R$ 2.551,70"
+     },
+     {
+      "prazo": 50,
+      "taxa": 0.0201,
+      "iof": 2559.06137,
+      "baseTotal": 78428.06137,
+      "parcela": 2501.082146,
+      "parcela_exibida": "R$ 2.501,08"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0197,
+      "iof": 2559.06137,
+      "baseTotal": 78428.06137,
+      "parcela": 2239.857473,
+      "parcela_exibida": "R$ 2.239,86"
+     }
+    ]
+   }
+  },
+  {
+   "id": "linear_5",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": 2025,
+    "valorVeiculo": 150000,
+    "valorEntrada": 59999.99
+   },
+   "expected": {
+    "faixaAno": "2025-2099",
+    "faixaEntrada": "20",
+    "financiado": 90000.01,
+    "invalid": false,
+    "status": "",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": 0.0275,
+      "iof": 3142.709422,
+      "baseTotal": 97461.719672,
+      "parcela": 9645.660655,
+      "parcela_exibida": "R$ 9.645,66"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.024,
+      "iof": 3181.380216,
+      "baseTotal": 97500.390466,
+      "parcela": 6734.429966,
+      "parcela_exibida": "R$ 6.734,43"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0225,
+      "iof": 3181.380216,
+      "baseTotal": 97500.390466,
+      "parcela": 5302.093552,
+      "parcela_exibida": "R$ 5.302,09"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0216,
+      "iof": 3181.380216,
+      "baseTotal": 97500.390466,
+      "parcela": 4449.742723,
+      "parcela_exibida": "R$ 4.449,74"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.021,
+      "iof": 3181.380216,
+      "baseTotal": 97500.390466,
+      "parcela": 3886.919347,
+      "parcela_exibida": "R$ 3.886,92"
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0211,
+      "iof": 3181.380216,
+      "baseTotal": 97500.390466,
+      "parcela": 3522.928228,
+      "parcela_exibida": "R$ 3.522,93"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0208,
+      "iof": 3181.380216,
+      "baseTotal": 97500.390466,
+      "parcela": 3230.658123,
+      "parcela_exibida": "R$ 3.230,66"
+     },
+     {
+      "prazo": 50,
+      "taxa": 0.0209,
+      "iof": 3181.380216,
+      "baseTotal": 97500.390466,
+      "parcela": 3161.766779,
+      "parcela_exibida": "R$ 3.161,77"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0206,
+      "iof": 3181.380216,
+      "baseTotal": 97500.390466,
+      "parcela": 2845.782562,
+      "parcela_exibida": "R$ 2.845,78"
+     }
+    ]
+   }
+  },
+  {
+   "id": "linear_6",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": 2026,
+    "valorVeiculo": 95500.5,
+    "valorEntrada": 19100.1
+   },
+   "expected": {
+    "faixaAno": "2025-2099",
+    "faixaEntrada": "20",
+    "financiado": 76400.4,
+    "invalid": false,
+    "status": "",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": 0.0275,
+      "iof": 2678.241941,
+      "baseTotal": 83057.651941,
+      "parcela": 8220.108655,
+      "parcela_exibida": "R$ 8.220,11"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.024,
+      "iof": 2711.197499,
+      "baseTotal": 83090.607499,
+      "parcela": 5739.134729,
+      "parcela_exibida": "R$ 5.739,13"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0225,
+      "iof": 2711.197499,
+      "baseTotal": 83090.607499,
+      "parcela": 4518.486256,
+      "parcela_exibida": "R$ 4.518,49"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0216,
+      "iof": 2711.197499,
+      "baseTotal": 83090.607499,
+      "parcela": 3792.106107,
+      "parcela_exibida": "R$ 3.792,11"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.021,
+      "iof": 2711.197499,
+      "baseTotal": 83090.607499,
+      "parcela": 3312.463553,
+      "parcela_exibida": "R$ 3.312,46"
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0211,
+      "iof": 2711.197499,
+      "baseTotal": 83090.607499,
+      "parcela": 3002.267429,
+      "parcela_exibida": "R$ 3.002,27"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0208,
+      "iof": 2711.197499,
+      "baseTotal": 83090.607499,
+      "parcela": 2753.192524,
+      "parcela_exibida": "R$ 2.753,19"
+     },
+     {
+      "prazo": 50,
+      "taxa": 0.0209,
+      "iof": 2711.197499,
+      "baseTotal": 83090.607499,
+      "parcela": 2694.482773,
+      "parcela_exibida": "R$ 2.694,48"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0206,
+      "iof": 2711.197499,
+      "baseTotal": 83090.607499,
+      "parcela": 2425.198512,
+      "parcela_exibida": "R$ 2.425,20"
+     }
+    ]
+   }
+  },
+  {
+   "id": "linear_7",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": 2017,
+    "valorVeiculo": 55000,
+    "valorEntrada": 55000
+   },
+   "expected": {
+    "faixaAno": "2014-2017",
+    "faixaEntrada": "40",
+    "financiado": 0,
+    "invalid": false,
+    "status": "",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": 0.0274,
+      "iof": 68.93908,
+      "baseTotal": 2137.93908,
+      "parcela": 211.461886,
+      "parcela_exibida": "R$ 211,46"
+     },
+     {
+      "prazo": 18,
+      "taxa": 0.0238,
+      "iof": 69.78737,
+      "baseTotal": 2138.78737,
+      "parcela": 147.472135,
+      "parcela_exibida": "R$ 147,47"
+     },
+     {
+      "prazo": 24,
+      "taxa": 0.0223,
+      "iof": 69.78737,
+      "baseTotal": 2138.78737,
+      "parcela": 116.047677,
+      "parcela_exibida": "R$ 116,05"
+     },
+     {
+      "prazo": 30,
+      "taxa": 0.0214,
+      "iof": 69.78737,
+      "baseTotal": 2138.78737,
+      "parcela": 97.344804,
+      "parcela_exibida": "R$ 97,34"
+     },
+     {
+      "prazo": 36,
+      "taxa": 0.0208,
+      "iof": 69.78737,
+      "baseTotal": 2138.78737,
+      "parcela": 84.992573,
+      "parcela_exibida": "R$ 84,99"
+     },
+     {
+      "prazo": 42,
+      "taxa": 0.0209,
+      "iof": 69.78737,
+      "baseTotal": 2138.78737,
+      "parcela": 77.000316,
+      "parcela_exibida": "R$ 77,00"
+     },
+     {
+      "prazo": 48,
+      "taxa": 0.0206,
+      "iof": 69.78737,
+      "baseTotal": 2138.78737,
+      "parcela": 70.582447,
+      "parcela_exibida": "R$ 70,58"
+     },
+     {
+      "prazo": 50,
+      "taxa": 0.0207,
+      "iof": 69.78737,
+      "baseTotal": 2138.78737,
+      "parcela": 69.068468,
+      "parcela_exibida": "R$ 69,07"
+     },
+     {
+      "prazo": 60,
+      "taxa": 0.0204,
+      "iof": 69.78737,
+      "baseTotal": 2138.78737,
+      "parcela": 62.125892,
+      "parcela_exibida": "R$ 62,13"
+     }
+    ]
+   }
+  },
+  {
+   "id": "linear_8",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": 2006,
+    "valorVeiculo": 50000,
+    "valorEntrada": 10000
+   },
+   "expected": {
+    "faixaAno": null,
+    "faixaEntrada": "20",
+    "financiado": 40000,
+    "invalid": true,
+    "status": "Ano fora da tabela vigente. Use anos entre 2007 e 2099.",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 18,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 24,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 30,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 36,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 42,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 48,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 50,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 60,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     }
+    ]
+   }
+  },
+  {
+   "id": "linear_9",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": 2021,
+    "valorVeiculo": 70000,
+    "valorEntrada": 80000
+   },
+   "expected": {
+    "faixaAno": "2018-2021",
+    "faixaEntrada": "40",
+    "financiado": 0,
+    "invalid": true,
+    "status": "O percentual de entrada não pode ser maior que 100%.",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 18,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 24,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 30,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 36,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 42,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 48,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 50,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 60,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     }
+    ]
+   }
+  },
+  {
+   "id": "linear_10",
+   "plano": "FINANCIAMENTO_LINEAR_SEMINOVO",
+   "fn": "calcFinanciamentoLinearSeminovo",
+   "input": {
+    "ano": "",
+    "valorVeiculo": 70000,
+    "valorEntrada": 10000
+   },
+   "expected": {
+    "faixaAno": null,
+    "faixaEntrada": "0",
+    "financiado": 60000,
+    "invalid": true,
+    "status": "",
+    "parcelas": [
+     {
+      "prazo": 12,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 18,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 24,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 30,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 36,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 42,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 48,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 50,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     },
+     {
+      "prazo": 60,
+      "taxa": null,
+      "iof": null,
+      "baseTotal": null,
+      "parcela": null,
+      "parcela_exibida": null
+     }
+    ]
+   }
+  },
+  {
+   "id": "balao_1",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 100000,
+    "entrada": 30000,
+    "ano": "2022",
+    "prazo": 48,
+    "baloes": [
+     {
+      "mes": 24,
+      "valor": 15000
+     }
+    ]
+   },
+   "expected": {
+    "faixa": "2017_2024",
+    "taxa": 0.0192885,
+    "taxaInterna": 0.019409,
+    "maxBalaoPct": 0.7,
+    "limiteBalao": 49000,
+    "baseInterna": 78195.118161,
+    "vpBaloes": 9456.561414,
+    "parcela": 2214.115456,
+    "parcela_exibida": "R$ 2.214,12",
+    "fluxo": [
+     {
+      "mes": 24,
+      "total": 17214.115456
+     }
+    ]
+   }
+  },
+  {
+   "id": "balao_2",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 100000,
+    "entrada": 20000,
+    "ano": "2020",
+    "prazo": 12,
+    "baloes": []
+   },
+   "expected": {
+    "faixa": "2017_2024",
+    "taxa": 0.024485999999999997,
+    "taxaInterna": 0.024606,
+    "maxBalaoPct": 0.7,
+    "limiteBalao": 56000,
+    "baseInterna": 89171.062328,
+    "vpBaloes": 0,
+    "parcela": 8672.305764,
+    "parcela_exibida": "R$ 8.672,31",
+    "fluxo": []
+   }
+  },
+  {
+   "id": "balao_3",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 85000,
+    "entrada": 42500,
+    "ano": "2025",
+    "prazo": 36,
+    "baloes": [
+     {
+      "mes": 12,
+      "valor": 10000
+     },
+     {
+      "mes": 36,
+      "valor": 15000
+     }
+    ]
+   },
+   "expected": {
+    "faixa": "2025_2099",
+    "taxa": 0.017955000000000002,
+    "taxaInterna": 0.018075,
+    "maxBalaoPct": 0.7,
+    "limiteBalao": 29750,
+    "baseInterna": 48011.271703,
+    "vpBaloes": 15936.522308,
+    "parcela": 1219.811297,
+    "parcela_exibida": "R$ 1.219,81",
+    "fluxo": [
+     {
+      "mes": 12,
+      "total": 11219.811297
+     },
+     {
+      "mes": 36,
+      "total": 16219.811297
+     }
+    ]
+   }
+  },
+  {
+   "id": "balao_4",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 200000,
+    "entrada": 80000,
+    "ano": "2024",
+    "prazo": 40,
+    "baloes": [
+     {
+      "mes": 40,
+      "valor": 84000
+     }
+    ]
+   },
+   "expected": {
+    "faixa": "2017_2024",
+    "taxa": 0.018522,
+    "taxaInterna": 0.018642,
+    "maxBalaoPct": 0.7,
+    "limiteBalao": 84000,
+    "baseInterna": 133074.838993,
+    "vpBaloes": 40125.100716,
+    "parcela": 3317.445741,
+    "parcela_exibida": "R$ 3.317,45",
+    "fluxo": [
+     {
+      "mes": 40,
+      "total": 87317.445741
+     }
+    ]
+   }
+  },
+  {
+   "id": "balao_5",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 200000,
+    "entrada": 80000,
+    "ano": "2024",
+    "prazo": 40,
+    "baloes": [
+     {
+      "mes": 40,
+      "valor": 84000.01
+     }
+    ]
+   },
+   "expected": {
+    "erro": "⚠️ A soma dos balões (R$ 84.000,01) ultrapassa o valor máximo de balão permitido (R$ 84.000,00), calculado sobre o valor financiado.",
+    "limiteBalao": 84000,
+    "taxa": 0.018522
+   }
+  },
+  {
+   "id": "balao_6",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 150000,
+    "entrada": 30000,
+    "ano": "2026",
+    "prazo": 30,
+    "baloes": [
+     {
+      "mes": 6,
+      "valor": 5000
+     },
+     {
+      "mes": 18,
+      "valor": 5000
+     }
+    ]
+   },
+   "expected": {
+    "faixa": "2025_2099",
+    "taxa": 0.01951425,
+    "taxaInterna": 0.019634,
+    "maxBalaoPct": 0.7,
+    "limiteBalao": 84000,
+    "baseInterna": 133074.838993,
+    "vpBaloes": 7972.890748,
+    "parcela": 5557.739926,
+    "parcela_exibida": "R$ 5.557,74",
+    "fluxo": [
+     {
+      "mes": 6,
+      "total": 10557.739926
+     },
+     {
+      "mes": 18,
+      "total": 10557.739926
+     }
+    ]
+   }
+  },
+  {
+   "id": "balao_7",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 90000,
+    "entrada": 13500,
+    "ano": "2021",
+    "prazo": 24,
+    "baloes": []
+   },
+   "expected": {
+    "erro": "⚠️ Prazo sem regra cadastrada na tabela para a faixa de ano e entrada informada.",
+    "limiteBalao": null,
+    "taxa": null
+   }
+  },
+  {
+   "id": "balao_8",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 90000,
+    "entrada": 5000,
+    "ano": "2021",
+    "prazo": 24,
+    "baloes": []
+   },
+   "expected": {
+    "erro": "⚠️ A entrada mínima permitida para este plano é de 10%.",
+    "limiteBalao": null,
+    "taxa": null
+   }
+  },
+  {
+   "id": "balao_9",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 90000,
+    "entrada": 27000,
+    "ano": "2016",
+    "prazo": 48,
+    "baloes": []
+   },
+   "expected": {
+    "erro": "⚠️ Prazo sem regra cadastrada na tabela para a faixa de ano e entrada informada.",
+    "limiteBalao": null,
+    "taxa": null
+   }
+  },
+  {
+   "id": "balao_10",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 90000,
+    "entrada": 27000,
+    "ano": "20",
+    "prazo": 48,
+    "baloes": []
+   },
+   "expected": {
+    "erro": "⚠️ Digite o ano do veículo para identificar a tabela correta.",
+    "limiteBalao": null,
+    "taxa": null
+   }
+  },
+  {
+   "id": "balao_11",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 120000,
+    "entrada": 36000,
+    "ano": "2019",
+    "prazo": 42,
+    "baloes": [
+     {
+      "mes": 43,
+      "valor": 1000
+     }
+    ]
+   },
+   "expected": {
+    "erro": "⚠️ Existe balão fora do prazo. Use parcelas entre 1 e 42.",
+    "limiteBalao": null,
+    "taxa": null
+   }
+  },
+  {
+   "id": "balao_12",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 120000,
+    "entrada": 36000,
+    "ano": "2019",
+    "prazo": 42,
+    "baloes": [
+     {
+      "mes": 10,
+      "valor": 1000
+     },
+     {
+      "mes": 10,
+      "valor": 2000
+     }
+    ]
+   },
+   "expected": {
+    "erro": "⚠️ Não é permitido inserir dois balões na mesma parcela.",
+    "limiteBalao": null,
+    "taxa": null
+   }
+  },
+  {
+   "id": "balao_13",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 60000,
+    "entrada": 60000,
+    "ano": "2019",
+    "prazo": 42,
+    "baloes": []
+   },
+   "expected": {
+    "erro": "⚠️ A entrada deve ser menor que o valor do bem.",
+    "limiteBalao": null,
+    "taxa": null
+   }
+  },
+  {
+   "id": "balao_14",
+   "plano": "PLANO_BALAO_SEMINOVO",
+   "fn": "calcPlanoBalaoSeminovo",
+   "input": {
+    "bem": 73250.75,
+    "entrada": 29300.3,
+    "ano": "2025",
+    "prazo": 48,
+    "baloes": [
+     {
+      "mes": 48,
+      "valor": 30000
+     }
+    ]
+   },
+   "expected": {
+    "faixa": "2025_2099",
+    "taxa": 0.018411749999999998,
+    "taxaInterna": 0.018532,
+    "maxBalaoPct": 0.7,
+    "limiteBalao": 30765.315,
+    "baseInterna": 49603.277525,
+    "vpBaloes": 12426.299649,
+    "parcela": 1176.111654,
+    "parcela_exibida": "R$ 1.176,11",
+    "fluxo": [
+     {
+      "mes": 48,
+      "total": 31176.111654
+     }
+    ]
+   }
+  },
+  {
+   "id": "calc_taxa_1",
+   "plano": "CALCULADORA_TAXA",
+   "fn": "calcCalculadoraTaxa",
+   "input": {
+    "financiado": 50000,
+    "prazo": 48,
+    "parcela": 1650
+   },
+   "expected": {
+    "valorTotalFinanciadoEstimado": 52879.452024,
+    "taxaNet": 0.017867,
+    "taxaCetMes": 0.020598,
+    "taxaNetTxt": "1,79% a.m.",
+    "taxaCetMesTxt": "2,06% a.m.",
+    "total": 79200,
+    "juros": 29200
+   }
+  },
+  {
+   "id": "calc_taxa_2",
+   "plano": "CALCULADORA_TAXA",
+   "fn": "calcCalculadoraTaxa",
+   "input": {
+    "financiado": 80000,
+    "prazo": 60,
+    "parcela": 2300
+   },
+   "expected": {
+    "valorTotalFinanciadoEstimado": 83791.25564,
+    "taxaNet": 0.018084,
+    "taxaCetMes": 0.019974,
+    "taxaNetTxt": "1,81% a.m.",
+    "taxaCetMesTxt": "2,00% a.m.",
+    "total": 138000,
+    "juros": 58000
+   }
+  },
+  {
+   "id": "calc_taxa_3",
+   "plano": "CALCULADORA_TAXA",
+   "fn": "calcCalculadoraTaxa",
+   "input": {
+    "financiado": 30000,
+    "prazo": 12,
+    "parcela": 2800
+   },
+   "expected": {
+    "valorTotalFinanciadoEstimado": 32271.582946,
+    "taxaNet": 0.006261,
+    "taxaCetMes": 0.017881,
+    "taxaNetTxt": "0,63% a.m.",
+    "taxaCetMesTxt": "1,79% a.m.",
+    "total": 33600,
+    "juros": 3600
+   }
+  },
+  {
+   "id": "calc_taxa_4",
+   "plano": "CALCULADORA_TAXA",
+   "fn": "calcCalculadoraTaxa",
+   "input": {
+    "financiado": 30000,
+    "prazo": 12,
+    "parcela": 2500
+   },
+   "expected": {
+    "erro": "⚠️ Parcela incompatível com os dados informados. Revise os valores."
+   }
+  },
+  {
+   "id": "calc_taxa_5",
+   "plano": "CALCULADORA_TAXA",
+   "fn": "calcCalculadoraTaxa",
+   "input": {
+    "financiado": 30000,
+    "prazo": 12,
+    "parcela": 2400
+   },
+   "expected": {
+    "erro": "⚠️ Parcela incompatível com os dados informados. Revise os valores."
+   }
+  },
+  {
+   "id": "calc_taxa_6",
+   "plano": "CALCULADORA_TAXA",
+   "fn": "calcCalculadoraTaxa",
+   "input": {
+    "financiado": 100000,
+    "prazo": 36,
+    "parcela": 3900
+   },
+   "expected": {
+    "valorTotalFinanciadoEstimado": 104399.124718,
+    "taxaNet": 0.016982,
+    "taxaCetMes": 0.01963,
+    "taxaNetTxt": "1,70% a.m.",
+    "taxaCetMesTxt": "1,96% a.m.",
+    "total": 140400,
+    "juros": 40400
+   }
+  },
+  {
+   "id": "antecipacao_1",
+   "plano": "ANTECIPACAO",
+   "fn": "calcAntecipacao",
+   "input": {
+    "prazo": 48,
+    "parcela": 2000,
+    "primeiroVenc": "2026-01-10",
+    "data": "2026-10-02",
+    "tipo": "todo",
+    "baloes": []
+   },
+   "tz": "America/Sao_Paulo",
+   "expected": {
+    "descTipo": "Antecipação do contrato todo",
+    "qtd": 39,
+    "qtdBaloes": 0,
+    "brutoTotal": 78000,
+    "baloesTotal": 0,
+    "descTotal": 19746.308496,
+    "finalTotal": 58253.691504,
+    "finalTotal_exibido": "R$ 58.253,69",
+    "aviso": null,
+    "linhas": [
+     {
+      "num": 10,
+      "venc": "2026-10-10",
+      "tipo": "Parcela mensal",
+      "meses": 1,
+      "desconto": 0,
+      "final": 2000
+     },
+     {
+      "num": 11,
+      "venc": "2026-11-10",
+      "tipo": "Parcela mensal",
+      "meses": 2,
+      "desconto": 0.014887713377036316,
+      "final": 1970.224573
+     },
+     {
+      "num": 12,
+      "venc": "2026-12-10",
+      "tipo": "Parcela mensal",
+      "meses": 3,
+      "desconto": 0.030590802881806933,
+      "final": 1938.818394
+     },
+     {
+      "num": 13,
+      "venc": "2027-01-10",
+      "tipo": "Parcela mensal",
+      "meses": 4,
+      "desconto": 0.04655757123385473,
+      "final": 1906.884858
+     },
+     {
+      "num": 14,
+      "venc": "2027-02-10",
+      "tipo": "Parcela mensal",
+      "meses": 5,
+      "desconto": 0.06225660414097478,
+      "final": 1875.486792
+     },
+     {
+      "num": 15,
+      "venc": "2027-03-10",
+      "tipo": "Parcela mensal",
+      "meses": 6,
+      "desconto": 0.077209223080418,
+      "final": 1845.581554
+     },
+     {
+      "num": 16,
+      "venc": "2027-04-10",
+      "tipo": "Parcela mensal",
+      "meses": 7,
+      "desconto": 0.09240523787888621,
+      "final": 1815.189524
+     },
+     {
+      "num": 17,
+      "venc": "2027-05-10",
+      "tipo": "Parcela mensal",
+      "meses": 8,
+      "desconto": 0.10687512169792956,
+      "final": 1786.249757
+     },
+     {
+      "num": 18,
+      "venc": "2027-06-10",
+      "tipo": "Parcela mensal",
+      "meses": 9,
+      "desconto": 0.1215802881806971,
+      "final": 1756.839424
+     },
+     {
+      "num": 19,
+      "venc": "2027-07-10",
+      "tipo": "Parcela mensal",
+      "meses": 10,
+      "desconto": 0.13605017199974045,
+      "final": 1727.899656
+     },
+     {
+      "num": 20,
+      "venc": "2027-08-10",
+      "tipo": "Parcela mensal",
+      "meses": 11,
+      "desconto": 0.1489095865515675,
+      "final": 1702.180827
+     },
+     {
+      "num": 21,
+      "venc": "2027-09-10",
+      "tipo": "Parcela mensal",
+      "meses": 12,
+      "desconto": 0.16292513143376397,
+      "final": 1674.149737
+     },
+     {
+      "num": 22,
+      "venc": "2027-10-10",
+      "tipo": "Parcela mensal",
+      "meses": 13,
+      "desconto": 0.17627133770364123,
+      "final": 1647.457325
+     },
+     {
+      "num": 23,
+      "venc": "2027-11-10",
+      "tipo": "Parcela mensal",
+      "meses": 14,
+      "desconto": 0.18983660024664106,
+      "final": 1620.3268
+     },
+     {
+      "num": 24,
+      "venc": "2027-12-10",
+      "tipo": "Parcela mensal",
+      "meses": 15,
+      "desconto": 0.2027528071655741,
+      "final": 1594.494386
+     },
+     {
+      "num": 25,
+      "venc": "2028-01-10",
+      "tipo": "Parcela mensal",
+      "meses": 16,
+      "desconto": 0.21587995716232877,
+      "final": 1568.240086
+     },
+     {
+      "num": 26,
+      "venc": "2028-02-10",
+      "tipo": "Parcela mensal",
+      "meses": 17,
+      "desconto": 0.2287961640812618,
+      "final": 1542.407672
+     },
+     {
+      "num": 27,
+      "venc": "2028-03-10",
+      "tipo": "Parcela mensal",
+      "meses": 18,
+      "desconto": 0.24108765496203022,
+      "final": 1517.82469
+     },
+     {
+      "num": 28,
+      "venc": "2028-04-10",
+      "tipo": "Parcela mensal",
+      "meses": 19,
+      "desconto": 0.25358603232297006,
+      "final": 1492.827935
+     },
+     {
+      "num": 29,
+      "venc": "2028-05-10",
+      "tipo": "Parcela mensal",
+      "meses": 20,
+      "desconto": 0.2654880898292983,
+      "final": 1469.02382
+     },
+     {
+      "num": 30,
+      "venc": "2028-06-10",
+      "tipo": "Parcela mensal",
+      "meses": 21,
+      "desconto": 0.27758486402284677,
+      "final": 1444.830272
+     },
+     {
+      "num": 31,
+      "venc": "2028-07-10",
+      "tipo": "Parcela mensal",
+      "meses": 22,
+      "desconto": 0.2894788083338742,
+      "final": 1421.042383
+     },
+     {
+      "num": 32,
+      "venc": "2028-08-10",
+      "tipo": "Parcela mensal",
+      "meses": 23,
+      "desconto": 0.3004316219900045,
+      "final": 1399.136756
+     },
+     {
+      "num": 33,
+      "venc": "2028-09-10",
+      "tipo": "Parcela mensal",
+      "meses": 24,
+      "desconto": 0.31195235931719345,
+      "final": 1376.095281
+     },
+     {
+      "num": 34,
+      "venc": "2028-10-10",
+      "tipo": "Parcela mensal",
+      "meses": 25,
+      "desconto": 0.3229213993639255,
+      "final": 1354.157201
+     },
+     {
+      "num": 35,
+      "venc": "2028-11-10",
+      "tipo": "Parcela mensal",
+      "meses": 26,
+      "desconto": 0.3340729863049263,
+      "final": 1331.854027
+     },
+     {
+      "num": 36,
+      "venc": "2028-12-10",
+      "tipo": "Parcela mensal",
+      "meses": 27,
+      "desconto": 0.34468910235607186,
+      "final": 1310.621795
+     },
+     {
+      "num": 37,
+      "venc": "2029-01-10",
+      "tipo": "Parcela mensal",
+      "meses": 28,
+      "desconto": 0.3554796521061855,
+      "final": 1289.040696
+     },
+     {
+      "num": 38,
+      "venc": "2029-02-10",
+      "tipo": "Parcela mensal",
+      "meses": 29,
+      "desconto": 0.366095768157331,
+      "final": 1267.808464
+     },
+     {
+      "num": 39,
+      "venc": "2029-03-10",
+      "tipo": "Parcela mensal",
+      "meses": 30,
+      "desconto": 0.3762007529045239,
+      "final": 1247.598494
+     },
+     {
+      "num": 40,
+      "venc": "2029-04-10",
+      "tipo": "Parcela mensal",
+      "meses": 31,
+      "desconto": 0.38647611475303423,
+      "final": 1227.04777
+     },
+     {
+      "num": 41,
+      "venc": "2029-05-10",
+      "tipo": "Parcela mensal",
+      "meses": 32,
+      "desconto": 0.3962565716881936,
+      "final": 1207.486857
+     },
+     {
+      "num": 42,
+      "venc": "2029-06-10",
+      "tipo": "Parcela mensal",
+      "meses": 33,
+      "desconto": 0.4061992925293697,
+      "final": 1187.601415
+     },
+     {
+      "num": 43,
+      "venc": "2029-07-10",
+      "tipo": "Parcela mensal",
+      "meses": 34,
+      "desconto": 0.41597569286687863,
+      "final": 1168.048614
+     },
+     {
+      "num": 44,
+      "venc": "2029-08-10",
+      "tipo": "Parcela mensal",
+      "meses": 35,
+      "desconto": 0.4246730382293762,
+      "final": 1150.653924
+     },
+     {
+      "num": 45,
+      "venc": "2029-09-10",
+      "tipo": "Parcela mensal",
+      "meses": 36,
+      "desconto": 0.4341451937431037,
+      "final": 1131.709613
+     },
+     {
+      "num": 46,
+      "venc": "2029-10-10",
+      "tipo": "Parcela mensal",
+      "meses": 37,
+      "desconto": 0.44316706691763474,
+      "final": 1113.665866
+     },
+     {
+      "num": 47,
+      "venc": "2029-11-10",
+      "tipo": "Parcela mensal",
+      "meses": 38,
+      "desconto": 0.45233903420523136,
+      "final": 1095.321932
+     },
+     {
+      "num": 48,
+      "venc": "2029-12-10",
+      "tipo": "Parcela mensal",
+      "meses": 39,
+      "desconto": 0.46106883234893226,
+      "final": 1077.862335
+     }
+    ]
+   }
+  },
+  {
+   "id": "antecipacao_2",
+   "plano": "ANTECIPACAO",
+   "fn": "calcAntecipacao",
+   "input": {
+    "prazo": 36,
+    "parcela": 1500,
+    "primeiroVenc": "2025-11-30",
+    "data": "2026-03-15",
+    "tipo": "algumas",
+    "de": 10,
+    "ate": 18,
+    "baloes": []
+   },
+   "tz": "America/Sao_Paulo",
+   "expected": {
+    "descTipo": "Antecipação de algumas parcelas",
+    "qtd": 9,
+    "qtdBaloes": 0,
+    "brutoTotal": 13500,
+    "baloesTotal": 0,
+    "descTotal": 1818.094048,
+    "finalTotal": 11681.905952,
+    "finalTotal_exibido": "R$ 11.681,91",
+    "aviso": null,
+    "linhas": [
+     {
+      "num": 10,
+      "venc": "2026-08-30",
+      "tipo": "Parcela mensal",
+      "meses": 6,
+      "desconto": 0.077209223080418,
+      "final": 1384.186165
+     },
+     {
+      "num": 11,
+      "venc": "2026-09-30",
+      "tipo": "Parcela mensal",
+      "meses": 7,
+      "desconto": 0.09240523787888621,
+      "final": 1361.392143
+     },
+     {
+      "num": 12,
+      "venc": "2026-10-30",
+      "tipo": "Parcela mensal",
+      "meses": 8,
+      "desconto": 0.10687512169792956,
+      "final": 1339.687317
+     },
+     {
+      "num": 13,
+      "venc": "2026-11-30",
+      "tipo": "Parcela mensal",
+      "meses": 9,
+      "desconto": 0.1215802881806971,
+      "final": 1317.629568
+     },
+     {
+      "num": 14,
+      "venc": "2026-12-30",
+      "tipo": "Parcela mensal",
+      "meses": 10,
+      "desconto": 0.13605017199974045,
+      "final": 1295.924742
+     },
+     {
+      "num": 15,
+      "venc": "2027-01-30",
+      "tipo": "Parcela mensal",
+      "meses": 11,
+      "desconto": 0.1489095865515675,
+      "final": 1276.63562
+     },
+     {
+      "num": 16,
+      "venc": "2027-02-28",
+      "tipo": "Parcela mensal",
+      "meses": 12,
+      "desconto": 0.16292513143376397,
+      "final": 1255.612303
+     },
+     {
+      "num": 17,
+      "venc": "2027-03-30",
+      "tipo": "Parcela mensal",
+      "meses": 13,
+      "desconto": 0.17627133770364123,
+      "final": 1235.592993
+     },
+     {
+      "num": 18,
+      "venc": "2027-04-30",
+      "tipo": "Parcela mensal",
+      "meses": 14,
+      "desconto": 0.18983660024664106,
+      "final": 1215.2451
+     }
+    ]
+   }
+  },
+  {
+   "id": "antecipacao_3",
+   "plano": "ANTECIPACAO",
+   "fn": "calcAntecipacao",
+   "input": {
+    "prazo": 24,
+    "parcela": 3000,
+    "primeiroVenc": "2026-01-31",
+    "data": "2026-02-01",
+    "tipo": "uma",
+    "parcelaUnica": 24,
+    "baloes": [
+     {
+      "mes": 24,
+      "valor": 20000
+     }
+    ]
+   },
+   "tz": "America/Sao_Paulo",
+   "expected": {
+    "descTipo": "Antecipação de apenas uma parcela",
+    "qtd": 1,
+    "qtdBaloes": 1,
+    "brutoTotal": 20000,
+    "baloesTotal": 20000,
+    "descTotal": 6008.63244,
+    "finalTotal": 13991.36756,
+    "finalTotal_exibido": "R$ 13.991,37",
+    "aviso": null,
+    "linhas": [
+     {
+      "num": 24,
+      "venc": "2027-12-31",
+      "tipo": "Balão",
+      "meses": 23,
+      "desconto": 0.3004316219900045,
+      "final": 13991.36756
+     }
+    ]
+   }
+  },
+  {
+   "id": "antecipacao_4",
+   "plano": "ANTECIPACAO",
+   "fn": "calcAntecipacao",
+   "input": {
+    "prazo": 60,
+    "parcela": 1200,
+    "primeiroVenc": "2026-05-15",
+    "data": "2026-04-01",
+    "tipo": "todo",
+    "baloes": [
+     {
+      "mes": 12,
+      "valor": 8000
+     },
+     {
+      "mes": 24,
+      "valor": 8000
+     }
+    ]
+   },
+   "tz": "America/Sao_Paulo",
+   "expected": {
+    "descTipo": "Antecipação do contrato todo",
+    "qtd": 60,
+    "qtdBaloes": 2,
+    "brutoTotal": 85600,
+    "baloesTotal": 16000,
+    "descTotal": 29779.970143,
+    "finalTotal": 55820.029857,
+    "finalTotal_exibido": "R$ 55.820,03",
+    "aviso": null,
+    "linhas": [
+     {
+      "num": 1,
+      "venc": "2026-05-15",
+      "tipo": "Parcela mensal",
+      "meses": 2,
+      "desconto": 0.014887713377036316,
+      "final": 1182.134744
+     },
+     {
+      "num": 2,
+      "venc": "2026-06-15",
+      "tipo": "Parcela mensal",
+      "meses": 3,
+      "desconto": 0.030590802881806933,
+      "final": 1163.291037
+     },
+     {
+      "num": 3,
+      "venc": "2026-07-15",
+      "tipo": "Parcela mensal",
+      "meses": 4,
+      "desconto": 0.04655757123385473,
+      "final": 1144.130915
+     },
+     {
+      "num": 4,
+      "venc": "2026-08-15",
+      "tipo": "Parcela mensal",
+      "meses": 5,
+      "desconto": 0.06225660414097478,
+      "final": 1125.292075
+     },
+     {
+      "num": 5,
+      "venc": "2026-09-15",
+      "tipo": "Parcela mensal",
+      "meses": 6,
+      "desconto": 0.077209223080418,
+      "final": 1107.348932
+     },
+     {
+      "num": 6,
+      "venc": "2026-10-15",
+      "tipo": "Parcela mensal",
+      "meses": 7,
+      "desconto": 0.09240523787888621,
+      "final": 1089.113715
+     },
+     {
+      "num": 7,
+      "venc": "2026-11-15",
+      "tipo": "Parcela mensal",
+      "meses": 8,
+      "desconto": 0.10687512169792956,
+      "final": 1071.749854
+     },
+     {
+      "num": 8,
+      "venc": "2026-12-15",
+      "tipo": "Parcela mensal",
+      "meses": 9,
+      "desconto": 0.1215802881806971,
+      "final": 1054.103654
+     },
+     {
+      "num": 9,
+      "venc": "2027-01-15",
+      "tipo": "Parcela mensal",
+      "meses": 10,
+      "desconto": 0.13605017199974045,
+      "final": 1036.739794
+     },
+     {
+      "num": 10,
+      "venc": "2027-02-15",
+      "tipo": "Parcela mensal",
+      "meses": 11,
+      "desconto": 0.1489095865515675,
+      "final": 1021.308496
+     },
+     {
+      "num": 11,
+      "venc": "2027-03-15",
+      "tipo": "Parcela mensal",
+      "meses": 12,
+      "desconto": 0.16292513143376397,
+      "final": 1004.489842
+     },
+     {
+      "num": 12,
+      "venc": "2027-04-15",
+      "tipo": "Balão",
+      "meses": 13,
+      "desconto": 0.17627133770364123,
+      "final": 6589.829298
+     },
+     {
+      "num": 13,
+      "venc": "2027-05-15",
+      "tipo": "Parcela mensal",
+      "meses": 14,
+      "desconto": 0.18983660024664106,
+      "final": 972.19608
+     },
+     {
+      "num": 14,
+      "venc": "2027-06-15",
+      "tipo": "Parcela mensal",
+      "meses": 15,
+      "desconto": 0.2027528071655741,
+      "final": 956.696631
+     },
+     {
+      "num": 15,
+      "venc": "2027-07-15",
+      "tipo": "Parcela mensal",
+      "meses": 16,
+      "desconto": 0.21587995716232877,
+      "final": 940.944051
+     },
+     {
+      "num": 16,
+      "venc": "2027-08-15",
+      "tipo": "Parcela mensal",
+      "meses": 17,
+      "desconto": 0.2287961640812618,
+      "final": 925.444603
+     },
+     {
+      "num": 17,
+      "venc": "2027-09-15",
+      "tipo": "Parcela mensal",
+      "meses": 18,
+      "desconto": 0.24108765496203022,
+      "final": 910.694814
+     },
+     {
+      "num": 18,
+      "venc": "2027-10-15",
+      "tipo": "Parcela mensal",
+      "meses": 19,
+      "desconto": 0.25358603232297006,
+      "final": 895.696761
+     },
+     {
+      "num": 19,
+      "venc": "2027-11-15",
+      "tipo": "Parcela mensal",
+      "meses": 20,
+      "desconto": 0.2654880898292983,
+      "final": 881.414292
+     },
+     {
+      "num": 20,
+      "venc": "2027-12-15",
+      "tipo": "Parcela mensal",
+      "meses": 21,
+      "desconto": 0.27758486402284677,
+      "final": 866.898163
+     },
+     {
+      "num": 21,
+      "venc": "2028-01-15",
+      "tipo": "Parcela mensal",
+      "meses": 22,
+      "desconto": 0.2894788083338742,
+      "final": 852.62543
+     },
+     {
+      "num": 22,
+      "venc": "2028-02-15",
+      "tipo": "Parcela mensal",
+      "meses": 23,
+      "desconto": 0.3004316219900045,
+      "final": 839.482054
+     },
+     {
+      "num": 23,
+      "venc": "2028-03-15",
+      "tipo": "Parcela mensal",
+      "meses": 24,
+      "desconto": 0.31195235931719345,
+      "final": 825.657169
+     },
+     {
+      "num": 24,
+      "venc": "2028-04-15",
+      "tipo": "Balão",
+      "meses": 25,
+      "desconto": 0.3229213993639255,
+      "final": 5416.628805
+     },
+     {
+      "num": 25,
+      "venc": "2028-05-15",
+      "tipo": "Parcela mensal",
+      "meses": 26,
+      "desconto": 0.3340729863049263,
+      "final": 799.112416
+     },
+     {
+      "num": 26,
+      "venc": "2028-06-15",
+      "tipo": "Parcela mensal",
+      "meses": 27,
+      "desconto": 0.34468910235607186,
+      "final": 786.373077
+     },
+     {
+      "num": 27,
+      "venc": "2028-07-15",
+      "tipo": "Parcela mensal",
+      "meses": 28,
+      "desconto": 0.3554796521061855,
+      "final": 773.424417
+     },
+     {
+      "num": 28,
+      "venc": "2028-08-15",
+      "tipo": "Parcela mensal",
+      "meses": 29,
+      "desconto": 0.366095768157331,
+      "final": 760.685078
+     },
+     {
+      "num": 29,
+      "venc": "2028-09-15",
+      "tipo": "Parcela mensal",
+      "meses": 30,
+      "desconto": 0.3762007529045239,
+      "final": 748.559097
+     },
+     {
+      "num": 30,
+      "venc": "2028-10-15",
+      "tipo": "Parcela mensal",
+      "meses": 31,
+      "desconto": 0.38647611475303423,
+      "final": 736.228662
+     },
+     {
+      "num": 31,
+      "venc": "2028-11-15",
+      "tipo": "Parcela mensal",
+      "meses": 32,
+      "desconto": 0.3962565716881936,
+      "final": 724.492114
+     },
+     {
+      "num": 32,
+      "venc": "2028-12-15",
+      "tipo": "Parcela mensal",
+      "meses": 33,
+      "desconto": 0.4061992925293697,
+      "final": 712.560849
+     },
+     {
+      "num": 33,
+      "venc": "2029-01-15",
+      "tipo": "Parcela mensal",
+      "meses": 34,
+      "desconto": 0.41597569286687863,
+      "final": 700.829169
+     },
+     {
+      "num": 34,
+      "venc": "2029-02-15",
+      "tipo": "Parcela mensal",
+      "meses": 35,
+      "desconto": 0.4246730382293762,
+      "final": 690.392354
+     },
+     {
+      "num": 35,
+      "venc": "2029-03-15",
+      "tipo": "Parcela mensal",
+      "meses": 36,
+      "desconto": 0.4341451937431037,
+      "final": 679.025768
+     },
+     {
+      "num": 36,
+      "venc": "2029-04-15",
+      "tipo": "Parcela mensal",
+      "meses": 37,
+      "desconto": 0.44316706691763474,
+      "final": 668.19952
+     },
+     {
+      "num": 37,
+      "venc": "2029-05-15",
+      "tipo": "Parcela mensal",
+      "meses": 38,
+      "desconto": 0.45233903420523136,
+      "final": 657.193159
+     },
+     {
+      "num": 38,
+      "venc": "2029-06-15",
+      "tipo": "Parcela mensal",
+      "meses": 39,
+      "desconto": 0.46106883234893226,
+      "final": 646.717401
+     },
+     {
+      "num": 39,
+      "venc": "2029-07-15",
+      "tipo": "Parcela mensal",
+      "meses": 40,
+      "desconto": 0.46994466800804824,
+      "final": 636.066398
+     },
+     {
+      "num": 40,
+      "venc": "2029-08-15",
+      "tipo": "Parcela mensal",
+      "meses": 41,
+      "desconto": 0.47867446615174913,
+      "final": 625.590641
+     },
+     {
+      "num": 41,
+      "venc": "2029-09-15",
+      "tipo": "Parcela mensal",
+      "meses": 42,
+      "desconto": 0.4869823781398065,
+      "final": 615.621146
+     },
+     {
+      "num": 42,
+      "venc": "2029-10-15",
+      "tipo": "Parcela mensal",
+      "meses": 43,
+      "desconto": 0.4954322710456286,
+      "final": 605.481275
+     },
+     {
+      "num": 43,
+      "venc": "2029-11-15",
+      "tipo": "Parcela mensal",
+      "meses": 44,
+      "desconto": 0.5034765041864088,
+      "final": 595.828195
+     },
+     {
+      "num": 44,
+      "venc": "2029-12-15",
+      "tipo": "Parcela mensal",
+      "meses": 45,
+      "desconto": 0.5116546050496528,
+      "final": 586.014474
+     },
+     {
+      "num": 45,
+      "venc": "2030-01-15",
+      "tipo": "Parcela mensal",
+      "meses": 46,
+      "desconto": 0.5196947815927825,
+      "final": 576.366262
+     },
+     {
+      "num": 46,
+      "venc": "2030-02-15",
+      "tipo": "Parcela mensal",
+      "meses": 47,
+      "desconto": 0.5268465632504705,
+      "final": 567.784124
+     },
+     {
+      "num": 47,
+      "venc": "2030-03-15",
+      "tipo": "Parcela mensal",
+      "meses": 48,
+      "desconto": 0.5346392873369248,
+      "final": 558.432855
+     },
+     {
+      "num": 48,
+      "venc": "2030-04-15",
+      "tipo": "Parcela mensal",
+      "meses": 49,
+      "desconto": 0.5420588044395405,
+      "final": 549.529435
+     },
+     {
+      "num": 49,
+      "venc": "2030-05-15",
+      "tipo": "Parcela mensal",
+      "meses": 50,
+      "desconto": 0.5496000194716687,
+      "final": 540.479977
+     },
+     {
+      "num": 50,
+      "venc": "2030-06-15",
+      "tipo": "Parcela mensal",
+      "meses": 51,
+      "desconto": 0.5567801973129097,
+      "final": 531.863763
+     },
+     {
+      "num": 51,
+      "venc": "2030-07-15",
+      "tipo": "Parcela mensal",
+      "meses": 52,
+      "desconto": 0.5640780164860129,
+      "final": 523.10638
+     },
+     {
+      "num": 52,
+      "venc": "2030-08-15",
+      "tipo": "Parcela mensal",
+      "meses": 53,
+      "desconto": 0.5712581943272538,
+      "final": 514.490167
+     },
+     {
+      "num": 53,
+      "venc": "2030-09-15",
+      "tipo": "Parcela mensal",
+      "meses": 54,
+      "desconto": 0.5780935613682092,
+      "final": 506.287726
+     },
+     {
+      "num": 54,
+      "venc": "2030-10-15",
+      "tipo": "Parcela mensal",
+      "meses": 55,
+      "desconto": 0.5850425131433764,
+      "final": 497.948984
+     },
+     {
+      "num": 55,
+      "venc": "2030-11-15",
+      "tipo": "Parcela mensal",
+      "meses": 56,
+      "desconto": 0.5916547673135588,
+      "final": 490.014279
+     },
+     {
+      "num": 56,
+      "venc": "2030-12-15",
+      "tipo": "Parcela mensal",
+      "meses": 57,
+      "desconto": 0.5983806062179529,
+      "final": 481.943273
+     },
+     {
+      "num": 57,
+      "venc": "2031-01-15",
+      "tipo": "Parcela mensal",
+      "meses": 58,
+      "desconto": 0.6049928603881353,
+      "final": 474.008568
+     },
+     {
+      "num": 58,
+      "venc": "2031-02-15",
+      "tipo": "Parcela mensal",
+      "meses": 59,
+      "desconto": 0.6108749269812423,
+      "final": 466.950088
+     },
+     {
+      "num": 59,
+      "venc": "2031-03-15",
+      "tipo": "Parcela mensal",
+      "meses": 60,
+      "desconto": 0.6172843512689037,
+      "final": 459.258778
+     },
+     {
+      "num": 60,
+      "venc": "2031-04-15",
+      "tipo": "Parcela mensal",
+      "meses": 60,
+      "desconto": 0.6172843512689037,
+      "final": 459.258778
+     }
+    ]
+   }
+  },
+  {
+   "id": "antecipacao_5",
+   "plano": "ANTECIPACAO",
+   "fn": "calcAntecipacao",
+   "input": {
+    "prazo": 12,
+    "parcela": 900,
+    "primeiroVenc": "2025-01-05",
+    "data": "2026-06-01",
+    "tipo": "todo",
+    "baloes": []
+   },
+   "tz": "America/Sao_Paulo",
+   "expected": {
+    "erro": "⚠️ Nenhuma parcela futura encontrada para antecipação. Revise a data de antecipação e as parcelas escolhidas."
+   }
+  },
+  {
+   "id": "antecipacao_6",
+   "plano": "ANTECIPACAO",
+   "fn": "calcAntecipacao",
+   "input": {
+    "prazo": 30,
+    "parcela": 2500,
+    "primeiroVenc": "2026-02-28",
+    "data": "2026-08-28",
+    "tipo": "algumas",
+    "de": 5,
+    "ate": 9,
+    "baloes": [
+     {
+      "mes": 8,
+      "valor": 12000
+     }
+    ]
+   },
+   "tz": "America/Sao_Paulo",
+   "expected": {
+    "descTipo": "Antecipação de algumas parcelas",
+    "qtd": 2,
+    "qtdBaloes": 1,
+    "brutoTotal": 14500,
+    "baloesTotal": 12000,
+    "descTotal": 255.129568,
+    "finalTotal": 14244.870432,
+    "finalTotal_exibido": "R$ 14.244,87",
+    "aviso": null,
+    "linhas": [
+     {
+      "num": 8,
+      "venc": "2026-09-28",
+      "tipo": "Balão",
+      "meses": 2,
+      "desconto": 0.014887713377036316,
+      "final": 11821.347439
+     },
+     {
+      "num": 9,
+      "venc": "2026-10-28",
+      "tipo": "Parcela mensal",
+      "meses": 3,
+      "desconto": 0.030590802881806933,
+      "final": 2423.522993
+     }
+    ]
+   }
+  },
+  {
+   "id": "cash_conversion_1",
+   "plano": "CASH_CONVERSION",
+   "fn": "calcCashConversion",
+   "input": {
+    "capital": 100000,
+    "parcela": 2500,
+    "prazoMeses": 48,
+    "taxaAplicacao": 0.01
+   },
+   "expected": {
+    "valorFinalFinanciamento": 120000,
+    "valorFuturoAplicacao": 161222.607768,
+    "rendimentoAplicacao": 61222.607768,
+    "diferencaProjetada": 41222.607768,
+    "classificacao": "FINANCIAR"
+   }
+  },
+  {
+   "id": "cash_conversion_2",
+   "plano": "CASH_CONVERSION",
+   "fn": "calcCashConversion",
+   "input": {
+    "capital": 50000,
+    "parcela": 1800,
+    "prazoMeses": 36,
+    "taxaAplicacao": 0.008
+   },
+   "expected": {
+    "valorFinalFinanciamento": 64800,
+    "valorFuturoAplicacao": 66611.491839,
+    "rendimentoAplicacao": 16611.491839,
+    "diferencaProjetada": 1811.491839,
+    "classificacao": "FINANCIAR"
+   }
+  },
+  {
+   "id": "cash_conversion_3",
+   "plano": "CASH_CONVERSION",
+   "fn": "calcCashConversion",
+   "input": {
+    "capital": 100000,
+    "parcela": 2000,
+    "prazoMeses": 50,
+    "taxaAplicacao": 0
+   },
+   "expected": {
+    "valorFinalFinanciamento": 100000,
+    "valorFuturoAplicacao": 100000,
+    "rendimentoAplicacao": 0,
+    "diferencaProjetada": 0,
+    "classificacao": "EQUIVALENTE"
+   }
+  },
+  {
+   "id": "legado_periodico_1",
+   "plano": "LEGADO_SEMESTRAL_ANUAL (inalcançável)",
+   "fn": "calcPeriodicoLegado",
+   "input": {
+    "bem": 180000,
+    "entrada": 36000,
+    "prazo": 48,
+    "tipo": "semestral"
+   },
+   "expected": {
+    "taxaInterna": 0.01842,
+    "baseInterna": 159417.104993,
+    "meses": [
+     6,
+     12,
+     18,
+     24,
+     30,
+     36,
+     42,
+     48
+    ],
+    "parcela": 31614.531384
+   }
+  }
+ ]
+}
