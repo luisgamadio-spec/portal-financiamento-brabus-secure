@@ -17,6 +17,7 @@ const PRODUCTION_INVITE_REDIRECT = "https://brabus.blistiq.com.br/primeiro-acess
 const ALLOWED_ORIGINS = new Set([
   "https://luisgamadio-spec.github.io",
   "https://brabus.blistiq.com.br",
+  "https://v2.brabus.blistiq.com.br",
   "http://localhost:8080",
   "http://127.0.0.1:8080"
 ]);
@@ -161,7 +162,7 @@ serve(async (req)=>{
     //    via Supabase Auth Admin. Único ponto do sistema inteiro que usa
     //    service_role para isso.
     const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(convite.email, {
-      redirectTo: PRODUCTION_INVITE_REDIRECT,
+      redirectTo: (req.headers.get("origin") === "https://v2.brabus.blistiq.com.br" ? "https://v2.brabus.blistiq.com.br/primeiro-acesso.html" : PRODUCTION_INVITE_REDIRECT),
       data: {
         nome: convite.nome,
         perfil: convite.perfil,

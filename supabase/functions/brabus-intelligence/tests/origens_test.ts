@@ -13,11 +13,24 @@ function conjunto(t: string, nome: string): string[] {
   return [...m![1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
 }
 
-for (const [fn, nome] of [["brabus-intelligence", "ORIGENS"], ["password-recovery-request", "ALLOWED_ORIGINS"], ["password-recovery-complete", "ALLOWED_ORIGINS"]]) {
+const COMPARTILHADAS = ["activation-lookup", "activation-request", "activation-complete", "confirm-access-activation", "confirm-email-migration",
+  "admin-invite-user", "admin-generate-user-access-link"];
+for (const [fn, nome] of [["brabus-intelligence", "ORIGENS"], ["password-recovery-request", "ALLOWED_ORIGINS"], ["password-recovery-complete", "ALLOWED_ORIGINS"],
+  ...COMPARTILHADAS.map((f) => [f, "ALLOWED_ORIGINS"])]) {
   Deno.test(`${fn}: aceita o piloto e mantém as origens de antes`, async () => {
     const o = conjunto(await fonte(fn), nome);
     assert(o.includes(PILOTO), JSON.stringify(o));
     for (const a of ANTES) assert(o.includes(a), `perdeu ${a}`);
+  });
+}
+
+for (const [fn, constante] of [["admin-invite-user", "PRODUCTION_INVITE_REDIRECT"], ["admin-generate-user-access-link", "PRODUCTION_ACCESS_REDIRECT"]]) {
+  Deno.test(`${fn}: convite pedido no piloto vai para o primeiro-acesso do piloto; qualquer outra origem mantém o destino de produção`, async () => {
+    const t = await fonte(fn);
+    assert(t.includes(`const ${constante} = "https://brabus.blistiq.com.br/primeiro-acesso.html"`), "destino de produção mudou");
+    const usos = [...t.matchAll(/redirectTo: ([^,}\n]+(?:\)[^,}\n]*)?)/g)].map((m) => m[1].trim());
+    assertEquals(usos.length, 1);
+    assertEquals(usos[0], `(req.headers.get("origin") === "${PILOTO}" ? "${PILOTO}/primeiro-acesso.html" : ${constante})`);
   });
 }
 

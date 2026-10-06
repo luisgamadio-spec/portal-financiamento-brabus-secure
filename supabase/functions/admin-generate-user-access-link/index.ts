@@ -19,6 +19,7 @@ const RATE_LIMIT_MIN_INTERVALO_MS = 5 * 60 * 1000;
 const ALLOWED_ORIGINS = new Set([
   "https://luisgamadio-spec.github.io",
   "https://brabus.blistiq.com.br",
+  "https://v2.brabus.blistiq.com.br",
   "http://localhost:8080",
   "http://127.0.0.1:8080"
 ]);
@@ -120,7 +121,7 @@ serve(async (req) => {
     }
 
     const linkType = tipo === "activation" ? "invite" : "recovery";
-    const generateOptions: Record<string, unknown> = { redirectTo: PRODUCTION_ACCESS_REDIRECT };
+    const generateOptions: Record<string, unknown> = { redirectTo: (req.headers.get("origin") === "https://v2.brabus.blistiq.com.br" ? "https://v2.brabus.blistiq.com.br/primeiro-acesso.html" : PRODUCTION_ACCESS_REDIRECT) };
     if (tipo === "activation") {
       generateOptions.data = { nome: alvo.nome, perfil: alvo.perfil, loja: alvo.loja, cpf: alvo.cpf };
     }
