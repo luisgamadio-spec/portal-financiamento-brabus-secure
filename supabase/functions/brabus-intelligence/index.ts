@@ -61,7 +61,9 @@ Deno.serve(async (req) => {
   let pergunta = String(body?.pergunta ?? "").trim();
   const temAudio = typeof body?.audio_base64 === "string" && body.audio_base64.length > 0;
   const textoFalar = typeof body?.falar_texto === "string" ? body.falar_texto.trim().slice(0, MAX_PARTE_CHARS) : "";
-  if (!pergunta && !temAudio && !textoFalar) return json(400, { erro: "Pergunta vazia." });
+  // Só confere se este login pode usar a IA (mesma regra de perfil abaixo), sem chamar o modelo.
+  const soAcesso = body?.verificar_acesso === true;
+  if (!pergunta && !temAudio && !textoFalar && !soAcesso) return json(400, { erro: "Pergunta vazia." });
   const falaEmPartes = body?.falar === "partes";
   const responderEmVoz = falaEmPartes || body?.falar === true || (temAudio && body?.falar !== false);
   const sessao = String(body?.sessao_id ?? "").slice(0, 80) || crypto.randomUUID();
@@ -81,6 +83,7 @@ Deno.serve(async (req) => {
     if (!liberados.includes(usuario.perfil) && !liberados.includes(usuario.perfil_bruto)) {
       return json(403, { erro: "A Brabus Intelligence ainda não está liberada para o seu perfil." });
     }
+    if (soAcesso) return json(200, { liberado: true });
     // Só a voz de um pedaço de resposta (mesmo login e mesma liberação de perfil da pergunta).
     if (textoFalar) {
       const tf = Date.now();
