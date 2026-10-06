@@ -13,6 +13,7 @@ import * as F from "../engine/ferramentas.ts";
 import { addMonths, parseISO, toISO } from "../engine/comum.ts";
 import { casaModelo, type Contexto as CtxSim, entradaMinimaParaParcela, type EstruturaBalao, type ModoBalao, normalizaModelo, type Opcao, opcaoSemestralTriton, opcoesParaEntrada } from "../engine/ofertas.ts";
 import { buscaManual } from "./manual.ts";
+import { filtraPorNome } from "../data/nomes.ts";
 
 export type ToolCtx = {
   rpc: Rpc; bases: Bases; usuario: Contexto; store: Store;
@@ -906,9 +907,14 @@ const H: Record<string, Handler> = {
       if (a.vendedor && !ehProprio(ctx, a.vendedor)) throw new ErroFerramenta("No seu perfil (Vendedor) a IA mostra só o seu próprio score.");
       a = { ...a, vendedor: ctx.usuario.nome ?? "__sem_nome__" };
     }
+    let avisoNome: string | null = null;
     if (a.vendedor) {
-      const q = normalizaModelo(a.vendedor);
-      lista = lista.filter((x) => normalizaModelo(x.vendedor).includes(q));
+      // Vendedor: só o próprio nome, exato (a busca aproximada nunca pode cair num colega).
+      const fx = ctx.usuario.perfil === "VENDEDOR"
+        ? { itens: lista.filter((x: any) => normalizaModelo(x.vendedor).includes(normalizaModelo(a.vendedor))), aproximado: false }
+        : filtraPorNome(a.vendedor, lista, (x: any) => String(x.vendedor ?? ""));
+      lista = fx.itens;
+      if (fx.aproximado && lista.length) avisoNome = `Não achei "${a.vendedor}" exatamente; usei o nome mais parecido: ${[...new Set(lista.map((x: any) => x.vendedor))].join(", ")}.`;
       if (!lista.length) return { periodo: p.rotulo, mensagem: "Vendedor não encontrado no período (ou fora do seu escopo)." };
     }
     const pos = (x: any) => geral.indexOf(x) + 1;
@@ -936,7 +942,7 @@ const H: Record<string, Handler> = {
     af.destaques = af.destaques.slice(0, 2);
     af.pontos_a_melhorar = af.pontos_a_melhorar.slice(0, 2);
     const out = filtraCampos(ctx.usuario, {
-      periodo: p.rotulo, visao: depS ?? "Novos e Seminovos", aviso_periodo: p.aviso, total_vendedores: geral.length,
+      periodo: p.rotulo, visao: depS ?? "Novos e Seminovos", aviso_periodo: p.aviso, aviso_nome: avisoNome ?? undefined, total_vendedores: geral.length,
       foco: { ...linhaV(foco), ...af },
       ranking: ctx.usuario.perfil === "VENDEDOR" ? undefined : mostrar.map(linhaV),
     }) as any;
@@ -959,7 +965,17 @@ const H: Record<string, Handler> = {
     const q = a.pessoa ? normalizaModelo(a.pessoa) : null;
     const lojaF = lojaOuErro(a.loja);
     const fech = String(a.fechamento ?? "ultimo_fechado");
-    const casa = (nome: unknown, loja: unknown) => (!q || normalizaModelo(String(nome ?? "")).includes(q)) && (!lojaF || (normalizaLoja(String(loja ?? "")) ?? "") === lojaF);
+    const daLoja = (loja: unknown) => !lojaF || (normalizaLoja(String(loja ?? "")) ?? "") === lojaF;
+    let avisoNome: string | null = null;
+    /** Filtra por nome: exato primeiro; se ninguém, o mais parecido (ex.: "Wilian Simaro" → WILLIAM SYMARO). */
+    const porNome = <T>(itens: T[], nomeDe: (x: T) => string): T[] => {
+      const daL = itens.filter((x: any) => daLoja((x as any).__loja));
+      if (!q) return daL;
+      const r = filtraPorNome(a.pessoa, daL, nomeDe);
+      if (r.aproximado && r.itens.length) avisoNome = `Não achei "${a.pessoa}" exatamente; considerei o nome mais parecido: ${[...new Set(r.itens.map(nomeDe))].join(", ")}.`;
+      return r.itens;
+    };
+    const comAviso = (o: any) => (avisoNome && o && typeof o === "object" ? { aviso_nome: avisoNome, ...o } : o);
     const ambiguo = (nomes: string[]) => ({ mensagem: "Encontrei mais de uma pessoa com esse nome. Qual delas?", opcoes: [...new Set(nomes)].slice(0, 8) });
 
     // Valores calculados pelo Portal para um período (mesmas RPCs da tela de Salários, escopo do login).
@@ -981,13 +997,14 @@ const H: Record<string, Handler> = {
         opc(ctx.rpc.call<any>("operational_scope_commission_rows", { p_start: p.inicio, p_end: p.fim })),
       ]);
       type Cand = { nome: string; perfil: string; loja: string; departamento: string | null; seller_id?: string; transfer?: boolean; ind?: any };
-      const cands: Cand[] = [];
-      for (const m of met?.rows ?? []) if (m.seller_name && casa(m.seller_name, m.store)) cands.push({ nome: m.seller_name, perfil: "VENDEDOR", loja: m.store, departamento: m.department, seller_id: m.seller_id, ind: m });
-      for (const m of ana?.rows ?? []) if (m.analyst_name && casa(m.analyst_name, m.store)) cands.push({ nome: m.analyst_name, perfil: "ANALISTA", loja: m.store, departamento: null, transfer: !!m.transfer, ind: m });
-      for (const m of ger?.rows ?? []) if (m.manager_name && casa(m.manager_name, m.store)) cands.push({ nome: m.manager_name, perfil: "GERENTE", loja: m.store, departamento: m.department, ind: null });
+      const todos: (Cand & { __loja: string })[] = [];
+      for (const m of met?.rows ?? []) if (m.seller_name) todos.push({ nome: m.seller_name, perfil: "VENDEDOR", loja: m.store, __loja: m.store, departamento: m.department, seller_id: m.seller_id, ind: m });
+      for (const m of ana?.rows ?? []) if (m.analyst_name) todos.push({ nome: m.analyst_name, perfil: "ANALISTA", loja: m.store, __loja: m.store, departamento: null, transfer: !!m.transfer, ind: m });
+      for (const m of ger?.rows ?? []) if (m.manager_name) todos.push({ nome: m.manager_name, perfil: "GERENTE", loja: m.store, __loja: m.store, departamento: m.department, ind: null });
+      const cands: Cand[] = porNome(todos, (c) => c.nome);
       if (!cands.length) return { competencia: p.rotulo, mensagem: "Não encontrei essa pessoa na prévia desta competência (ou ela está fora do seu escopo de acesso)." };
       const nomes = [...new Set(cands.map((c) => normalizaModelo(c.nome)))];
-      if (nomes.length > 1) return ambiguo(cands.map((c) => `${c.nome} (${c.perfil.toLowerCase()}, ${normalizaLoja(c.loja) ?? c.loja})`));
+      if (nomes.length > 1) return comAviso(ambiguo(cands.map((c) => `${c.nome} (${c.perfil.toLowerCase()}, ${normalizaLoja(c.loja) ?? c.loja})`)));
       const fx = (faixas?.rows ?? []) as any[];
       const linhas = cands.map((c) => {
         const f = c.perfil === "VENDEDOR" ? (fx.find((r) => r.perfil === "VENDEDOR" && r.seller_id === c.seller_id) ?? (esc?.rows ?? []).find((r: any) => r.seller_id === c.seller_id))
@@ -998,7 +1015,7 @@ const H: Record<string, Handler> = {
       const sem = linhas.every((l) => l.total == null);
       // Fora do escopo de comissão do perfil: não mostra nem os indicadores da pessoa.
       if (sem && ctx.usuario.perfil !== "MASTER") return { competencia: p.rotulo, mensagem: "O salário dessa pessoa não está no seu escopo de acesso no Portal." };
-      return montaSalario(ctx, prev, p.rotulo, { nome: cands[0].nome, perfil: cands[0].perfil }, linhas, sem ? "O banco não liberou a comissão dessa pessoa para o seu perfil (só os indicadores)." : null);
+      return comAviso(montaSalario(ctx, prev, p.rotulo, { nome: cands[0].nome, perfil: cands[0].perfil }, linhas, sem ? "O banco não liberou a comissão dessa pessoa para o seu perfil (só os indicadores)." : null));
     };
 
     if (fech === "competencia_atual") {
@@ -1029,14 +1046,14 @@ const H: Record<string, Handler> = {
     const alvo = /^\d{4}-\d{2}$/.test(fech) ? validos.find((c: any) => String(c.data_fim).slice(0, 7) === fech) : validos[0];
     if (!alvo) return { mensagem: /^\d{4}-\d{2}$/.test(fech) ? `Não há fechamento oficial para a competência que termina em ${fech}.` : "Ainda não há fechamento oficial registrado." };
     const snap = await ctx.rpc.call<any>("master_commission_snapshot", { p_closing_id: alvo.id });
-    const doNome = q ? (snap?.rows ?? []).filter((r: any) => casa(r.nome, r.loja)) : (snap?.rows ?? []).filter((r: any) => normalizaModelo(String(r.nome ?? "")) === normalizaModelo(String(ctx.usuario.nome ?? "")));
+    const doNome = q ? porNome((snap?.rows ?? []).map((r: any) => ({ ...r, __loja: r.loja })), (r: any) => String(r.nome ?? "")) : (snap?.rows ?? []).filter((r: any) => normalizaModelo(String(r.nome ?? "")) === normalizaModelo(String(ctx.usuario.nome ?? "")));
     if (!doNome.length) return { competencia: `${alvo.data_inicio} a ${alvo.data_fim}`, mensagem: "Essa pessoa não aparece no fechamento oficial dessa competência." };
-    if (new Set(doNome.map((r: any) => normalizaModelo(r.nome))).size > 1) return ambiguo(doNome.map((r: any) => `${r.nome} (${normalizaLoja(r.loja) ?? r.loja})`));
+    if (new Set(doNome.map((r: any) => normalizaModelo(r.nome))).size > 1) return comAviso(ambiguo(doNome.map((r: any) => `${r.nome} (${normalizaLoja(r.loja) ?? r.loja})`)));
     const det = (r: any) => r.detalhes ?? {};
-    return montaSalario(ctx, `Fechamento oficial (versão ${alvo.versao ?? 1}, fechado em ${String(alvo.fechado_em ?? "").slice(0, 10)})`, `${alvo.data_inicio} a ${alvo.data_fim}`,
+    return comAviso(montaSalario(ctx, `Fechamento oficial (versão ${alvo.versao ?? 1}, fechado em ${String(alvo.fechado_em ?? "").slice(0, 10)})`, `${alvo.data_inicio} a ${alvo.data_fim}`,
       { nome: doNome[0].nome, perfil: doNome[0].perfil },
       doNome.map((r: any) => ({ loja: r.loja, departamento: r.departamento, faixa: r.faixa, principal: det(r).comissao_principal, spf: det(r).comissao_spf, total: det(r).comissao_total ?? r.comissao,
-        ind: { sold_count: r.vendidas, financed_count: r.financiadas, production_value: r.producao, return_value: r.retorno, spf_value: r.spf_extra, profitability_value: r.rentabilidade_total } })), null);
+        ind: { sold_count: r.vendidas, financed_count: r.financiadas, production_value: r.producao, return_value: r.retorno, spf_value: r.spf_extra, profitability_value: r.rentabilidade_total } })), null));
   },
 
   async consultar_manual(a) {

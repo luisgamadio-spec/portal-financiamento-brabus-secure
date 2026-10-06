@@ -519,3 +519,14 @@ Deno.test("Planos com subsídio: Vendedor com simulador vê o rebate (a tela do 
   const r: any = await executar("simular_plano_campanha", PC("COPARTICIPADO"), c);
   assert(r.rebate?.brabus > 0, JSON.stringify(r).slice(0, 300));
 });
+
+Deno.test("Salário: nome com grafia diferente encontra a pessoa e avisa qual nome considerou", async () => {
+  const c = await ctxPara(MASTER);
+  const r: any = await executar("consultar_salario", { pessoa: "Duglas Ferreyra", fechamento: "ultimo_fechado", loja: null }, c);
+  assertEquals(r.pessoa.nome, "DOUGLAS FERREIRA");
+  assert(String(r.aviso_nome).includes("DOUGLAS FERREIRA"), JSON.stringify(r.aviso_nome));
+  const ex: any = await executar("consultar_salario", { pessoa: "Douglas Ferreira", fechamento: "ultimo_fechado", loja: null }, c);
+  assertEquals(ex.aviso_nome, undefined);
+  const p: any = await executar("consultar_salario", { pessoa: "Karlos Novoz", fechamento: "competencia_atual", loja: null }, c);
+  assertEquals(p.pessoa.nome, "CARLOS NOVOS");
+});
