@@ -24,6 +24,7 @@ import { decodificaAudio, ErroVoz, falar, MAX_PARTE_CHARS, partesDaFala, textoPa
 
 const ORIGENS = new Set([
   "https://brabus.blistiq.com.br",
+  "https://v2.brabus.blistiq.com.br", // piloto de produção do V2
   "https://luisgamadio-spec.github.io",
   "http://localhost:8080",
   "http://127.0.0.1:8080",

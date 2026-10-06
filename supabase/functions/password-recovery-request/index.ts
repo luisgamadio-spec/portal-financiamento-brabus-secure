@@ -10,6 +10,7 @@
 const ALLOWED_ORIGINS = new Set([
   "https://luisgamadio-spec.github.io",
   "https://brabus.blistiq.com.br",
+  "https://v2.brabus.blistiq.com.br",
   "http://localhost:8080",
   "http://127.0.0.1:8080"
 ]);
@@ -31,6 +32,8 @@ const ALLOWED_ORIGINS = new Set([
 const ORIGIN_BASE_URL: Record<string, string> = {
   "https://luisgamadio-spec.github.io": "https://luisgamadio-spec.github.io/portal-fi-v2",
   "https://brabus.blistiq.com.br": "https://brabus.blistiq.com.br",
+  // Piloto de produção do V2: o link do e-mail volta para o próprio piloto.
+  "https://v2.brabus.blistiq.com.br": "https://v2.brabus.blistiq.com.br",
   "http://localhost:8080": "http://localhost:8080",
   "http://127.0.0.1:8080": "http://127.0.0.1:8080"
 };
