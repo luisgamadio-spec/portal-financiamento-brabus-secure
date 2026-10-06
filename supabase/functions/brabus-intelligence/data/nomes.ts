@@ -6,10 +6,14 @@ const norm = (s: string) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g,
 /** Forma "falada" de uma palavra: junta grafias que soam igual em nomes brasileiros. */
 export function fonetica(palavra: string): string {
   let s = norm(palavra).replace(/ /g, "");
-  s = s.replace(/PH/g, "F").replace(/TH/g, "T").replace(/Y/g, "I").replace(/W/g, "V").replace(/K/g, "C")
-    .replace(/Ç/g, "S").replace(/SS/g, "S").replace(/^H/, "").replace(/([^CLN])H/g, "$1")
+  s = s.replace(/PH/g, "F").replace(/TH/g, "T").replace(/Y/g, "I").replace(/W/g, "V")
+    .replace(/C([EI])/g, "S$1")             // Cíntia/Síntia, Cesar/Sesar: C antes de E/I soa S
+    .replace(/QU([EI])/g, "C$1").replace(/GU([EI])/g, "G$1").replace(/K/g, "C")
+    .replace(/SH/g, "X").replace(/CH/g, "X") // Shirley/Xirlei, Chaves/Xaves
+    .replace(/SS/g, "S").replace(/^H/, "").replace(/([^LN])H/g, "$1")
     .replace(/(.)\1+/g, "$1")              // letras dobradas: LL → L, TT → T
-    .replace(/M$/, "N").replace(/Z$/, "S"); // William/Wilian, Luiz/Luis
+    .replace(/M$/, "N").replace(/Z$/, "S")  // William/Wilian, Luiz/Luis
+    .replace(/(.{3,})[EI]$/, "$1");         // vogal final fraca: Simare/Simar, Jorge/Jorg
   return s;
 }
 

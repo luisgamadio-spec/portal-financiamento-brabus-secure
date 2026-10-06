@@ -32,3 +32,12 @@ Deno.test("filtraPorNome: só o primeiro nome parecido traz todos os candidatos 
   assert(r.itens.includes("WILLIAM SYMARO") && r.itens.includes("WILLIAN EXEMPLO"), JSON.stringify(r));
   assert(!r.itens.includes("WILSON TESTONI"));
 });
+
+Deno.test("fonética: C antes de E/I, vogal final fraca, CH/SH, QU/GU", () => {
+  assertEquals(fonetica("Cinara"), fonetica("Synara"));
+  assertEquals(fonetica("Silve"), fonetica("Cilv"));
+  assertEquals(fonetica("Cintia"), fonetica("Sintia"));
+  assertEquals(fonetica("Shirlei"), fonetica("Xirley"));
+  assertEquals(fonetica("Henrique"), fonetica("Enrrique"));
+  assertEquals(filtraPorNome("Pedro Cilv", ["PEDRO SYLVE", "PEDRO SANTOS"], (x) => x).itens, ["PEDRO SYLVE"]);
+});
