@@ -53,6 +53,9 @@ Deno.test("request-email-migration: pedido feito na reserva v1 recebe o link da 
   assertEquals(mapa[V1], `${V1}/verificar-email.html`);
   assertEquals(mapa["https://brabus.blistiq.com.br"], "https://brabus.blistiq.com.br/verificar-email.html");
   assertEquals(Object.keys(mapa).length, 5);
+  // CORS desta função mora numa lista própria
+  const cors = conjunto(t, "ALLOWED_CORS_ORIGINS");
+  assert(cors.includes(V1) && cors.includes("https://brabus.blistiq.com.br") && cors.includes("https://luisgamadio-spec.github.io"), JSON.stringify(cors));
 });
 
 Deno.test("password-recovery-request: link do e-mail pedido no piloto volta para o piloto; os outros não mudam", async () => {
