@@ -34,6 +34,27 @@ for (const [fn, constante] of [["admin-invite-user", "PRODUCTION_INVITE_REDIRECT
   });
 }
 
+// Reserva do oficial em v1.brabus (troca de endereço): as 11 funções que o oficial usa aceitam v1 sem perder as de antes.
+const V1 = "https://v1.brabus.blistiq.com.br";
+const USADAS_PELO_OFICIAL = ["activation-lookup", "activation-request", "activation-complete", "confirm-access-activation", "confirm-email-migration",
+  "admin-invite-user", "admin-resend-user-invite", "admin-generate-user-access-link", "admin-generate-legacy-migration-link", "portal-ai"];
+for (const fn of USADAS_PELO_OFICIAL) {
+  Deno.test(`${fn}: aceita a reserva v1 e mantém as origens de antes`, async () => {
+    const o = conjunto(await fonte(fn), "ALLOWED_ORIGINS");
+    assert(o.includes(V1), JSON.stringify(o));
+    for (const a of ["https://brabus.blistiq.com.br", "https://luisgamadio-spec.github.io", "http://localhost:8080", "http://127.0.0.1:8080"]) assert(o.includes(a), `perdeu ${a}`);
+  });
+}
+Deno.test("request-email-migration: pedido feito na reserva v1 recebe o link da página da própria reserva; o resto não muda", async () => {
+  const t = await fonte("request-email-migration");
+  const m = t.match(/const ALLOWED_ORIGINS = \{([\s\S]*?)\};/);
+  assert(m);
+  const mapa = Object.fromEntries([...m![1].matchAll(/"([^"]+)":\s*"([^"]+)"/g)].map((x) => [x[1], x[2]]));
+  assertEquals(mapa[V1], `${V1}/verificar-email.html`);
+  assertEquals(mapa["https://brabus.blistiq.com.br"], "https://brabus.blistiq.com.br/verificar-email.html");
+  assertEquals(Object.keys(mapa).length, 5);
+});
+
 Deno.test("password-recovery-request: link do e-mail pedido no piloto volta para o piloto; os outros não mudam", async () => {
   const t = await fonte("password-recovery-request");
   const m = t.match(/const ORIGIN_BASE_URL[^=]*= \{([\s\S]*?)\};/);

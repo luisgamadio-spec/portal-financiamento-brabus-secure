@@ -11,7 +11,8 @@ const ALLOWED_ORIGINS = {
   "http://127.0.0.1:8080": "http://127.0.0.1:8080/verificar-email.html",
   "http://localhost:8080": "http://localhost:8080/verificar-email.html",
   "https://luisgamadio-spec.github.io": "https://luisgamadio-spec.github.io/portal-financiamento-brabus-secure/verificar-email.html",
-  "https://brabus.blistiq.com.br": "https://brabus.blistiq.com.br/verificar-email.html"
+  "https://brabus.blistiq.com.br": "https://brabus.blistiq.com.br/verificar-email.html",
+  "https://v1.brabus.blistiq.com.br": "https://v1.brabus.blistiq.com.br/verificar-email.html"
 };
 const TURNSTILE_ACTION = "email_migration_request";
 // Fase 3.6.1 — validação server-side do Turnstile via Siteverify oficial

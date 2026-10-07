@@ -20,6 +20,7 @@ async function sha256Hex(input: string): Promise<string> {
 const ALLOWED_ORIGINS = new Set([
   "https://luisgamadio-spec.github.io",
   "https://brabus.blistiq.com.br",
+  "https://v1.brabus.blistiq.com.br",
   "https://v2.brabus.blistiq.com.br",
   "http://localhost:8080",
   "http://127.0.0.1:8080"

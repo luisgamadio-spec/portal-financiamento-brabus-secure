@@ -68,6 +68,7 @@ const REENVIO_MIN_INTERVALO_MS = 5 * 60 * 1000;
 const ALLOWED_ORIGINS = new Set([
   "https://luisgamadio-spec.github.io",
   "https://brabus.blistiq.com.br",
+  "https://v1.brabus.blistiq.com.br",
   "http://localhost:8080",
   "http://127.0.0.1:8080"
 ]);

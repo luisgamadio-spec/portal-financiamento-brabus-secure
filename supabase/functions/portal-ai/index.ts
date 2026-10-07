@@ -21,6 +21,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // =========================================================
 const ALLOWED_ORIGINS = new Set([
   "https://brabus.blistiq.com.br",
+  "https://v1.brabus.blistiq.com.br",
   "https://luisgamadio-spec.github.io",
   "http://localhost:8080",
   "http://127.0.0.1:8080"
