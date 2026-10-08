@@ -41,10 +41,17 @@ export async function carregaContexto(rpc: Rpc): Promise<Contexto> {
 const CAMPOS_RETORNO = [
   "return_value", "average_return_percent", "profitability_value", "retorno", "retorno_medio",
   "retorno_total", "retorno_pct", "retorno_medio_pct", "retorno_pct_producao", "rentabilidade",
+  // mesma lista do servidor (a comissão principal = rentabilidade × faixa permite recalcular o retorno)
+  "return_gross", "return_considered", "operation_profitability", "rent_total", "comissao_principal",
 ];
 
+// Mesma lista de perfis AUTORIZADOS do servidor (_operational_ocultar_retorno_vendedor): qualquer outro perfil
+// (ou perfil vazio) não vê retorno/rentabilidade.
+// (carregaContexto já normaliza todo diretor para "DIRETOR".) RH não vê retorno (decisão de 08/10/2026).
+const PERFIS_VEEM_RETORNO: Perfil[] = ["MASTER", "DIRETOR", "GERENTE", "ANALISTA"];
+
 export function podeVerRetorno(c: Contexto): boolean {
-  return c.perfil !== "VENDEDOR";
+  return PERFIS_VEEM_RETORNO.includes(c.perfil);
 }
 
 /** Remove recursivamente os campos de retorno quando o perfil não pode vê-los. */

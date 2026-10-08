@@ -948,7 +948,8 @@ const H: Record<string, Handler> = {
     }) as any;
     poeBloco(ctx, "score", {
       tipo: "score", titulo: `Score · ${foco.vendedor}`, periodo: p.rotulo, visao: depS ?? "Novos e Seminovos",
-      vendedor: { ...linhaV(foco), total_vendedores: geral.length }, composicao: out.foco.composicao, destaques: out.foco.destaques, melhorar: out.foco.pontos_a_melhorar,
+      // O cartão vai direto ao navegador: passa pelo mesmo filtro de campos (antes levava retorno_medio_pct sem filtro).
+      vendedor: filtraCampos(ctx.usuario, { ...linhaV(foco), total_vendedores: geral.length }), composicao: out.foco.composicao, destaques: out.foco.destaques, melhorar: out.foco.pontos_a_melhorar,
       utilizacao_conversao: out.foco.utilizacao_conversao,
       ranking: ctx.usuario.perfil === "VENDEDOR" ? [] : geral.slice(0, 5).map((x) => ({ posicao: pos(x), vendedor: x.vendedor, loja: normalizaLoja(x.loja) ?? x.loja, score: x.score, faixa: x.faixa })),
     });

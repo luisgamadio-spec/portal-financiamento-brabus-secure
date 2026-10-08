@@ -420,6 +420,9 @@ Deno.test("Acessos: vendedor só vê o próprio salário/score, sem retorno; mó
   assertEquals(sc.foco.vendedor, "ANA SOUZA");
   assertEquals(sc.ranking, undefined);
   assertEquals((c.blocos!.get("score") as any).ranking.length, 0);
+  // o cartão vai direto ao navegador: nenhum campo de retorno (antes levava retorno_medio_pct sem filtro)
+  const cartao = JSON.stringify((c.blocos!.get("score") as any).vendedor);
+  assert(!cartao.includes("retorno") && !cartao.includes("rentabilidade"), cartao.slice(0, 300));
   const sc2: any = await executar("consultar_score", { vendedor: "Bruno", loja: null, departamento: null, periodo: null, data_inicio: null, data_fim: null }, c);
   assert(String(sc2.erro).includes("só o seu próprio score"));
   const res: any = await executar("resultado_loja", { loja: "Europa", departamento: "NOVOS", periodo: null, data_inicio: null, data_fim: null }, c);
