@@ -30,7 +30,7 @@ export function ehPseudoLoja(s: string): boolean {
 
 export type TipoPeriodo =
   | "competencia_atual" | "competencia_anterior" | "mes_atual" | "mes_anterior"
-  | "ultimos_30" | "ultimos_90" | "hoje" | "personalizado";
+  | "ultimos_30" | "ultimos_90" | "ultimos_dias" | "hoje" | "personalizado";
 
 export type PeriodoComissao = { nome_periodo?: string; data_inicio: string; data_fim: string; periodo_atual?: boolean; ativo?: boolean };
 
@@ -60,7 +60,7 @@ const br = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
  */
 export function resolvePeriodo(
   tipo: TipoPeriodo, hoje: string, periodos: PeriodoComissao[],
-  inicio?: string | null, fim?: string | null,
+  inicio?: string | null, fim?: string | null, nDias?: number | null,
 ): PeriodoResolvido | { erro: string } {
   const comp = (deslocamento: 0 | -1): { inicio: string; fim: string; nome: string; aviso: string | null; anterior: { inicio: string; fim: string } } => {
     const ativos = periodos.filter((p) => p.ativo !== false).sort((a, b) => b.data_inicio.localeCompare(a.data_inicio));
@@ -95,7 +95,7 @@ export function resolvePeriodo(
       // Em andamento: mesmo número de dias da competência anterior. Fechada: competência anterior inteira.
       const comparavel = emAndamento ? { inicio: c.anterior.inicio, fim: minIso(addDias(c.anterior.inicio, dur), c.anterior.fim) } : c.anterior;
       r = {
-        inicio: c.inicio, fim: fimEf, tipo, rotulo: `competência ${c.nome || `${br(c.inicio)} a ${br(c.fim)}`}`,
+        inicio: c.inicio, fim: fimEf, tipo, rotulo: `competência ${c.nome ? `${c.nome} ` : ""}(${br(c.inicio)} a ${br(fimEf)})`,
         comparavel_anterior: comparavel, aviso: c.aviso,
       };
       break;
@@ -110,7 +110,7 @@ export function resolvePeriodo(
       const emAndamento = fimEf < fimMes;
       // Em andamento: mesmo intervalo do mês anterior (como a Análise Geral). Fechado: mês anterior inteiro.
       const antFim = emAndamento ? minIso(addDias(antIni, dur), addDias(base, -1)) : addDias(base, -1);
-      r = { inicio: base, fim: fimEf, tipo, rotulo: `mês ${base.slice(5, 7)}/${base.slice(0, 4)}`, comparavel_anterior: { inicio: antIni, fim: antFim }, aviso: null };
+      r = { inicio: base, fim: fimEf, tipo, rotulo: `mês ${base.slice(5, 7)}/${base.slice(0, 4)} (${br(base)} a ${br(fimEf)})`, comparavel_anterior: { inicio: antIni, fim: antFim }, aviso: null };
       break;
     }
     case "hoje": {
@@ -118,15 +118,20 @@ export function resolvePeriodo(
       break;
     }
     case "ultimos_30":
-    case "ultimos_90": {
-      const n = tipo === "ultimos_30" ? 30 : 90;
+    case "ultimos_90":
+    case "ultimos_dias": {
+      // "Últimos N dias" para QUALQUER N (ultimos_30/ultimos_90 são só atalhos). Inclui hoje.
+      const n = tipo === "ultimos_30" ? 30 : tipo === "ultimos_90" ? 90 : Number(nDias);
+      if (!Number.isInteger(n) || n < 1 || n > 731) return { erro: "Para 'últimos N dias', informe dias entre 1 e 731." };
       const ini = addDias(hoje, -(n - 1));
-      r = { inicio: ini, fim: hoje, tipo, rotulo: `últimos ${n} dias`, comparavel_anterior: { inicio: addDias(ini, -n), fim: addDias(ini, -1) }, aviso: null };
+      r = { inicio: ini, fim: hoje, tipo, rotulo: `últimos ${n} dias (${br(ini)} a ${br(hoje)})`, comparavel_anterior: { inicio: addDias(ini, -n), fim: addDias(ini, -1) }, aviso: null };
       break;
     }
     case "personalizado": {
       const valida = (x?: string | null) => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x) && iso(d(x)) === x;
-      if (!valida(inicio) || !valida(fim)) return { erro: "Período personalizado precisa de data_inicio e data_fim válidas (AAAA-MM-DD)." };
+      // Sem data final ("desde 21/09") = até hoje.
+      if (fim === null || fim === undefined || fim === "") fim = hoje;
+      if (!valida(inicio) || !valida(fim)) return { erro: "Período personalizado precisa de data_inicio válida (AAAA-MM-DD); data_fim é opcional (vazia = até hoje)." };
       inicio = inicio!; fim = fim!;
       if (fim < inicio) return { erro: "data_fim é anterior a data_inicio." };
       const dur = Math.round((d(fim).getTime() - d(inicio).getTime()) / 86400000);

@@ -61,6 +61,14 @@ for (const q of perguntas) {
   if (q.deve_perguntar && !r.texto.includes("?")) falhas.push("deveria perguntar");
   if (q.nao_deve_conter_numero_de_retorno && /retorno[^.]*R\$/i.test(r.texto)) falhas.push("mostrou retorno ao vendedor");
   for (const s of q.deve_conter ?? []) if (!r.texto.toLowerCase().includes(String(s).toLowerCase())) falhas.push(`resposta sem "${s}"`);
+  if (q.deve_conter_um_de && !q.deve_conter_um_de.some((s: string) => r.texto.toLowerCase().includes(s.toLowerCase()))) falhas.push(`resposta sem nenhum de ${JSON.stringify(q.deve_conter_um_de)} (loja/escopo considerado)`);
+  // Período REAL usado pelas ferramentas (periodo_inicio/periodo_fim devolvidos) = o pedido; nenhuma consulta com outro período.
+  if (q.periodo_esperado) {
+    const usados = saidas.filter((s: any) => s && typeof s === "object" && s.periodo_inicio).map((s: any) => `${s.periodo_inicio}..${s.periodo_fim}`);
+    const esperado = `${q.periodo_esperado[0]}..${q.periodo_esperado[1]}`;
+    if (!usados.includes(esperado)) falhas.push(`período usado ${JSON.stringify(usados)} ≠ pedido ${esperado}`);
+    if (usados.some((u: string) => u !== esperado)) falhas.push(`consultou outro período além do pedido: ${JSON.stringify(usados)}`);
+  }
   for (const s of q.nao_deve_conter ?? []) if (r.texto.toLowerCase().includes(String(s).toLowerCase())) falhas.push(`resposta com "${s}" (não devia)`);
 
   const ok = falhas.length === 0;

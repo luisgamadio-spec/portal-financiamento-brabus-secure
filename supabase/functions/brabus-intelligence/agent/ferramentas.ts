@@ -47,11 +47,12 @@ function poeBloco(ctx: ToolCtx, chave: string, b: Bloco) {
 const S_ = (type: string, extra: Record<string, unknown> = {}) => ({ type, ...extra });
 const Nul = (type: string, extra: Record<string, unknown> = {}) => ({ type: [type, "null"], ...extra });
 
-const PERIODO_ENUM = ["competencia_atual", "competencia_anterior", "mes_atual", "mes_anterior", "ultimos_30", "ultimos_90", "hoje", "personalizado"];
+const PERIODO_ENUM = ["competencia_atual", "competencia_anterior", "mes_atual", "mes_anterior", "ultimos_30", "ultimos_90", "ultimos_dias", "hoje", "personalizado"];
 const periodoProps = (padrao: string) => ({
-  periodo: S_("string", { enum: PERIODO_ENUM, description: `Padrão: ${padrao}. "competencia" = período de comissão do Portal (21→20). "mes" = mês civil. "hoje" = só o dia de hoje. Mês pelo nome ("agosto") = personalizado do dia 1 ao último dia desse mês (ano atual; se o mês ainda não chegou, ano anterior). O backend resolve as datas.` }),
+  periodo: S_("string", { enum: PERIODO_ENUM, description: `Padrão: ${padrao}. Use EXATAMENTE o período pedido, nunca outro parecido. "competencia" = período de comissão do Portal (21→20). "mes" = mês civil. "hoje" = só o dia de hoje. "Últimos N dias" com QUALQUER N (7, 45, 60, 120...) = ultimos_dias com dias=N (ultimos_30/ultimos_90 são só atalhos de 30 e 90). Intervalo com datas ("de 01/09 a 15/09", "desde 21/09") = personalizado com data_inicio e data_fim (data_fim null = até hoje). Mês pelo nome ("agosto") = personalizado do dia 1 ao último dia desse mês (ano atual; se o mês ainda não chegou, ano anterior). O backend resolve as datas e devolve o período usado.` }),
+  dias: Nul("integer", { description: "Só com periodo='ultimos_dias': o N de 'últimos N dias' (1 a 731). Senão null." }),
   data_inicio: Nul("string", { description: "AAAA-MM-DD, só com periodo='personalizado'; senão null." }),
-  data_fim: Nul("string", { description: "AAAA-MM-DD, só com periodo='personalizado'; senão null." }),
+  data_fim: Nul("string", { description: "AAAA-MM-DD, só com periodo='personalizado' (null = até hoje); senão null." }),
 });
 const lojaProp = (desc: string) => Nul("string", { description: `${desc} Lojas: ${LOJAS.join(", ")}.` });
 
@@ -203,9 +204,24 @@ async function periodo(ctx: ToolCtx, a: any, padrao: TipoPeriodo): Promise<Perio
     }
     periodos = ctx.cache.get("periodos") as PeriodoComissao[];
   }
-  const r = resolvePeriodo(tipo, ctx.hoje, periodos, a.data_inicio, a.data_fim);
+  const r = resolvePeriodo(tipo, ctx.hoje, periodos, a.data_inicio, a.data_fim, a.dias);
   if ("erro" in r) throw new ErroFerramenta(r.erro);
   return r;
+}
+
+/** Período REAL usado na consulta (com datas), para toda resposta com número citar exatamente esse período. */
+function infoPeriodo(p: PeriodoResolvido) {
+  return { periodo: p.rotulo, periodo_inicio: p.inicio, periodo_fim: p.fim, aviso_periodo: p.aviso };
+}
+
+/** Loja/escopo considerado quando a ferramenta roda: a pedida ou, sem loja, o escopo do perfil. */
+function lojaConsiderada(ctx: ToolCtx, loja: string | null): string {
+  if (loja) return loja;
+  if (ctx.usuario.perfil === "VENDEDOR") return "só os seus números (perfil Vendedor)";
+  // O escopo do MASTER/Diretor vem com valores que não são loja (ex.: "MASTER"): aí é o Grupo.
+  const sua = normalizaLoja(ctx.usuario.loja ?? "");
+  if (sua && !ehPseudoLoja(sua) && (LOJAS as readonly string[]).includes(sua)) return `sua loja (${sua})`;
+  return "todas as lojas (Grupo)";
 }
 
 export class ErroFerramenta extends Error {}
@@ -690,7 +706,7 @@ const H: Record<string, Handler> = {
     const pond = (f: string) => financiados ? rows.reduce((s: number, x: any) => s + (Number(x[f]) || 0) * (Number(x.financed_count) || 0), 0) / financiados : null;
     const entVenda = soma("entry_sales_value_total");
     const out: any = {
-      periodo: p.rotulo, periodo_inicio: p.inicio, periodo_fim: p.fim, aviso_periodo: p.aviso,
+      ...infoPeriodo(p), loja_considerada: lojaConsiderada(ctx, loja),
       modelo_pedido: `${a.modelo} ${a.versao ?? ""}`.trim(),
       versoes_encontradas: [...new Set(rows.map((x: any) => x.model))],
       vendidos, financiados, qtd_contratos: financiados,
@@ -719,7 +735,7 @@ const H: Record<string, Handler> = {
     const dep: string | null = a.departamento ?? null;
     const A = agregaPorLoja(doDep(atual?.rows, dep)), B = agregaPorLoja(doDep(ant?.rows, dep));
     const lojas = loja ? [loja] : Object.keys(A).sort();
-    if (loja && !A[loja]) return { periodo: p.rotulo, loja, mensagem: "Sem vendas dessa loja no período, ou ela está fora do seu escopo de acesso.", aviso_periodo: p.aviso };
+    if (loja && !A[loja]) return { ...infoPeriodo(p), loja, loja_considerada: loja, mensagem: "Sem vendas dessa loja no período, ou ela está fora do seu escopo de acesso." };
     const blocos: any[] = lojas.filter((l) => A[l]).map((l) => indicadores(l, A[l], B[l] ?? null, shareMin));
     if (!dep) {
       // Visão Grupo: sempre com a divisão Novos × Seminovos (como na Análise Geral)
@@ -732,9 +748,9 @@ const H: Record<string, Handler> = {
     const total = !loja && lojas.length > 1 ? indicadores("GRUPO (escopo)", somaAcc(Object.values(A)), somaAcc(Object.values(B)), shareMin) : null;
     const visao = dep ?? "GRUPO (Novos + Seminovos)";
     const out = filtraCampos(ctx.usuario, {
-      periodo: p.rotulo, periodo_inicio: p.inicio, periodo_fim: p.fim, visao,
+      ...infoPeriodo(p), loja_considerada: lojaConsiderada(ctx, loja), visao,
       comparado_com: p.comparavel_anterior ? `${p.comparavel_anterior.inicio} a ${p.comparavel_anterior.fim}` : null,
-      aviso_periodo: p.aviso, lojas: blocos, total,
+      lojas: blocos, total,
     }) as any;
     poeBloco(ctx, "resultado", { tipo: "resultado", titulo: `Resultado ${loja ?? "das lojas"}`, periodo: p.rotulo, visao, lojas: out.lojas, total: out.total });
     return out;
@@ -766,7 +782,7 @@ const H: Record<string, Handler> = {
       linhas: comparacao.map((c) => ({ indicador: c.indicador, rotulo: ROT[c.indicador][0], formato: ROT[c.indicador][1], valores: c.por_loja.map((v) => v.valor ?? null), lider: c.lider })),
     });
     return filtraCampos(ctx.usuario, {
-      periodo: p.rotulo, periodo_inicio: p.inicio, periodo_fim: p.fim, visao, aviso_periodo: p.aviso,
+      ...infoPeriodo(p), visao,
       lojas: blocos, comparacao,
       sem_dados_ou_fora_do_escopo: fora.length ? fora : undefined,
     });
@@ -792,18 +808,18 @@ const H: Record<string, Handler> = {
     }
     const val = (v: V) => ({ producao: v.producao, financiados: v.financiados, share: v.vendidos ? v.financiados / v.vendidos : 0, vendidos: v.vendidos, spf: v.spf, retorno: v.retorno } as Record<string, number>)[a.criterio];
     const ord = [...por.values()].sort((x, y) => val(y) - val(x));
-    // Regra da IA (decisão do Luis, opção A): vendedor não vê números de colegas, só a própria posição.
+    // Perfil Vendedor: o servidor só devolve as linhas do próprio vendedor (escopo por perfil). Não há como
+    // calcular posição no ranking sem ver os colegas — então só os próprios números, sem posição nem total.
     if (ctx.usuario.perfil === "VENDEDOR") {
-      const k = ord.findIndex((v) => ehProprio(ctx, v.vendedor));
-      const eu = k >= 0 ? ord[k] : null;
+      const eu = ord.find((v) => ehProprio(ctx, v.vendedor)) ?? null;
       return filtraCampos(ctx.usuario, {
-        periodo: p.rotulo, visao: a.departamento ?? "GRUPO (Novos + Seminovos)", criterio: a.criterio, total_vendedores: ord.length,
-        observacao: "No perfil Vendedor a IA mostra só a sua posição, sem os números dos colegas.",
-        sua_posicao: eu ? { posicao: k + 1, vendidos: eu.vendidos, financiados: eu.financiados, share_pct: eu.vendidos ? pctv(eu.financiados / eu.vendidos) : 0, producao: r2(eu.producao), spf_qtd: eu.spf } : null,
+        ...infoPeriodo(p), loja_considerada: lojaConsiderada(ctx, loja), visao: a.departamento ?? "GRUPO (Novos + Seminovos)", criterio: a.criterio,
+        observacao: "No perfil Vendedor o Portal mostra só os seus próprios números; não há posição no ranking nem dados de colegas.",
+        seus_numeros: eu ? { vendidos: eu.vendidos, financiados: eu.financiados, share_pct: eu.vendidos ? pctv(eu.financiados / eu.vendidos) : 0, producao: r2(eu.producao), spf_qtd: eu.spf } : null,
       });
     }
     return filtraCampos(ctx.usuario, {
-      periodo: p.rotulo, visao: a.departamento ?? "GRUPO (Novos + Seminovos)", criterio: a.criterio, total_vendedores: ord.length,
+      ...infoPeriodo(p), loja_considerada: lojaConsiderada(ctx, loja), visao: a.departamento ?? "GRUPO (Novos + Seminovos)", criterio: a.criterio, total_vendedores: ord.length,
       ranking: ord.slice(0, 15).map((v, k) => ({
         posicao: k + 1, vendedor: v.vendedor, loja: [...v.lojas].join(" / "), departamento: [...v.deps].join(" / "),
         vendidos: v.vendidos, financiados: v.financiados, share_pct: v.vendidos ? pctv(v.financiados / v.vendidos) : 0,
@@ -870,7 +886,7 @@ const H: Record<string, Handler> = {
       ? `A base do FANDI foi importada pela última vez em ${horaBase}: ainda não há propostas deste período no Portal (não significa que não houve). É preciso importar a base atualizada.`
       : diaBase && diaBase < p.fim ? `A base do FANDI foi importada pela última vez em ${horaBase}: propostas depois disso ainda não aparecem.` : null;
     const out = {
-      periodo: p.rotulo, periodo_inicio: p.inicio, periodo_fim: p.fim, aviso_periodo: p.aviso,
+      ...infoPeriodo(p), loja_considerada: lojaConsiderada(ctx, loja),
       visao: [loja ?? "Todas as lojas", a.departamento ?? "Novos + Seminovos"].join(" · "),
       base_atualizada_em: dadosAte, base_aviso: baseAviso, sem_dados_do_periodo: !!(diaBase && diaBase < p.inicio), foco: a.foco ?? "geral",
       situacao_das_propostas: situacaoComTotal ? { ...situacaoComTotal, pct: Object.fromEntries(Object.entries(situacaoComTotal).filter(([k]) => k !== "propostas_no_periodo").map(([k, v]) => [k, situacaoComTotal.propostas_no_periodo ? pctv((v as number) / situacaoComTotal.propostas_no_periodo) : 0])) } : undefined,
@@ -915,7 +931,7 @@ const H: Record<string, Handler> = {
         : filtraPorNome(a.vendedor, lista, (x: any) => String(x.vendedor ?? ""));
       lista = fx.itens;
       if (fx.aproximado && lista.length) avisoNome = `Não achei "${a.vendedor}" exatamente; usei o nome mais parecido: ${[...new Set(lista.map((x: any) => x.vendedor))].join(", ")}.`;
-      if (!lista.length) return { periodo: p.rotulo, mensagem: "Vendedor não encontrado no período (ou fora do seu escopo)." };
+      if (!lista.length) return { ...infoPeriodo(p), mensagem: "Vendedor não encontrado no período (ou fora do seu escopo)." };
     }
     const pos = (x: any) => geral.indexOf(x) + 1;
     const mostrar = a.vendedor ? lista.slice(0, 3) : lista.slice(0, 10);
@@ -942,7 +958,7 @@ const H: Record<string, Handler> = {
     af.destaques = af.destaques.slice(0, 2);
     af.pontos_a_melhorar = af.pontos_a_melhorar.slice(0, 2);
     const out = filtraCampos(ctx.usuario, {
-      periodo: p.rotulo, visao: depS ?? "Novos e Seminovos", aviso_periodo: p.aviso, aviso_nome: avisoNome ?? undefined, total_vendedores: geral.length,
+      ...infoPeriodo(p), loja_considerada: lojaConsiderada(ctx, loja), visao: depS ?? "Novos e Seminovos", aviso_nome: avisoNome ?? undefined, total_vendedores: geral.length,
       foco: { ...linhaV(foco), ...af },
       ranking: ctx.usuario.perfil === "VENDEDOR" ? undefined : mostrar.map(linhaV),
     }) as any;

@@ -234,5 +234,213 @@
     "nao_deve_conter": [
       "sem balão"
     ]
+  },
+  {
+    "id": "P01",
+    "perfil": "MASTER",
+    "historico": [
+      [
+        "user",
+        "Como foi a Analia Franco nos novos esta competência?"
+      ],
+      [
+        "assistant",
+        "A Analia Franco vendeu 12 carros novos e financiou 6 na competência de 21/09 a 02/10/2026."
+      ]
+    ],
+    "pergunta": "Quem foi o vendedor que mais vendeu carros novos nos últimos 60 dias?",
+    "ferramentas": [
+      "ranking_vendedores"
+    ],
+    "periodo_esperado": [
+      "2026-08-04",
+      "2026-10-02"
+    ],
+    "deve_conter": [
+      "04/08",
+      "02/10"
+    ],
+    "deve_conter_um_de": [
+      "Analia Franco",
+      "Grupo",
+      "todas as lojas"
+    ],
+    "nao_deve_conter": [
+      "90 dias",
+      "últimos 90"
+    ],
+    "nota": "bug de 08/10: usou 90 dias e chamou de 60; loja herdada sem avisar"
+  },
+  {
+    "id": "P02",
+    "perfil": "MASTER",
+    "historico": [
+      [
+        "user",
+        "Como foi a Analia Franco nos novos esta competência?"
+      ],
+      [
+        "assistant",
+        "A Analia Franco vendeu 12 carros novos e financiou 6 na competência de 21/09 a 02/10/2026."
+      ],
+      [
+        "user",
+        "Quem foi o vendedor que mais vendeu carros novos nos últimos 60 dias?"
+      ],
+      [
+        "assistant",
+        "Nos últimos 60 dias (04/08 a 02/10/2026), considerando a Analia Franco, quem mais vendeu carros novos foi X, com 10 vendas."
+      ]
+    ],
+    "pergunta": "E no grupo todo?",
+    "ferramentas": [
+      "ranking_vendedores"
+    ],
+    "periodo_esperado": [
+      "2026-08-04",
+      "2026-10-02"
+    ],
+    "deve_conter": [
+      "04/08",
+      "02/10"
+    ],
+    "nao_deve_conter": [
+      "90 dias",
+      "últimos 90"
+    ],
+    "nota": "mantém os 60 dias do contexto"
+  },
+  {
+    "id": "P03",
+    "perfil": "MASTER",
+    "historico": [
+      [
+        "user",
+        "Como foi a Analia Franco nos novos esta competência?"
+      ],
+      [
+        "assistant",
+        "A Analia Franco vendeu 12 carros novos e financiou 6 na competência de 21/09 a 02/10/2026."
+      ],
+      [
+        "user",
+        "E no grupo todo?"
+      ],
+      [
+        "assistant",
+        "No grupo todo, nos últimos 60 dias (04/08 a 02/10/2026), quem mais vendeu carros novos foi Y, com 12 vendas."
+      ]
+    ],
+    "pergunta": "e nos últimos 60 dias?",
+    "ferramentas": [
+      "ranking_vendedores"
+    ],
+    "periodo_esperado": [
+      "2026-08-04",
+      "2026-10-02"
+    ],
+    "deve_conter": [
+      "04/08",
+      "02/10"
+    ],
+    "nao_deve_conter": [
+      "90 dias",
+      "não há filtro",
+      "faixas de 30"
+    ],
+    "nota": "não pode dizer que 60 dias não existe"
+  },
+  {
+    "id": "P04",
+    "perfil": "MASTER",
+    "historico": [
+      [
+        "user",
+        "Como foi a Analia Franco nos novos esta competência?"
+      ],
+      [
+        "assistant",
+        "A Analia Franco vendeu 12 carros novos e financiou 6 na competência de 21/09 a 02/10/2026."
+      ],
+      [
+        "user",
+        "e nos últimos 60 dias?"
+      ],
+      [
+        "assistant",
+        "Nos últimos 90 dias, quem mais vendeu foi Y."
+      ]
+    ],
+    "pergunta": "ué, eu te pedi em 60 dias.",
+    "ferramentas": [
+      "ranking_vendedores"
+    ],
+    "periodo_esperado": [
+      "2026-08-04",
+      "2026-10-02"
+    ],
+    "deve_conter": [
+      "04/08",
+      "02/10"
+    ],
+    "nao_deve_conter": [
+      "90 dias"
+    ],
+    "nota": "correção do usuário: refaz com 60 dias"
+  },
+  {
+    "id": "P05",
+    "perfil": "MASTER",
+    "pergunta": "Quem mais vendeu carros novos de 01/09 a 15/09?",
+    "ferramentas": [
+      "ranking_vendedores"
+    ],
+    "periodo_esperado": [
+      "2026-09-01",
+      "2026-09-15"
+    ],
+    "deve_conter": [
+      "01/09",
+      "15/09"
+    ],
+    "deve_conter_um_de": [
+      "Grupo",
+      "todas as lojas"
+    ],
+    "nota": "intervalo com datas"
+  },
+  {
+    "id": "P06",
+    "perfil": "MASTER",
+    "pergunta": "Qual o resultado da Europa desde 21/09?",
+    "ferramentas": [
+      "resultado_loja"
+    ],
+    "periodo_esperado": [
+      "2026-09-21",
+      "2026-10-02"
+    ],
+    "deve_conter": [
+      "21/09"
+    ],
+    "nota": "'desde' = até hoje (antes dava erro sem data final)"
+  },
+  {
+    "id": "P07",
+    "perfil": "VENDEDOR",
+    "pergunta": "Quem foi o vendedor que mais vendeu nos últimos 45 dias?",
+    "ferramentas": [
+      "ranking_vendedores"
+    ],
+    "periodo_esperado": [
+      "2026-08-19",
+      "2026-10-02"
+    ],
+    "nao_deve_conter": [
+      "BRUNO",
+      "CARLA",
+      "DIEGO"
+    ],
+    "nota": "vendedor: só os próprios números, sem colegas"
   }
 ]

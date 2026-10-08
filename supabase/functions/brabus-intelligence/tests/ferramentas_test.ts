@@ -430,7 +430,10 @@ Deno.test("Acessos: vendedor só vê o próprio salário/score, sem retorno; mó
 
   const rk: any = await executar("ranking_vendedores", { criterio: "producao", loja: null, departamento: null, periodo: null, data_inicio: null, data_fim: null }, c);
   assertEquals(rk.ranking, undefined);
-  assertEquals(rk.sua_posicao.posicao, 1);
+  // o servidor só devolve as linhas do próprio vendedor: sem posição nem total (não há como calcular), só os próprios números
+  assert(rk.seus_numeros && rk.seus_numeros.vendidos > 0, JSON.stringify(rk));
+  assertEquals(rk.sua_posicao, undefined);
+  assertEquals(rk.total_vendedores, undefined);
   assert(!JSON.stringify(rk).includes("BRUNO"), JSON.stringify(rk));
 
   const semMod: Usuario = { perfil: "VENDEDOR", loja: "EUROPA", nome: "Ana Souza", modulos: [] };
