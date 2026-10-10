@@ -27,12 +27,41 @@ const norm = (v: unknown) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g
 const familia = (m: string) => { const x = norm(m); return x.includes("OUTLANDER") ? "Outlander" : (x.includes("TRITON") || x.includes("L200")) ? "Triton" : x.includes("ECLIPSE") ? "Eclipse Cross" : "Outros"; };
 const dept = (v: unknown) => norm(v) === "SEMINOVOS" ? "Seminovos" : "Novos";
 
+// Mesmas faixas da tela de Score do V2 (score.js, SCORE_BANDS) -- a IA e a tela mostram a mesma faixa.
 export function faixaScore(s: number): string {
-  if (s >= 900) return "Excelência";
-  if (s >= 800) return "Alto";
-  if (s >= 650) return "Bom";
-  if (s >= 400) return "Em desenvolvimento";
-  return "Baixo";
+  if (s >= 900) return "Elite";
+  if (s >= 750) return "Alta performance";
+  if (s >= 550) return "Performance";
+  if (s >= 300) return "Desenvolvimento";
+  return "Crítico";
+}
+
+/** Score calculado no SERVIDOR (operational_score_vendedores): a mesma nota da tela, inclusive a regra do item
+ * Retorno em degraus a partir de 21/10/2026. O servidor não manda R$; o % de retorno médio só vem para perfis
+ * autorizados. Aqui só filtra loja/departamento/exclusões e devolve no formato de calculaScores(). */
+export function scoresDoServidor(payload: { rows?: any[] }, loja: string | null, departamento: "Novos" | "Seminovos" | null): LinhaScore[] {
+  const elegivel = (nome: string) => { const n = norm(nome); return !!n && n !== "NAO LOCALIZADO" && !excluido(n); };
+  return (payload.rows ?? [])
+    .filter((r) => elegivel(r.vendedor) && (!loja || (normalizaLoja(r.loja) ?? norm(r.loja)) === norm(loja)) && (!departamento || r.departamento === departamento))
+    .map((r) => ({
+      vendedor: r.vendedor, loja: r.loja, departamento: r.departamento, score: Number(r.score), faixa: faixaScore(Number(r.score)),
+      vendas: Number(r.vendas) || 0, financiados: Number(r.financiados) || 0, share: Number(r.share) || 0,
+      retorno_medio: r.retorno_medio_pct == null ? (undefined as any) : Number(r.retorno_medio_pct) / 100,
+      spf_qtd: Number(r.spf_qtd) || 0, plano_mais_vendido: r.plano_mais_vendido ?? "—",
+      composicao: (r.composicao ?? []).map((c: any) => ({ item: c.item, pontos: Number(c.pontos) || 0, maximo: Number(c.maximo) || 0, detalhe: detalheItem(c, r) })),
+    }))
+    .sort((a, b) => b.score - a.score || b.financiados - a.financiados);
+}
+function detalheItem(c: any, r: any): string {
+  switch (c.item) {
+    case "Volume de vendas": return `${r.vendas} venda(s); referência ${c.referencia}`;
+    case "Penetração de financiamento": return `${r.financiados} financiado(s) / ${r.vendas} venda(s)`;
+    case "Mix de famílias vendidas": return `${c.familias} de 3 famílias`;
+    case "Mix de planos (diversidade)": return `${c.planos} de ${MIX_PLANOS.size} planos comerciais`;
+    case "SPF EXTRA": return `${r.spf_qtd} SPF / ${r.financiados} financiamento(s)`;
+    case "Retorno médio": return "retorno médio sobre produção";
+    default: return "";
+  }
 }
 
 export type LinhaScore = {

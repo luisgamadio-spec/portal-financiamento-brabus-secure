@@ -5,7 +5,7 @@ import { Bases, BaseIndisponivel } from "../data/bases.ts";
 import { type Contexto, filtraCampos, MODULO, podeVerRetorno, temModulo } from "../data/contexto.ts";
 import { ehPseudoLoja, LOJAS, normalizaLoja, type PeriodoComissao, type PeriodoResolvido, resolvePeriodo, type TipoPeriodo } from "../data/lojas_periodos.ts";
 import { Rpc, RpcError } from "../data/rpc.ts";
-import { calculaScores, utilConvPara } from "../data/score.ts";
+import { calculaScores, scoresDoServidor, utilConvPara } from "../data/score.ts";
 import type { Store } from "../data/store.ts";
 import * as N from "../engine/novos.ts";
 import * as S from "../engine/seminovos.ts";
@@ -910,13 +910,17 @@ const H: Record<string, Handler> = {
     exigeModulo(ctx, MODULO.score, "Análise de Score");
     const p = await periodo(ctx, a, "competencia_atual");
     const loja = lojaOuErro(a.loja);
-    const [r, gov] = await Promise.all([
-      ctx.rpc.call<any>("operational_score_coparticipated_data", { p_start: p.inicio, p_end: p.fim }),
+    const [srv, gov] = await Promise.all([
+      // Nota oficial calculada no servidor (mesma da tela). Se a função ainda não existir no banco, cai no cálculo de antes.
+      ctx.rpc.call<any>("operational_score_vendedores", { p_start: p.inicio, p_end: p.fim })
+        .catch((e) => { if (e instanceof RpcError && (e.status === 404 || e.code === "PGRST202")) return null; throw e; }),
       // Utilização + Conversão (critério do Score V2): falha vira "indisponível", nunca zero
       ctx.rpc.call<any>("score_utilization_conversion_scope_data", { p_start: p.inicio, p_end: p.fim }).then((x) => Array.isArray(x) ? x : null).catch(() => null),
     ]);
     const depS = a.departamento ? (String(a.departamento).toUpperCase() === "SEMINOVOS" ? "Seminovos" : "Novos") : null;
-    const geral = calculaScores(r ?? {}, p.inicio, p.fim, loja, depS as any);
+    const geral = srv
+      ? scoresDoServidor(srv, loja, depS as any)
+      : calculaScores((await ctx.rpc.call<any>("operational_score_coparticipated_data", { p_start: p.inicio, p_end: p.fim })) ?? {}, p.inicio, p.fim, loja, depS as any);
     let lista = geral;
     if (ctx.usuario.perfil === "VENDEDOR") {
       // Vendedor: só o próprio score (sem ranking de colegas).
