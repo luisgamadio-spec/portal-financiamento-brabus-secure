@@ -20,7 +20,7 @@ async function ctxPara(u: Usuario, extra = {}, store = storeMemoria(), log: stri
   };
 }
 const VEIC = { tipo: "novo", modelo: "Eclipse Cross", versao: "HPE", ano_modelo: null, valor_veiculo: 180000 };
-const CASH_NULOS = { simulacao_id: null, veiculo: null, entrada: null, plano: null, prazo: null, capital: null, parcela: null };
+const CASH_NULOS = { pergunta_financeira_direta: false, simulacao_id: null, veiculo: null, entrada: null, plano: null, prazo: null, capital: null, parcela: null };
 
 Deno.test("schemas: todas as ferramentas em modo estrito, required = todas as propriedades", () => {
   for (const d of DEFINICOES as any[]) {
@@ -156,7 +156,7 @@ Deno.test("simulacao_id: reaproveita; expirada pede refazer; inexistente não va
   assertEquals(cc.capital, r.opcoes[0].financiado);
   assertEquals(cc.pagamentos, 48);
   assertAlmostEquals(cc.total_pago, r.opcoes[0].parcela * 48, 0.5);
-  assert(["FINANCIAR_COMPENSA", "A_VISTA_COMPENSA", "EQUIVALENTE"].includes(cc.cenario_focus_conservador[0].resultado));
+  assert(["conta_favoravel", "argumentos_liquidez"].includes(cc.modo), cc.modo);
   agora += 5 * 3600_000;
   const e: any = await executar("simular_antecipacao", { simulacao_id: id, prazo: null, parcela: null, primeiro_vencimento: null, data_antecipacao: null, tipo: "todo", de: null, ate: null, parcela_escolhida: null }, c);
   assert(String(e.erro).includes("expirou"));
@@ -302,24 +302,47 @@ Deno.test("Antecipação: 'daqui a um ano' = hoje + 12 meses; última parcela co
   assertEquals((c.blocos!.get("antecipacao") as any).tipo, "antecipacao");
 });
 
-Deno.test("Cash Conversion, proposta de fora: mesmo motor e mesma referência da tela; à vista sai mais barato", async () => {
+Deno.test("Cash Conversion, conta desfavorável sem pergunta direta: só liquidez e segurança, sem comparação com à vista", async () => {
   const log: string[] = [];
   const c = await ctxPara(MASTER, {}, storeMemoria(), log);
   const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, capital: 90000, parcela: 2985, prazo: 60 }, c);
   assert(log.includes("cash_referencias_mercado"));
-  assertEquals(r.total_pago, 179100);
-  assertAlmostEquals(r.cet_pct_am, 2.6097, 1e-4);
-  assertEquals(r.cenario_focus_conservador.map((p: any) => p.produto), ["Tesouro Selic", "CDB 100% do CDI", "LCI/LCA 85% do CDI"]);
-  assert(r.cenario_focus_conservador.every((p: any) => p.resultado === "A_VISTA_COMPENSA"));
-  assert(r.cenario_cdi_atual_constante.every((p: any) => p.ganho_liquido < 0));
-  // mesmo resultado que o motor dá direto (é o que a tela chama)
-  const direto = (globalThis as any).NX_CASH_V2.calcular({ capital: 90000, fluxo: Array.from({ length: 60 }, (_, k) => ({ mes: k + 1, valor: 2985 })), referencias: CASH_REF, dataBase: c.hoje });
-  assertEquals(r.cenario_focus_conservador.map((p: any) => p.ganho_liquido), direto.cenarios.focus.produtos.map((p: any) => p.ganho_liquido));
-  assertEquals(r.frase_cliente, direto.frase_cliente);
-  assert(r.frase_cliente.includes("pagar à vista sai mais barato"), r.frase_cliente);
+  assertEquals(r.modo, "argumentos_liquidez");
+  const { nao_dizer, ...semInstrucao } = r;
+  assert(nao_dizer && String(nao_dizer).includes("Não diga que o cliente ganha dinheiro"));
+  const txt = JSON.stringify(semInstrucao) + JSON.stringify(c.blocos!.get("cash"));
+  for (const x of ["à vista", "mais barato", "ganho_liquido", "cenario_focus", "A_VISTA_COMPENSA", "rendimento_bruto"]) assert(!txt.includes(x), x);
+  assert(r.frase_cliente.includes("preserva R$ 90.000,00 como reserva") && r.frase_cliente.includes("não ganho financeiro"), r.frase_cliente);
+  assertEquals(r.argumentos_liquidez.length, 5);
+  assert(r.argumentos_liquidez.some((a: string) => a.includes("60 pagamentos de R$ 2.985,00")));
+  assert(r.argumentos_liquidez.some((a: string) => a.includes("FGC até R$ 250.000,00 por CPF por instituição")));
+  assert(r.argumentos_liquidez.some((a: string) => a.includes("desconto de juros")));
   assertEquals(r.rodape_obrigatorio, "Material informativo, não é recomendação de investimento. Confirme com o seu banco ou assessor de investimentos.");
   assert(r.fonte.includes("Banco Central") && r.referencias.vigencia === "13/10/2026");
-  assertEquals((c.blocos!.get("cash") as any).tipo, "cash");
+  assertEquals((c.blocos!.get("cash") as any).titulo, "Por que financiar: liquidez e segurança");
+});
+
+Deno.test("Cash Conversion, pergunta direta com conta desfavorável: verdade curta e volta à liquidez", async () => {
+  const c = await ctxPara(MASTER);
+  const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, pergunta_financeira_direta: true, capital: 90000, parcela: 2985, prazo: 60 }, c);
+  assertEquals(r.modo, "resposta_direta");
+  assert(/^Financeiramente, não: o custo do financiamento \(CET de 2,61% a\.m\.\) é maior que o rendimento líquido estimado/.test(r.resposta_financeira_curta), r.resposta_financeira_curta);
+  assert(r.resposta_financeira_curta.includes("mais barato no período (estimativa)"));
+  assert(r.depois_da_resposta.includes("volte aos argumentos de liquidez"));
+  assertEquals(r.argumentos_liquidez.length, 5);
+});
+
+Deno.test("Cash Conversion, conta favorável (parcela quase sem juros): mostra o ganho estimado, com mesmo número do motor", async () => {
+  const c = await ctxPara(MASTER);
+  for (const direta of [false, true]) {
+    const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, pergunta_financeira_direta: direta, capital: 90000, parcela: 1900, prazo: 48 }, c);
+    assertEquals(r.modo, "conta_favoravel");
+    assert(r.cenario_focus_conservador.every((p: any) => p.resultado === "FINANCIAR_COMPENSA" && p.ganho_liquido > 0));
+    const d = (globalThis as any).NX_CASH_V2.calcular({ capital: 90000, fluxo: Array.from({ length: 48 }, (_, k) => ({ mes: k + 1, valor: 1900 })), referencias: CASH_REF, dataBase: c.hoje });
+    assertEquals(r.cenario_focus_conservador.map((p: any) => p.ganho_liquido), d.cenarios.focus.produtos.map((p: any) => p.ganho_liquido));
+    assertEquals(r.frase_cliente, d.frase_cliente);
+    assert(r.frase_cliente.startsWith("Estimativa: financiando e mantendo R$ 90.000,00 aplicado") && r.frase_cliente.includes("Não há garantia"), r.frase_cliente);
+  }
 });
 
 Deno.test("Cash Conversion por veículo + entrada + plano + prazo: simula o plano no motor do simulador", async () => {

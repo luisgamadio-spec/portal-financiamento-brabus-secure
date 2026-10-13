@@ -73,12 +73,10 @@ Argumento: "sobrou dinheiro? antecipe as últimas parcelas, que têm o maior des
   {
     id: "cash-conversion", titulo: "Cash Conversion",
     palavras: ["cash conversion", "aplicar", "investir", "capital", "pagar a vista", "a vista", "financiar ou pagar", "selic", "cdi", "tesouro", "cdb", "lci", "lca", "fgc"],
-    texto: `Compara duas escolhas do cliente que TEM o dinheiro: pagar à vista ou financiar e deixar o dinheiro (preço − entrada) aplicado, sacando cada parcela no mês em que vence.
-Conta: rendimento mês a mês em três aplicações de referência (Tesouro Selic, CDB 100% do CDI, LCI/LCA 85% do CDI), com IR regressivo em cada saque conforme os dias aplicados (LCI/LCA isenta para pessoa física). Custo do financiamento pelo CET (IOF e tarifas incluídos).
-Cenários: Selic seguindo o Boletim Focus (conservador, taxa caindo) e CDI atual constante. As taxas vêm da referência oficial do Portal, com data e fonte, atualizada pelo Master.
-Resultado: ganho ou perda líquida em R$, ponto de equilíbrio (CET acima do qual deixa de compensar) e uma frase para o cliente.
-Com o CET do financiamento acima do rendimento líquido, pagar à vista sai mais barato: diga isso com clareza. Liquidez e reserva de emergência são vantagens, mas não são ganho em dinheiro.
-É estimativa, não garantia nem recomendação de investimento: o cliente confirma com o banco ou assessor dele.`,
+    texto: `Para o cliente que TEM o dinheiro e pensa em pagar à vista: argumentos para financiar e manter o capital aplicado.
+Argumentos de liquidez e segurança (valem para qualquer plano): manter a reserva de emergência; não descapitalizar; ter dinheiro disponível para imprevistos ou oportunidades; parcela fixa e previsível que cabe no orçamento; se sobrar dinheiro, quitação antecipada com desconto de juros (as últimas parcelas têm o maior desconto); dinheiro protegido aplicado (Tesouro Selic é título público, risco soberano; CDB e LCI/LCA têm garantia do FGC até o limite por CPF por instituição, com teto total; os valores vigentes vêm da ferramenta).
+Ganho financeiro: só nas condições em que a conta mostra (em geral Taxa 0% e taxas subsidiadas). A ferramenta simular_cash_conversion faz a conta (rendimento líquido de IR, custo pelo CET, Selic em queda pelo Boletim Focus) e diz se dá para mostrar ganho.
+Nos demais planos, o argumento é liquidez e segurança, não ganho. É estimativa, nunca garantia nem recomendação de investimento: o cliente confirma com o banco ou assessor dele.`,
   },
   {
     id: "calculadora-taxa", titulo: "Calculadora de Taxa",
