@@ -138,7 +138,7 @@ export const DEFINICOES = [
       parcela_escolhida: Nul("integer", { description: "Nº da parcela em tipo='uma'. 'A última parcela' quando o contrato tem balão final = o mês do BALÃO." }),
     }),
   tool("simular_cash_conversion",
-    "CASH CONVERSION: argumentos para o cliente que tem o dinheiro financiar e manter o capital aplicado. Use quando o cliente quer pagar à vista / guardar / aplicar o dinheiro, ou quando perguntarem se compensa financiar. Faz a conta (rendimento líquido de IR em Tesouro Selic, CDB 100% do CDI e LCI/LCA 85% do CDI, sacando cada parcela; custo pelo CET; Selic em queda pelo Focus) e devolve o modo da resposta: conta_favoravel (mostrar o ganho estimado), argumentos_liquidez (só liquidez e segurança, sem comparação com à vista) ou resposta_direta (quando pergunta_financeira_direta=true e a conta não favorece). Taxas: referência oficial do Portal, com data e fonte. Informe UMA das formas: simulacao_id; OU veiculo + entrada + plano + prazo; OU capital + parcela + prazo (proposta de fora).",
+    "CASH CONVERSION: argumentos para o cliente que tem o dinheiro financiar e manter o capital aplicado. Use quando o cliente quer pagar à vista / guardar / aplicar o dinheiro, ou quando perguntarem se compensa financiar. Faz a conta (dinheiro aplicado em Tesouro Selic, CDB e LCI/LCA, já descontado o imposto, pagando as parcelas, com os juros caindo como o mercado espera) e devolve o modo da resposta, o cartão pronto e frase_para_o_cliente: conta_favoravel (mostrar o ganho estimado), argumentos_liquidez (só liquidez e segurança, sem comparação com à vista) ou resposta_direta (quando pergunta_financeira_direta=true e a conta não favorece). Taxas: referência oficial do Portal, com data e fonte. Informe UMA das formas: simulacao_id; OU veiculo + entrada + plano + prazo; OU capital + parcela + prazo (proposta de fora).",
     {
       pergunta_financeira_direta: S_("boolean", { description: "true SÓ se o usuário perguntou explicitamente se, financeiramente, financiar compensa mais que pagar à vista (ou qual sai mais barato). Pedido de argumento ('o cliente quer pagar à vista, o que eu falo?') = false." }),
       simulacao_id: Nul("string", { description: "Opção já simulada (simular_financiamento, simular_plano_campanha, simular_balao). null se não houver." }),
@@ -724,60 +724,63 @@ const H: Record<string, Handler> = {
     // 3) Motor único (o mesmo arquivo da tela).
     const r = CASH.calcular({ capital, fluxo, referencias, dataBase: ctx.hoje });
     if (r.erro) throw new ErroFerramenta(r.erro);
-    const resumo = (c: string) => r.cenarios[c].produtos.map((p: any) => ({
-      produto: p.nome, isento_ir: p.isento_ir_pf, garantia: p.garantia, taxa_media_bruta_pct_am: r4(p.taxa_media_bruta_am_pct),
-      rendimento_bruto: p.rendimento_bruto, ir: p.ir_total, saldo_final_liquido: p.saldo_final_liquido,
-      ganho_liquido: p.ganho_liquido, resultado: p.resultado, ponto_equilibrio_cet_pct_am: p.ponto_equilibrio_cet_am_pct == null ? null : r4(p.ponto_equilibrio_cet_am_pct),
-    }));
-    // Modo da resposta: a conta só é mostrada quando favorece o financiamento nas TRÊS aplicações, no cenário
-    // conservador (Selic em queda). Fora disso, os argumentos são liquidez e segurança, nunca ganho financeiro;
-    // a comparação com o à vista só aparece se o vendedor perguntou diretamente.
+    // Linguagem de vendedor e de cliente leigo: sem "CET", "equilíbrio", "cenário Focus", "IR regressivo".
+    // A conta só vira argumento de ganho quando favorece o financiamento nas TRÊS aplicações de referência,
+    // com os juros caindo como o mercado espera. Fora disso, o argumento é segurança, nunca ganho.
     const foco = r.cenarios.focus.produtos as any[];
     const favoravel = foco.every((p) => p.resultado === "FINANCIAR_COMPENSA");
     const modo = favoravel ? "conta_favoravel" : a.pergunta_financeira_direta ? "resposta_direta" : "argumentos_liquidez";
     const brl2 = (v: number) => "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const fgc = Number(referencias.fgc_limite_instituicao), teto = Number(referencias.fgc_teto_total), anos = Number(referencias.fgc_teto_anos);
-    const n = r.pagamentos, parcelaTxt = fluxo.every((p) => Math.abs(p.valor - fluxo[0].valor) < 0.005) ? `${n} pagamentos de ${brl2(fluxo[0].valor)}` : `${n} pagamentos (total de ${brl2(r.total_pago)})`;
+    const brl0 = (v: number) => "R$ " + Math.round(v).toLocaleString("pt-BR");
+    const faixa = (vs: number[]) => { const lo = Math.min(...vs), hi = Math.max(...vs); return Math.round(lo) === Math.round(hi) ? brl0(lo) : `${brl0(lo)} a ${brl0(hi)}`; };
+    const fgc = Number(referencias.fgc_limite_instituicao);
+    const vig = r.referencias.vigencia;
+    // Como paga: "36x de R$ 2.444,33", "4 parcelas semestrais de R$ 20.710,38", "36x de R$ 2.000,00 + balão de R$ 20.000,00"...
+    const o = origem as any;
+    const per = String(o.periodicidade ?? "mensal"), parc = Number(o.parcela);
+    const bal = (o.baloes ?? []) as { mes: number; valor: number }[];
+    const comoPaga = per === "semestral" ? `${r.pagamentos} parcelas semestrais de ${brl2(parc)}`
+      : per === "anual" ? `${r.pagamentos} parcelas anuais de ${brl2(parc)}`
+      : per === "unica" ? `parcela única de ${brl2(parc)} no mês ${r.prazo_meses}`
+      : `${r.prazo_meses}x de ${brl2(parc)}` + (bal.length ? ` + ${bal.length === 1 ? "balão de " + brl2(bal[0].valor) : bal.length + " balões"}` : "");
+    const plano = { nome: o.plano ?? "Proposta informada", como_paga: comoPaga, entrada: o.entrada != null ? brl2(Number(o.entrada)) : null };
     const argumentos = [
-      `Reserva de emergência: os ${brl2(r.capital)} continuam com o cliente, disponíveis para imprevistos ou oportunidades, em vez de ficarem imobilizados no carro.`,
-      "Não descapitaliza: o patrimônio fica aplicado e com liquidez (o Tesouro Selic tem liquidez alta; CDB pode ter liquidez diária, conforme o título).",
-      `Parcela fixa e previsível: ${parcelaTxt}. Vale confirmar com o cliente que cabe no orçamento.`,
-      "Quitação antecipada: se sobrar dinheiro depois, dá para antecipar parcelas com desconto de juros (as últimas têm o maior desconto).",
-      `Dinheiro protegido: Tesouro Selic é título público (risco soberano); CDB e LCI/LCA têm garantia do FGC até ${brl2(fgc)} por CPF por instituição (teto de ${brl2(teto)} a cada ${anos} anos). Proteção não é garantia de rentabilidade.`,
+      "O dinheiro fica com o cliente e sai aos poucos, nas parcelas.",
+      "Reserva para imprevistos ou oportunidades, sem descapitalizar.",
+      `Dinheiro protegido: Tesouro Selic é do governo federal; CDB, LCI e LCA têm o FGC até ${brl0(fgc)} por instituição.`,
     ];
-    const comuns = {
-      origem, modo, prazo_meses: r.prazo_meses, pagamentos: r.pagamentos, total_pago: r.total_pago, data_base: r.data_base,
-      argumentos_liquidez: argumentos,
-      referencias: { vigencia: r.referencias.vigencia, dias_desde_vigencia: r.referencias.dias_desde_vigencia, desatualizada: r.referencias.desatualizada,
-        selic_pct_aa: r.referencias.selic_aa_pct, cdi_pct_aa: r.referencias.cdi_aa_pct, fgc_por_instituicao: fgc, fgc_teto: teto, fgc_teto_anos: anos },
-      fonte: r.fonte, rodape_obrigatorio: r.rodape,
+    const outros = ["Parcela fixa: dá para planejar o orçamento.", "Se sobrar dinheiro, dá para quitar antes com desconto de juros."];
+    const destaque = favoravel
+      ? { rotulo: "Sobra estimada no fim, com o dinheiro aplicado", valor: faixa(foco.map((p) => p.ganho_liquido)) }
+      : { rotulo: "Parcela", valor: comoPaga, complemento: `Reserva que fica com o cliente: ${brl2(r.capital)}` };
+    const detalhes = {
+      aplicacoes: favoravel ? foco.map((p) => ({ aplicacao: p.nome, sobra_estimada: brl0(p.ganho_liquido) })) : undefined,
+      mais_argumentos: outros,
+      como_foi_calculado: "Simulamos o dinheiro aplicado em Tesouro Selic, CDB (100% do CDI) e LCI/LCA (85% do CDI), já descontado o imposto, pagando cada parcela com ele e com os juros caindo como o mercado espera.",
+      custo_do_financiamento: `${r4(r.cet_am_pct).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% ao mês, com tarifas e IOF`,
+      observacoes: (r.avisos as string[]).filter((x) => !/acaba no mês/.test(x)),
+      fonte: r.fonte,
     };
-    // Avisos que valem em todo modo: referência velha, carência da LCI/LCA, custos do Tesouro, limite do FGC.
-    const avisosGerais = (r.avisos as string[]).filter((x) => !/acaba no mês/.test(x));
-    let out: Record<string, unknown>;
-    if (modo === "conta_favoravel") {
-      out = { ...comuns, capital: r.capital, cet_pct_am: r4(r.cet_am_pct), cet_pct_aa: r4(r.cet_aa_pct),
-        cenario_focus_conservador: resumo("focus"), cenario_cdi_atual_constante: resumo("cdi_constante"),
-        leitura_ponto_equilibrio: "ponto_equilibrio_cet_pct_am = CET do financiamento acima do qual financiar deixaria de compensar naquela aplicação.",
-        leitura_taxas: r.leitura_taxas, frase_cliente: r.frase_cliente, avisos: avisosGerais };
-    } else {
-      const frase = `Financiando, o cliente preserva ${brl2(r.capital)} como reserva, disponível para imprevistos ou oportunidades, e paga ${parcelaTxt}. ` +
-        "Aplicado em Tesouro Selic (título público) ou em CDB/LCI/LCA dentro do limite do FGC, esse dinheiro fica protegido e com liquidez. O argumento é liquidez e segurança, não ganho financeiro.";
-      out = { ...comuns, capital: r.capital, frase_cliente: frase, avisos: avisosGerais,
-        nao_dizer: "Não diga que o cliente ganha dinheiro financiando nem cite rendimento como ganho. Não traga a comparação com o pagamento à vista." };
-      if (modo === "resposta_direta") {
-        const perdas = foco.map((p) => -p.ganho_liquido), lo = Math.min(...perdas), hi = Math.max(...perdas);
-        const mista = foco.some((p) => p.ganho_liquido > 0);
-        out.resposta_financeira_curta = mista
-          ? `Financeiramente, depende da aplicação: na estimativa (Selic em queda, Boletim Focus), só em parte das aplicações de referência o rendimento líquido cobre o custo do financiamento (CET de ${r4(r.cet_am_pct).toLocaleString("pt-BR")}% a.m.).`
-          : `Financeiramente, não: o custo do financiamento (CET de ${r4(r.cet_am_pct).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% a.m.) é maior que o rendimento líquido estimado das aplicações de referência; pagar à vista sairia ${Math.round(lo) === Math.round(hi) ? "cerca de " + brl2(lo) : "entre " + brl2(lo) + " e " + brl2(hi)} mais barato no período (estimativa).`;
-        delete out.nao_dizer;
-        out.depois_da_resposta = "Responda a verdade em uma frase (resposta_financeira_curta) e volte aos argumentos de liquidez e segurança.";
-      }
+    const rodape = `Estimativa com taxas de ${vig}. Não é garantia nem recomendação de investimento.`;
+    const frase = favoravel
+      ? "Com essa condição, financiar e deixar o dinheiro aplicado sai melhor do que pagar à vista, pelas taxas de hoje."
+      : "Financiando, o cliente não tira o dinheiro de uma vez: ele fica guardado e protegido, e sai aos poucos nas parcelas.";
+    const veredito = favoravel ? "✅ Financiar compensa" : "🔒 Por que financiar: segurança";
+    poeBloco(ctx, "cash", { tipo: "cash", titulo: veredito, modo, veredito,
+      desatualizada: r.referencias.desatualizada ? `As taxas são de ${vig} e podem estar desatualizadas.` : undefined,
+      plano, destaque, argumentos, detalhes, rodape });
+    // Resposta de Cash Conversion não mostra o cartão de plano com rebate (HPE/Brabus): só parcela, prazo e entrada (no cartão cash).
+    ctx.blocos?.delete("plano"); ctx.blocos?.delete("opcoes");
+    const out: Record<string, unknown> = {
+      modo, cartao_ja_mostra: "veredito, número em destaque, plano (parcela, prazo e entrada), argumentos, detalhes e o rodapé — não repita no texto",
+      frase_para_o_cliente: frase, mais_argumentos: outros, taxas_de: vig, desatualizada: r.referencias.desatualizada, rodape_curto: rodape,
+    };
+    if (modo === "resposta_direta") {
+      out.resposta_financeira_curta = "Na ponta do lápis, não: à vista sai mais barato.";
+      out.diferenca_so_se_pedirem = foco.some((p) => p.ganho_liquido > 0)
+        ? "Depende da aplicação: só em parte delas o rendimento cobre o custo do financiamento."
+        : `À vista sairia ${faixa(foco.map((p) => -p.ganho_liquido))} mais barato no período, pelas taxas de hoje (estimativa).`;
     }
-    // O cartão leva só o que é para mostrar; nao_dizer e depois_da_resposta são instruções para o modelo.
-    const { nao_dizer: _n, depois_da_resposta: _d, ...cartao } = out;
-    poeBloco(ctx, "cash", { tipo: "cash", titulo: modo === "conta_favoravel" ? "Financiar e manter o dinheiro aplicado" : "Por que financiar: liquidez e segurança", ...cartao });
     return out;
   },
 

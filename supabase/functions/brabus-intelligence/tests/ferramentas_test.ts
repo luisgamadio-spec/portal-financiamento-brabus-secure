@@ -153,10 +153,9 @@ Deno.test("simulacao_id: reaproveita; expirada pede refazer; inexistente não va
   assertEquals(a.contrato.parcela_mensal, r.opcoes[0].parcela);
   assert(a.valor_a_pagar < a.valor_original);
   const cc: any = await executar("simular_cash_conversion", { ...CASH_NULOS, simulacao_id: id }, c);
-  assertEquals(cc.capital, r.opcoes[0].financiado);
-  assertEquals(cc.pagamentos, 48);
-  assertAlmostEquals(cc.total_pago, r.opcoes[0].parcela * 48, 0.5);
+  const cartao: any = c.blocos!.get("cash");
   assert(["conta_favoravel", "argumentos_liquidez"].includes(cc.modo), cc.modo);
+  assert(cartao.plano.como_paga.startsWith("48x de "), cartao.plano.como_paga);
   agora += 5 * 3600_000;
   const e: any = await executar("simular_antecipacao", { simulacao_id: id, prazo: null, parcela: null, primeiro_vencimento: null, data_antecipacao: null, tipo: "todo", de: null, ate: null, parcela_escolhida: null }, c);
   assert(String(e.erro).includes("expirou"));
@@ -302,70 +301,88 @@ Deno.test("Antecipação: 'daqui a um ano' = hoje + 12 meses; última parcela co
   assertEquals((c.blocos!.get("antecipacao") as any).tipo, "antecipacao");
 });
 
-Deno.test("Cash Conversion, conta desfavorável sem pergunta direta: só liquidez e segurança, sem comparação com à vista", async () => {
+// Linguagem de vendedor: nada de jargão no que vai para o cartão ou para o modelo usar no texto.
+const JARGAO = ["CET", "equilíbrio", "Focus", "IR regressivo", "liquidez total", "a qualquer momento", "continuam com o cliente"];
+const semJargao = (o: unknown) => { const s = JSON.stringify(o); for (const x of JARGAO) assert(!s.includes(x), `jargão: ${x}`); };
+const RODAPE = "Estimativa com taxas de 13/10/2026. Não é garantia nem recomendação de investimento.";
+
+Deno.test("Cash Conversion, conta desfavorável: cartão 🔒 segurança, parcela e reserva, 3 argumentos curtos, sem comparar com à vista", async () => {
   const log: string[] = [];
   const c = await ctxPara(MASTER, {}, storeMemoria(), log);
   const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, capital: 90000, parcela: 2985, prazo: 60 }, c);
   assert(log.includes("cash_referencias_mercado"));
   assertEquals(r.modo, "argumentos_liquidez");
-  const { nao_dizer, ...semInstrucao } = r;
-  assert(nao_dizer && String(nao_dizer).includes("Não diga que o cliente ganha dinheiro"));
-  const txt = JSON.stringify(semInstrucao) + JSON.stringify(c.blocos!.get("cash"));
-  for (const x of ["à vista", "mais barato", "ganho_liquido", "cenario_focus", "A_VISTA_COMPENSA", "rendimento_bruto"]) assert(!txt.includes(x), x);
-  assert(r.frase_cliente.includes("preserva R$ 90.000,00 como reserva") && r.frase_cliente.includes("não ganho financeiro"), r.frase_cliente);
-  assertEquals(r.argumentos_liquidez.length, 5);
-  assert(r.argumentos_liquidez.some((a: string) => a.includes("60 pagamentos de R$ 2.985,00")));
-  assert(r.argumentos_liquidez.some((a: string) => a.includes("FGC até R$ 250.000,00 por CPF por instituição")));
-  assert(r.argumentos_liquidez.some((a: string) => a.includes("desconto de juros")));
-  assertEquals(r.rodape_obrigatorio, "Material informativo, não é recomendação de investimento. Confirme com o seu banco ou assessor de investimentos.");
-  assert(r.fonte.includes("Banco Central") && r.referencias.vigencia === "13/10/2026");
-  assertEquals((c.blocos!.get("cash") as any).titulo, "Por que financiar: liquidez e segurança");
+  const k: any = c.blocos!.get("cash");
+  assertEquals(k.veredito, "🔒 Por que financiar: segurança");
+  assertEquals(k.destaque, { rotulo: "Parcela", valor: "60x de R$ 2.985,00", complemento: "Reserva que fica com o cliente: R$ 90.000,00" });
+  assertEquals(k.argumentos.length, 3);
+  assertEquals(k.argumentos[0], "O dinheiro fica com o cliente e sai aos poucos, nas parcelas.");
+  assert(k.argumentos[2].includes("FGC até R$ 250.000 por instituição"), k.argumentos[2]);
+  assertEquals(k.rodape, RODAPE);
+  assertEquals(r.rodape_curto, RODAPE);
+  assert(k.detalhes.fonte.includes("Banco Central") && k.detalhes.custo_do_financiamento.startsWith("2,61% ao mês"));
+  assertEquals(k.detalhes.aplicacoes, undefined);
+  for (const x of ["à vista", "mais barato", "sobra estimada", "rende"]) assert(!JSON.stringify(r).includes(x) && !JSON.stringify(k).includes(x), x);
+  semJargao({ r, k: { ...k, detalhes: { ...k.detalhes, fonte: "", observacoes: [] } } });
 });
 
-Deno.test("Cash Conversion, pergunta direta com conta desfavorável: verdade curta e volta à liquidez", async () => {
+Deno.test("Cash Conversion, pergunta direta: 'Na ponta do lápis, não' e o valor só se pedirem", async () => {
   const c = await ctxPara(MASTER);
   const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, pergunta_financeira_direta: true, capital: 90000, parcela: 2985, prazo: 60 }, c);
   assertEquals(r.modo, "resposta_direta");
-  assert(/^Financeiramente, não: o custo do financiamento \(CET de 2,61% a\.m\.\) é maior que o rendimento líquido estimado/.test(r.resposta_financeira_curta), r.resposta_financeira_curta);
-  assert(r.resposta_financeira_curta.includes("mais barato no período (estimativa)"));
-  assert(r.depois_da_resposta.includes("volte aos argumentos de liquidez"));
-  assertEquals(r.argumentos_liquidez.length, 5);
+  assertEquals(r.resposta_financeira_curta, "Na ponta do lápis, não: à vista sai mais barato.");
+  assert(/^À vista sairia R\$ [\d.]+ a R\$ [\d.]+ mais barato no período, pelas taxas de hoje \(estimativa\)\.$/.test(r.diferenca_so_se_pedirem), r.diferenca_so_se_pedirem);
+  assertEquals((c.blocos!.get("cash") as any).veredito, "🔒 Por que financiar: segurança");
+  assert(!JSON.stringify(c.blocos!.get("cash")).includes("mais barato"), "o cartão não traz a diferença");
 });
 
-Deno.test("Cash Conversion, conta favorável (parcela quase sem juros): mostra o ganho estimado, com mesmo número do motor", async () => {
+Deno.test("Cash Conversion, conta favorável: cartão ✅ com a sobra estimada em destaque e o detalhe por aplicação escondido", async () => {
   const c = await ctxPara(MASTER);
   for (const direta of [false, true]) {
     const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, pergunta_financeira_direta: direta, capital: 90000, parcela: 1900, prazo: 48 }, c);
     assertEquals(r.modo, "conta_favoravel");
-    assert(r.cenario_focus_conservador.every((p: any) => p.resultado === "FINANCIAR_COMPENSA" && p.ganho_liquido > 0));
-    const d = (globalThis as any).NX_CASH_V2.calcular({ capital: 90000, fluxo: Array.from({ length: 48 }, (_, k) => ({ mes: k + 1, valor: 1900 })), referencias: CASH_REF, dataBase: c.hoje });
-    assertEquals(r.cenario_focus_conservador.map((p: any) => p.ganho_liquido), d.cenarios.focus.produtos.map((p: any) => p.ganho_liquido));
-    assertEquals(r.frase_cliente, d.frase_cliente);
-    assert(r.frase_cliente.startsWith("Estimativa: financiando e mantendo R$ 90.000,00 aplicado") && r.frase_cliente.includes("Não há garantia"), r.frase_cliente);
+    const k: any = c.blocos!.get("cash");
+    assertEquals(k.veredito, "✅ Financiar compensa");
+    const d = (globalThis as any).NX_CASH_V2.calcular({ capital: 90000, fluxo: Array.from({ length: 48 }, (_, n) => ({ mes: n + 1, valor: 1900 })), referencias: CASH_REF, dataBase: c.hoje });
+    const g = d.cenarios.focus.produtos.map((p: any) => p.ganho_liquido), r0 = (v: number) => "R$ " + Math.round(v).toLocaleString("pt-BR");
+    assertEquals(k.destaque, { rotulo: "Sobra estimada no fim, com o dinheiro aplicado", valor: `${r0(Math.min(...g))} a ${r0(Math.max(...g))}` });
+    assertEquals(k.detalhes.aplicacoes.map((x: any) => x.sobra_estimada), g.map(r0));
+    assert(r.frase_para_o_cliente.includes("pelas taxas de hoje"));
+    semJargao({ r, k: { ...k, detalhes: { ...k.detalhes, fonte: "", observacoes: [] } } });
   }
 });
 
-Deno.test("Cash Conversion por veículo + entrada + plano + prazo: simula o plano no motor do simulador", async () => {
+Deno.test("Cash Conversion por veículo + entrada + plano + prazo: só parcela, prazo e entrada (sem cartão de rebate)", async () => {
   const c = await ctxPara(MASTER);
   const lin: any = await executar("simular_financiamento", { ...VEIC, entrada: 90000, objetivo: "oferta", planos_com_subsidio: null, apenas_planos: ["LINEAR"], prazos: [48], parcela_alvo: null }, c);
+  c.blocos = new Map();
   const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, veiculo: VEIC, entrada: 90000, plano: "LINEAR", prazo: 48 }, c);
   assert(!r.erro, r.erro);
-  assertEquals(r.origem.plano, lin.opcoes[0].plano_nome);
-  assertEquals(r.origem.parcela, lin.opcoes[0].parcela);
-  assertEquals(r.capital, 90000);
+  const k: any = c.blocos!.get("cash");
+  assertEquals(k.plano, { nome: lin.opcoes[0].plano_nome, como_paga: `48x de R$ ${lin.opcoes[0].parcela.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, entrada: "R$ 90.000,00" });
+  assertEquals([...c.blocos!.keys()], ["cash"], "sem cartão de opções/plano junto");
+  assert(!JSON.stringify(k).toLowerCase().includes("rebate"));
   const f: any = await executar("simular_cash_conversion", { ...CASH_NULOS, veiculo: VEIC, entrada: null, plano: "LINEAR", prazo: null }, c);
   assert(String(f.erro).includes("plano e prazo"), JSON.stringify(f));
   const nada: any = await executar("simular_cash_conversion", { ...CASH_NULOS }, c);
   assert(String(nada.erro).includes("Informe a simulação"), JSON.stringify(nada));
 });
 
-Deno.test("Cash Conversion: Plano Balão entra com o balão no mês dele; referência fora do ar falha fechado", async () => {
+Deno.test("Cash Conversion: campanha simulada antes no mesmo turno — o cartão de rebate (HPE/Brabus) sai da resposta", async () => {
+  const c = await ctxPara(MASTER);
+  await executar("simular_plano_campanha", { ...VEIC, plano: "TAXA_SUBSIDIADA", entrada: 90000, prazos: [24] }, c);
+  assert(c.blocos!.has("plano"));
+  await executar("simular_cash_conversion", { ...CASH_NULOS, capital: 90000, parcela: 4000, prazo: 24 }, c);
+  assertEquals([...c.blocos!.keys()], ["cash"]);
+});
+
+Deno.test("Cash Conversion: Plano Balão aparece como '36x de ... + balão de ...'; referência fora do ar falha fechado", async () => {
   const c = await ctxPara(MASTER);
   const b: any = await executar("simular_balao", { ...VEIC, entrada: 90000, prazo: 36, baloes: [{ mes: 36, valor: 20000 }] }, c);
   assert(!b.erro, b.erro);
-  const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, simulacao_id: b.simulacao_id }, c);
-  assertAlmostEquals(r.total_pago, b.parcela * 36 + 20000, 0.5);
-  assertEquals(r.origem.baloes, [{ mes: 36, valor: 20000 }]);
+  await executar("simular_cash_conversion", { ...CASH_NULOS, simulacao_id: b.simulacao_id }, c);
+  const k: any = c.blocos!.get("cash");
+  assert(k.plano.como_paga.startsWith("36x de R$ ") && k.plano.como_paga.endsWith(" + balão de R$ 20.000,00"), k.plano.como_paga);
   const sem = await ctxPara(MASTER, { cash_referencias_mercado: () => new Response("{}", { status: 404 }) });
   const e: any = await executar("simular_cash_conversion", { ...CASH_NULOS, capital: 90000, parcela: 2985, prazo: 60 }, sem);
   assert(String(e.erro).includes("referências de mercado"), JSON.stringify(e));

@@ -73,10 +73,10 @@ Argumento: "sobrou dinheiro? antecipe as últimas parcelas, que têm o maior des
   {
     id: "cash-conversion", titulo: "Cash Conversion",
     palavras: ["cash conversion", "aplicar", "investir", "capital", "pagar a vista", "a vista", "financiar ou pagar", "selic", "cdi", "tesouro", "cdb", "lci", "lca", "fgc"],
-    texto: `Para o cliente que TEM o dinheiro e pensa em pagar à vista: argumentos para financiar e manter o capital aplicado.
-Argumentos de liquidez e segurança (valem para qualquer plano): manter a reserva de emergência; não descapitalizar; ter dinheiro disponível para imprevistos ou oportunidades; parcela fixa e previsível que cabe no orçamento; se sobrar dinheiro, quitação antecipada com desconto de juros (as últimas parcelas têm o maior desconto); dinheiro protegido aplicado (Tesouro Selic é título público, risco soberano; CDB e LCI/LCA têm garantia do FGC até o limite por CPF por instituição, com teto total; os valores vigentes vêm da ferramenta).
-Ganho financeiro: só nas condições em que a conta mostra (em geral Taxa 0% e taxas subsidiadas). A ferramenta simular_cash_conversion faz a conta (rendimento líquido de IR, custo pelo CET, Selic em queda pelo Boletim Focus) e diz se dá para mostrar ganho.
-Nos demais planos, o argumento é liquidez e segurança, não ganho. É estimativa, nunca garantia nem recomendação de investimento: o cliente confirma com o banco ou assessor dele.`,
+    texto: `Para o cliente que TEM o dinheiro e pensa em pagar à vista: argumentos de segurança para financiar.
+O dinheiro fica com o cliente e sai aos poucos, nas parcelas. Fica como reserva para imprevistos ou oportunidades, sem descapitalizar. Parcela fixa ajuda a planejar o orçamento. Se sobrar dinheiro, dá para quitar antes com desconto de juros. Aplicado, o dinheiro fica protegido: Tesouro Selic é do governo federal; CDB, LCI e LCA têm o FGC até o limite por instituição.
+Ganho em dinheiro só quando a conta mostra (em geral Taxa 0% em 24x ou mais): a ferramenta simular_cash_conversion faz a conta com as taxas de hoje e diz se dá para falar em ganho.
+É sempre estimativa, não garantia nem recomendação de investimento.`,
   },
   {
     id: "calculadora-taxa", titulo: "Calculadora de Taxa",
