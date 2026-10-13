@@ -1,0 +1,1779 @@
+{
+ "referencias": {
+  "vigencia": "2026-10-13",
+  "fonte": "Relatório SELIC e Investimentos — Outubro/2026 (13/10/2026). Fontes: Banco Central (Copom e SGS 432), B3 (Taxa DI), Boletim Focus de 13/10/2026, FGC e Receita Federal.",
+  "selic_aa": 13.75,
+  "cdi_aa": 13.65,
+  "cdi_12m_pct": 14.47,
+  "cdi_12m_ate": "2026-09-30",
+  "focus_data": "2026-10-13",
+  "focus_selic": [
+   {
+    "fim_de": 2026,
+    "selic_aa": 13.25
+   },
+   {
+    "fim_de": 2027,
+    "selic_aa": 12.0
+   }
+  ],
+  "focus_ipca_ano": 2026,
+  "focus_ipca_pct": 5.22,
+  "ir_faixas": [
+   {
+    "ate_dias": 180,
+    "aliquota_pct": 22.5
+   },
+   {
+    "ate_dias": 360,
+    "aliquota_pct": 20.0
+   },
+   {
+    "ate_dias": 720,
+    "aliquota_pct": 17.5
+   },
+   {
+    "ate_dias": null,
+    "aliquota_pct": 15.0
+   }
+  ],
+  "fgc_limite_instituicao": 250000,
+  "fgc_teto_total": 1000000,
+  "fgc_teto_anos": 4,
+  "produtos": [
+   {
+    "id": "tesouro_selic",
+    "nome": "Tesouro Selic",
+    "indexador": "SELIC",
+    "pct_indexador": 100,
+    "isento_ir_pf": false,
+    "garantia": "SOBERANO"
+   },
+   {
+    "id": "cdb_100_cdi",
+    "nome": "CDB 100% do CDI",
+    "indexador": "CDI",
+    "pct_indexador": 100,
+    "isento_ir_pf": false,
+    "garantia": "FGC"
+   },
+   {
+    "id": "lci_lca_85_cdi",
+    "nome": "LCI/LCA 85% do CDI",
+    "indexador": "CDI",
+    "pct_indexador": 85,
+    "isento_ir_pf": true,
+    "garantia": "FGC"
+   }
+  ],
+  "dias_desde_vigencia": 0,
+  "desatualizada": false
+ },
+ "data_base": "2026-10-13",
+ "casos": [
+  {
+   "nome": "taxa_zero_24x_semestral",
+   "capital": 120000,
+   "fluxo": [
+    {
+     "mes": 6,
+     "valor": 30600
+    },
+    {
+     "mes": 12,
+     "valor": 30600
+    },
+    {
+     "mes": 18,
+     "valor": 30600
+    },
+    {
+     "mes": 24,
+     "valor": 30600
+    }
+   ],
+   "cet_am_pct": 0.13236751143300696,
+   "cenarios": {
+    "focus": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": 14533.503147764626,
+      "ir_total": 3353.2151028031567,
+      "saldo_final_liquido": 14533.503147764626,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 20286.718250567796,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.8402866362073547
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": 14388.588351966928,
+      "ir_total": 3325.0750668855226,
+      "saldo_final_liquido": 14388.588351966928,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 20113.66341885246,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.8339148364010618
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": 14643.522768034272,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 14643.522768034272,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 17043.52276803431,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.8484261777962687
+     }
+    ],
+    "cdi_constante": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": 16194.425931340234,
+      "ir_total": 3669.393256287498,
+      "saldo_final_liquido": 16194.425931340234,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 22263.819187627734,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.910210814321244
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": 16047.226396819462,
+      "ir_total": 3640.8869581069753,
+      "saldo_final_liquido": 16047.226396819462,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 22088.113354926456,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.903890702204635
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": 16307.415821288268,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 16307.415821288268,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 18707.415821288265,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.9189740838194349
+     }
+    ]
+   }
+  },
+  {
+   "nome": "coparticipado_36x",
+   "capital": 80000,
+   "fluxo": [
+    {
+     "mes": 1,
+     "valor": 2732.14
+    },
+    {
+     "mes": 2,
+     "valor": 2732.14
+    },
+    {
+     "mes": 3,
+     "valor": 2732.14
+    },
+    {
+     "mes": 4,
+     "valor": 2732.14
+    },
+    {
+     "mes": 5,
+     "valor": 2732.14
+    },
+    {
+     "mes": 6,
+     "valor": 2732.14
+    },
+    {
+     "mes": 7,
+     "valor": 2732.14
+    },
+    {
+     "mes": 8,
+     "valor": 2732.14
+    },
+    {
+     "mes": 9,
+     "valor": 2732.14
+    },
+    {
+     "mes": 10,
+     "valor": 2732.14
+    },
+    {
+     "mes": 11,
+     "valor": 2732.14
+    },
+    {
+     "mes": 12,
+     "valor": 2732.14
+    },
+    {
+     "mes": 13,
+     "valor": 2732.14
+    },
+    {
+     "mes": 14,
+     "valor": 2732.14
+    },
+    {
+     "mes": 15,
+     "valor": 2732.14
+    },
+    {
+     "mes": 16,
+     "valor": 2732.14
+    },
+    {
+     "mes": 17,
+     "valor": 2732.14
+    },
+    {
+     "mes": 18,
+     "valor": 2732.14
+    },
+    {
+     "mes": 19,
+     "valor": 2732.14
+    },
+    {
+     "mes": 20,
+     "valor": 2732.14
+    },
+    {
+     "mes": 21,
+     "valor": 2732.14
+    },
+    {
+     "mes": 22,
+     "valor": 2732.14
+    },
+    {
+     "mes": 23,
+     "valor": 2732.14
+    },
+    {
+     "mes": 24,
+     "valor": 2732.14
+    },
+    {
+     "mes": 25,
+     "valor": 2732.14
+    },
+    {
+     "mes": 26,
+     "valor": 2732.14
+    },
+    {
+     "mes": 27,
+     "valor": 2732.14
+    },
+    {
+     "mes": 28,
+     "valor": 2732.14
+    },
+    {
+     "mes": 29,
+     "valor": 2732.14
+    },
+    {
+     "mes": 30,
+     "valor": 2732.14
+    },
+    {
+     "mes": 31,
+     "valor": 2732.14
+    },
+    {
+     "mes": 32,
+     "valor": 2732.14
+    },
+    {
+     "mes": 33,
+     "valor": 2732.14
+    },
+    {
+     "mes": 34,
+     "valor": 2732.14
+    },
+    {
+     "mes": 35,
+     "valor": 2732.14
+    },
+    {
+     "mes": 36,
+     "valor": 2732.14
+    }
+   ],
+   "cet_am_pct": 1.162225316863863,
+   "cenarios": {
+    "focus": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -6185.169154065179,
+      "ir_total": 2424.015361382856,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 6185.169154065179,
+      "rendimento_bruto": 14595.886207317662,
+      "mes_dinheiro_acaba": 34,
+      "ponto_equilibrio_cet_am_pct": 0.8385299577669536
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -6297.467521366489,
+      "ir_total": 2402.2579311740583,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 6297.467521366489,
+      "rendimento_bruto": 14461.830409807599,
+      "mes_dinheiro_acaba": 34,
+      "ponto_equilibrio_cet_am_pct": 0.8320821983985316
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -6118.687037413523,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 6118.687037413523,
+      "rendimento_bruto": 12238.352962586467,
+      "mes_dinheiro_acaba": 34,
+      "ponto_equilibrio_cet_am_pct": 0.8398525945231605
+     }
+    ],
+    "cdi_constante": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -4793.800167798892,
+      "ir_total": 2687.277419321653,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 4793.800167798892,
+      "rendimento_bruto": 16250.51725152276,
+      "mes_dinheiro_acaba": 35,
+      "ponto_equilibrio_cet_am_pct": 0.9178486182105705
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -4910.925424277111,
+      "ir_total": 2664.6977773980902,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 4910.925424277111,
+      "rendimento_bruto": 16110.812353120995,
+      "mes_dinheiro_acaba": 35,
+      "ponto_equilibrio_cet_am_pct": 0.9114593560077711
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -4734.719491145718,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 4734.719491145718,
+      "rendimento_bruto": 13622.320508854258,
+      "mes_dinheiro_acaba": 35,
+      "ponto_equilibrio_cet_am_pct": 0.9189740838194349
+     }
+    ]
+   }
+  },
+  {
+   "nome": "linear_48x_1_49",
+   "capital": 90000,
+   "fluxo": [
+    {
+     "mes": 1,
+     "valor": 2638.11
+    },
+    {
+     "mes": 2,
+     "valor": 2638.11
+    },
+    {
+     "mes": 3,
+     "valor": 2638.11
+    },
+    {
+     "mes": 4,
+     "valor": 2638.11
+    },
+    {
+     "mes": 5,
+     "valor": 2638.11
+    },
+    {
+     "mes": 6,
+     "valor": 2638.11
+    },
+    {
+     "mes": 7,
+     "valor": 2638.11
+    },
+    {
+     "mes": 8,
+     "valor": 2638.11
+    },
+    {
+     "mes": 9,
+     "valor": 2638.11
+    },
+    {
+     "mes": 10,
+     "valor": 2638.11
+    },
+    {
+     "mes": 11,
+     "valor": 2638.11
+    },
+    {
+     "mes": 12,
+     "valor": 2638.11
+    },
+    {
+     "mes": 13,
+     "valor": 2638.11
+    },
+    {
+     "mes": 14,
+     "valor": 2638.11
+    },
+    {
+     "mes": 15,
+     "valor": 2638.11
+    },
+    {
+     "mes": 16,
+     "valor": 2638.11
+    },
+    {
+     "mes": 17,
+     "valor": 2638.11
+    },
+    {
+     "mes": 18,
+     "valor": 2638.11
+    },
+    {
+     "mes": 19,
+     "valor": 2638.11
+    },
+    {
+     "mes": 20,
+     "valor": 2638.11
+    },
+    {
+     "mes": 21,
+     "valor": 2638.11
+    },
+    {
+     "mes": 22,
+     "valor": 2638.11
+    },
+    {
+     "mes": 23,
+     "valor": 2638.11
+    },
+    {
+     "mes": 24,
+     "valor": 2638.11
+    },
+    {
+     "mes": 25,
+     "valor": 2638.11
+    },
+    {
+     "mes": 26,
+     "valor": 2638.11
+    },
+    {
+     "mes": 27,
+     "valor": 2638.11
+    },
+    {
+     "mes": 28,
+     "valor": 2638.11
+    },
+    {
+     "mes": 29,
+     "valor": 2638.11
+    },
+    {
+     "mes": 30,
+     "valor": 2638.11
+    },
+    {
+     "mes": 31,
+     "valor": 2638.11
+    },
+    {
+     "mes": 32,
+     "valor": 2638.11
+    },
+    {
+     "mes": 33,
+     "valor": 2638.11
+    },
+    {
+     "mes": 34,
+     "valor": 2638.11
+    },
+    {
+     "mes": 35,
+     "valor": 2638.11
+    },
+    {
+     "mes": 36,
+     "valor": 2638.11
+    },
+    {
+     "mes": 37,
+     "valor": 2638.11
+    },
+    {
+     "mes": 38,
+     "valor": 2638.11
+    },
+    {
+     "mes": 39,
+     "valor": 2638.11
+    },
+    {
+     "mes": 40,
+     "valor": 2638.11
+    },
+    {
+     "mes": 41,
+     "valor": 2638.11
+    },
+    {
+     "mes": 42,
+     "valor": 2638.11
+    },
+    {
+     "mes": 43,
+     "valor": 2638.11
+    },
+    {
+     "mes": 44,
+     "valor": 2638.11
+    },
+    {
+     "mes": 45,
+     "valor": 2638.11
+    },
+    {
+     "mes": 46,
+     "valor": 2638.11
+    },
+    {
+     "mes": 47,
+     "valor": 2638.11
+    },
+    {
+     "mes": 48,
+     "valor": 2638.11
+    }
+   ],
+   "cet_am_pct": 1.4900002890260722,
+   "cenarios": {
+    "focus": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -20142.64008592087,
+      "ir_total": 3175.945000186246,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 20142.64008592087,
+      "rendimento_bruto": 19662.584914265404,
+      "mes_dinheiro_acaba": 41,
+      "ponto_equilibrio_cet_am_pct": 0.8410189229100751
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -20302.198129902943,
+      "ir_total": 3145.9143970023238,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 20302.198129902943,
+      "rendimento_bruto": 19472.996267099385,
+      "mes_dinheiro_acaba": 41,
+      "ponto_equilibrio_cet_am_pct": 0.8344717549741643
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -20209.029656680796,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 20209.029656680796,
+      "rendimento_bruto": 16420.250343319214,
+      "mes_dinheiro_acaba": 41,
+      "ponto_equilibrio_cet_am_pct": 0.832868178983992
+     }
+    ],
+    "cdi_constante": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -18039.867098656658,
+      "ir_total": 3564.138866092845,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 18039.867098656658,
+      "rendimento_bruto": 22153.55176743617,
+      "mes_dinheiro_acaba": 42,
+      "ponto_equilibrio_cet_am_pct": 0.9285040544333545
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -18208.094519200717,
+      "ir_total": 3532.6069467306293,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 18208.094519200717,
+      "rendimento_bruto": 21953.792427529886,
+      "mes_dinheiro_acaba": 42,
+      "ponto_equilibrio_cet_am_pct": 0.9220197542706754
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -18146.37933824915,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 18146.37933824915,
+      "rendimento_bruto": 18482.900661750868,
+      "mes_dinheiro_acaba": 42,
+      "ponto_equilibrio_cet_am_pct": 0.9189740838194349
+     }
+    ]
+   }
+  },
+  {
+   "nome": "entrada_alta_24x",
+   "capital": 40000,
+   "fluxo": [
+    {
+     "mes": 1,
+     "valor": 1948.6
+    },
+    {
+     "mes": 2,
+     "valor": 1948.6
+    },
+    {
+     "mes": 3,
+     "valor": 1948.6
+    },
+    {
+     "mes": 4,
+     "valor": 1948.6
+    },
+    {
+     "mes": 5,
+     "valor": 1948.6
+    },
+    {
+     "mes": 6,
+     "valor": 1948.6
+    },
+    {
+     "mes": 7,
+     "valor": 1948.6
+    },
+    {
+     "mes": 8,
+     "valor": 1948.6
+    },
+    {
+     "mes": 9,
+     "valor": 1948.6
+    },
+    {
+     "mes": 10,
+     "valor": 1948.6
+    },
+    {
+     "mes": 11,
+     "valor": 1948.6
+    },
+    {
+     "mes": 12,
+     "valor": 1948.6
+    },
+    {
+     "mes": 13,
+     "valor": 1948.6
+    },
+    {
+     "mes": 14,
+     "valor": 1948.6
+    },
+    {
+     "mes": 15,
+     "valor": 1948.6
+    },
+    {
+     "mes": 16,
+     "valor": 1948.6
+    },
+    {
+     "mes": 17,
+     "valor": 1948.6
+    },
+    {
+     "mes": 18,
+     "valor": 1948.6
+    },
+    {
+     "mes": 19,
+     "valor": 1948.6
+    },
+    {
+     "mes": 20,
+     "valor": 1948.6
+    },
+    {
+     "mes": 21,
+     "valor": 1948.6
+    },
+    {
+     "mes": 22,
+     "valor": 1948.6
+    },
+    {
+     "mes": 23,
+     "valor": 1948.6
+    },
+    {
+     "mes": 24,
+     "valor": 1948.6
+    }
+   ],
+   "cet_am_pct": 1.2899975926585205,
+   "cenarios": {
+    "focus": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -2730.768194304832,
+      "ir_total": 904.2395970142392,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 2730.768194304832,
+      "rendimento_bruto": 4939.871402709404,
+      "mes_dinheiro_acaba": 23,
+      "ponto_equilibrio_cet_am_pct": 0.8312071615078742
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -2765.0223039153916,
+      "ir_total": 896.6357906086272,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 2765.0223039153916,
+      "rendimento_bruto": 4898.01348669324,
+      "mes_dinheiro_acaba": 23,
+      "ponto_equilibrio_cet_am_pct": 0.8249338735417111
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -2598.792346338427,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 2598.792346338427,
+      "rendimento_bruto": 4167.607653661558,
+      "mes_dinheiro_acaba": 23,
+      "ponto_equilibrio_cet_am_pct": 0.8520438136375819
+     }
+    ],
+    "cdi_constante": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -2379.079779532639,
+      "ir_total": 980.8692657238262,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 2379.079779532639,
+      "rendimento_bruto": 5368.189486191169,
+      "mes_dinheiro_acaba": 23,
+      "ponto_equilibrio_cet_am_pct": 0.8966181033163712
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -2413.8810214852656,
+      "ir_total": 973.1519087916673,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 2413.8810214852656,
+      "rendimento_bruto": 5325.670887306411,
+      "mes_dinheiro_acaba": 23,
+      "ponto_equilibrio_cet_am_pct": 0.8903932957192828
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -2235.4108945936273,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 2235.4108945936273,
+      "rendimento_bruto": 4530.989105406349,
+      "mes_dinheiro_acaba": 23,
+      "ponto_equilibrio_cet_am_pct": 0.9189740838194349
+     }
+    ]
+   }
+  },
+  {
+   "nome": "entrada_baixa_60x",
+   "capital": 160000,
+   "fluxo": [
+    {
+     "mes": 1,
+     "valor": 4263.99
+    },
+    {
+     "mes": 2,
+     "valor": 4263.99
+    },
+    {
+     "mes": 3,
+     "valor": 4263.99
+    },
+    {
+     "mes": 4,
+     "valor": 4263.99
+    },
+    {
+     "mes": 5,
+     "valor": 4263.99
+    },
+    {
+     "mes": 6,
+     "valor": 4263.99
+    },
+    {
+     "mes": 7,
+     "valor": 4263.99
+    },
+    {
+     "mes": 8,
+     "valor": 4263.99
+    },
+    {
+     "mes": 9,
+     "valor": 4263.99
+    },
+    {
+     "mes": 10,
+     "valor": 4263.99
+    },
+    {
+     "mes": 11,
+     "valor": 4263.99
+    },
+    {
+     "mes": 12,
+     "valor": 4263.99
+    },
+    {
+     "mes": 13,
+     "valor": 4263.99
+    },
+    {
+     "mes": 14,
+     "valor": 4263.99
+    },
+    {
+     "mes": 15,
+     "valor": 4263.99
+    },
+    {
+     "mes": 16,
+     "valor": 4263.99
+    },
+    {
+     "mes": 17,
+     "valor": 4263.99
+    },
+    {
+     "mes": 18,
+     "valor": 4263.99
+    },
+    {
+     "mes": 19,
+     "valor": 4263.99
+    },
+    {
+     "mes": 20,
+     "valor": 4263.99
+    },
+    {
+     "mes": 21,
+     "valor": 4263.99
+    },
+    {
+     "mes": 22,
+     "valor": 4263.99
+    },
+    {
+     "mes": 23,
+     "valor": 4263.99
+    },
+    {
+     "mes": 24,
+     "valor": 4263.99
+    },
+    {
+     "mes": 25,
+     "valor": 4263.99
+    },
+    {
+     "mes": 26,
+     "valor": 4263.99
+    },
+    {
+     "mes": 27,
+     "valor": 4263.99
+    },
+    {
+     "mes": 28,
+     "valor": 4263.99
+    },
+    {
+     "mes": 29,
+     "valor": 4263.99
+    },
+    {
+     "mes": 30,
+     "valor": 4263.99
+    },
+    {
+     "mes": 31,
+     "valor": 4263.99
+    },
+    {
+     "mes": 32,
+     "valor": 4263.99
+    },
+    {
+     "mes": 33,
+     "valor": 4263.99
+    },
+    {
+     "mes": 34,
+     "valor": 4263.99
+    },
+    {
+     "mes": 35,
+     "valor": 4263.99
+    },
+    {
+     "mes": 36,
+     "valor": 4263.99
+    },
+    {
+     "mes": 37,
+     "valor": 4263.99
+    },
+    {
+     "mes": 38,
+     "valor": 4263.99
+    },
+    {
+     "mes": 39,
+     "valor": 4263.99
+    },
+    {
+     "mes": 40,
+     "valor": 4263.99
+    },
+    {
+     "mes": 41,
+     "valor": 4263.99
+    },
+    {
+     "mes": 42,
+     "valor": 4263.99
+    },
+    {
+     "mes": 43,
+     "valor": 4263.99
+    },
+    {
+     "mes": 44,
+     "valor": 4263.99
+    },
+    {
+     "mes": 45,
+     "valor": 4263.99
+    },
+    {
+     "mes": 46,
+     "valor": 4263.99
+    },
+    {
+     "mes": 47,
+     "valor": 4263.99
+    },
+    {
+     "mes": 48,
+     "valor": 4263.99
+    },
+    {
+     "mes": 49,
+     "valor": 4263.99
+    },
+    {
+     "mes": 50,
+     "valor": 4263.99
+    },
+    {
+     "mes": 51,
+     "valor": 4263.99
+    },
+    {
+     "mes": 52,
+     "valor": 4263.99
+    },
+    {
+     "mes": 53,
+     "valor": 4263.99
+    },
+    {
+     "mes": 54,
+     "valor": 4263.99
+    },
+    {
+     "mes": 55,
+     "valor": 4263.99
+    },
+    {
+     "mes": 56,
+     "valor": 4263.99
+    },
+    {
+     "mes": 57,
+     "valor": 4263.99
+    },
+    {
+     "mes": 58,
+     "valor": 4263.99
+    },
+    {
+     "mes": 59,
+     "valor": 4263.99
+    },
+    {
+     "mes": 60,
+     "valor": 4263.99
+    }
+   ],
+   "cet_am_pct": 1.6900025210864755,
+   "cenarios": {
+    "focus": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -62804.48608007146,
+      "ir_total": 6260.49728482213,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 62804.48608007146,
+      "rendimento_bruto": 39295.41120475057,
+      "mes_dinheiro_acaba": 46,
+      "ponto_equilibrio_cet_am_pct": 0.8428307988883499
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -63134.98164479263,
+      "ir_total": 6199.146712113635,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 63134.98164479263,
+      "rendimento_bruto": 38903.56506732095,
+      "mes_dinheiro_acaba": 46,
+      "ponto_equilibrio_cet_am_pct": 0.8362115020171479
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -63125.377165448386,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 63125.377165448386,
+      "rendimento_bruto": 32714.022834551626,
+      "mes_dinheiro_acaba": 46,
+      "ponto_equilibrio_cet_am_pct": 0.8283932811221306
+     }
+    ],
+    "cdi_constante": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -58282.29186540999,
+      "ir_total": 7086.1966843233395,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 58282.29186540999,
+      "rendimento_bruto": 44643.30481891322,
+      "mes_dinheiro_acaba": 47,
+      "ponto_equilibrio_cet_am_pct": 0.935756146457567
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -58633.5999874681,
+      "ir_total": 7021.219491355768,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 58633.5999874681,
+      "rendimento_bruto": 44227.01950388774,
+      "mes_dinheiro_acaba": 47,
+      "ponto_equilibrio_cet_am_pct": 0.9292022579906356
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -58729.681719549415,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 58729.681719549415,
+      "rendimento_bruto": 37109.71828045056,
+      "mes_dinheiro_acaba": 47,
+      "ponto_equilibrio_cet_am_pct": 0.9189740838194349
+     }
+    ]
+   }
+  },
+  {
+   "nome": "balao_36x",
+   "capital": 100000,
+   "fluxo": [
+    {
+     "mes": 1,
+     "valor": 2000
+    },
+    {
+     "mes": 2,
+     "valor": 2000
+    },
+    {
+     "mes": 3,
+     "valor": 2000
+    },
+    {
+     "mes": 4,
+     "valor": 2000
+    },
+    {
+     "mes": 5,
+     "valor": 2000
+    },
+    {
+     "mes": 6,
+     "valor": 2000
+    },
+    {
+     "mes": 7,
+     "valor": 2000
+    },
+    {
+     "mes": 8,
+     "valor": 2000
+    },
+    {
+     "mes": 9,
+     "valor": 2000
+    },
+    {
+     "mes": 10,
+     "valor": 2000
+    },
+    {
+     "mes": 11,
+     "valor": 2000
+    },
+    {
+     "mes": 12,
+     "valor": 2000
+    },
+    {
+     "mes": 13,
+     "valor": 2000
+    },
+    {
+     "mes": 14,
+     "valor": 2000
+    },
+    {
+     "mes": 15,
+     "valor": 2000
+    },
+    {
+     "mes": 16,
+     "valor": 2000
+    },
+    {
+     "mes": 17,
+     "valor": 2000
+    },
+    {
+     "mes": 18,
+     "valor": 2000
+    },
+    {
+     "mes": 19,
+     "valor": 2000
+    },
+    {
+     "mes": 20,
+     "valor": 2000
+    },
+    {
+     "mes": 21,
+     "valor": 2000
+    },
+    {
+     "mes": 22,
+     "valor": 2000
+    },
+    {
+     "mes": 23,
+     "valor": 2000
+    },
+    {
+     "mes": 24,
+     "valor": 2000
+    },
+    {
+     "mes": 25,
+     "valor": 2000
+    },
+    {
+     "mes": 26,
+     "valor": 2000
+    },
+    {
+     "mes": 27,
+     "valor": 2000
+    },
+    {
+     "mes": 28,
+     "valor": 2000
+    },
+    {
+     "mes": 29,
+     "valor": 2000
+    },
+    {
+     "mes": 30,
+     "valor": 2000
+    },
+    {
+     "mes": 31,
+     "valor": 2000
+    },
+    {
+     "mes": 32,
+     "valor": 2000
+    },
+    {
+     "mes": 33,
+     "valor": 2000
+    },
+    {
+     "mes": 34,
+     "valor": 2000
+    },
+    {
+     "mes": 35,
+     "valor": 2000
+    },
+    {
+     "mes": 36,
+     "valor": 42000
+    }
+   ],
+   "cet_am_pct": 0.4651104906942982,
+   "cenarios": {
+    "focus": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": 11534.673858172075,
+      "ir_total": 4355.245095871991,
+      "saldo_final_liquido": 11534.673858172075,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 27889.91895404398,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.8414618717229705
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": 11318.178683023914,
+      "ir_total": 4315.619880585482,
+      "saldo_final_liquido": 11318.178683023914,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 27633.798563609424,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.834912264025045
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": 11198.977679070522,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 11198.977679070522,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 23198.97767907049,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.8325499044528617
+     }
+    ],
+    "cdi_constante": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": 14532.593858430433,
+      "ir_total": 4897.265970283285,
+      "saldo_final_liquido": 14532.593858430433,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 31429.859828713717,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.9292706125720751
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": 14309.536814118754,
+      "ir_total": 4856.504440414459,
+      "saldo_final_liquido": 14309.536814118754,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 31166.041254533266,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.922780240391885
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": 14120.118347691168,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 14120.118347691168,
+      "aportes_do_bolso": 0.0,
+      "rendimento_bruto": 26120.11834769118,
+      "mes_dinheiro_acaba": null,
+      "ponto_equilibrio_cet_am_pct": 0.9189740838194571
+     }
+    ]
+   }
+  },
+  {
+   "nome": "dinheiro_acaba_60x",
+   "capital": 90000,
+   "fluxo": [
+    {
+     "mes": 1,
+     "valor": 2985
+    },
+    {
+     "mes": 2,
+     "valor": 2985
+    },
+    {
+     "mes": 3,
+     "valor": 2985
+    },
+    {
+     "mes": 4,
+     "valor": 2985
+    },
+    {
+     "mes": 5,
+     "valor": 2985
+    },
+    {
+     "mes": 6,
+     "valor": 2985
+    },
+    {
+     "mes": 7,
+     "valor": 2985
+    },
+    {
+     "mes": 8,
+     "valor": 2985
+    },
+    {
+     "mes": 9,
+     "valor": 2985
+    },
+    {
+     "mes": 10,
+     "valor": 2985
+    },
+    {
+     "mes": 11,
+     "valor": 2985
+    },
+    {
+     "mes": 12,
+     "valor": 2985
+    },
+    {
+     "mes": 13,
+     "valor": 2985
+    },
+    {
+     "mes": 14,
+     "valor": 2985
+    },
+    {
+     "mes": 15,
+     "valor": 2985
+    },
+    {
+     "mes": 16,
+     "valor": 2985
+    },
+    {
+     "mes": 17,
+     "valor": 2985
+    },
+    {
+     "mes": 18,
+     "valor": 2985
+    },
+    {
+     "mes": 19,
+     "valor": 2985
+    },
+    {
+     "mes": 20,
+     "valor": 2985
+    },
+    {
+     "mes": 21,
+     "valor": 2985
+    },
+    {
+     "mes": 22,
+     "valor": 2985
+    },
+    {
+     "mes": 23,
+     "valor": 2985
+    },
+    {
+     "mes": 24,
+     "valor": 2985
+    },
+    {
+     "mes": 25,
+     "valor": 2985
+    },
+    {
+     "mes": 26,
+     "valor": 2985
+    },
+    {
+     "mes": 27,
+     "valor": 2985
+    },
+    {
+     "mes": 28,
+     "valor": 2985
+    },
+    {
+     "mes": 29,
+     "valor": 2985
+    },
+    {
+     "mes": 30,
+     "valor": 2985
+    },
+    {
+     "mes": 31,
+     "valor": 2985
+    },
+    {
+     "mes": 32,
+     "valor": 2985
+    },
+    {
+     "mes": 33,
+     "valor": 2985
+    },
+    {
+     "mes": 34,
+     "valor": 2985
+    },
+    {
+     "mes": 35,
+     "valor": 2985
+    },
+    {
+     "mes": 36,
+     "valor": 2985
+    },
+    {
+     "mes": 37,
+     "valor": 2985
+    },
+    {
+     "mes": 38,
+     "valor": 2985
+    },
+    {
+     "mes": 39,
+     "valor": 2985
+    },
+    {
+     "mes": 40,
+     "valor": 2985
+    },
+    {
+     "mes": 41,
+     "valor": 2985
+    },
+    {
+     "mes": 42,
+     "valor": 2985
+    },
+    {
+     "mes": 43,
+     "valor": 2985
+    },
+    {
+     "mes": 44,
+     "valor": 2985
+    },
+    {
+     "mes": 45,
+     "valor": 2985
+    },
+    {
+     "mes": 46,
+     "valor": 2985
+    },
+    {
+     "mes": 47,
+     "valor": 2985
+    },
+    {
+     "mes": 48,
+     "valor": 2985
+    },
+    {
+     "mes": 49,
+     "valor": 2985
+    },
+    {
+     "mes": 50,
+     "valor": 2985
+    },
+    {
+     "mes": 51,
+     "valor": 2985
+    },
+    {
+     "mes": 52,
+     "valor": 2985
+    },
+    {
+     "mes": 53,
+     "valor": 2985
+    },
+    {
+     "mes": 54,
+     "valor": 2985
+    },
+    {
+     "mes": 55,
+     "valor": 2985
+    },
+    {
+     "mes": 56,
+     "valor": 2985
+    },
+    {
+     "mes": 57,
+     "valor": 2985
+    },
+    {
+     "mes": 58,
+     "valor": 2985
+    },
+    {
+     "mes": 59,
+     "valor": 2985
+    },
+    {
+     "mes": 60,
+     "valor": 2985
+    }
+   ],
+   "cet_am_pct": 2.609706058541772,
+   "cenarios": {
+    "focus": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -74919.81046786651,
+      "ir_total": 2803.9719171439497,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 74919.81046786651,
+      "rendimento_bruto": 16984.16144927741,
+      "mes_dinheiro_acaba": 35,
+      "ponto_equilibrio_cet_am_pct": 0.8428307988883499
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -75051.50384327039,
+      "ir_total": 2778.612284535559,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 75051.50384327039,
+      "rendimento_bruto": 16827.108441265194,
+      "mes_dinheiro_acaba": 35,
+      "ponto_equilibrio_cet_am_pct": 0.8362115020171479
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -74869.04685356586,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 74869.04685356586,
+      "rendimento_bruto": 14230.953146434103,
+      "mes_dinheiro_acaba": 35,
+      "ponto_equilibrio_cet_am_pct": 0.8283932811221306
+     }
+    ],
+    "cdi_constante": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -73262.05579031617,
+      "ir_total": 3115.8837917024593,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 73262.05579031617,
+      "rendimento_bruto": 18953.828001386333,
+      "mes_dinheiro_acaba": 36,
+      "ponto_equilibrio_cet_am_pct": 0.935756146457567
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -73399.64718007286,
+      "ir_total": 3089.5156640576697,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 73399.64718007286,
+      "rendimento_bruto": 18789.868483984814,
+      "mes_dinheiro_acaba": 36,
+      "ponto_equilibrio_cet_am_pct": 0.9292022579906356
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -73224.54507315278,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 73224.54507315278,
+      "rendimento_bruto": 15875.454926847206,
+      "mes_dinheiro_acaba": 36,
+      "ponto_equilibrio_cet_am_pct": 0.9189740838194349
+     }
+    ]
+   }
+  },
+  {
+   "nome": "acima_fgc_12x",
+   "capital": 300000,
+   "fluxo": [
+    {
+     "mes": 1,
+     "valor": 26992.63
+    },
+    {
+     "mes": 2,
+     "valor": 26992.63
+    },
+    {
+     "mes": 3,
+     "valor": 26992.63
+    },
+    {
+     "mes": 4,
+     "valor": 26992.63
+    },
+    {
+     "mes": 5,
+     "valor": 26992.63
+    },
+    {
+     "mes": 6,
+     "valor": 26992.63
+    },
+    {
+     "mes": 7,
+     "valor": 26992.63
+    },
+    {
+     "mes": 8,
+     "valor": 26992.63
+    },
+    {
+     "mes": 9,
+     "valor": 26992.63
+    },
+    {
+     "mes": 10,
+     "valor": 26992.63
+    },
+    {
+     "mes": 11,
+     "valor": 26992.63
+    },
+    {
+     "mes": 12,
+     "valor": 26992.63
+    }
+   ],
+   "cet_am_pct": 1.2000000095498398,
+   "cenarios": {
+    "focus": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -7903.365020201592,
+      "ir_total": 4063.3108612432543,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 7903.365020201592,
+      "rendimento_bruto": 20071.505841041704,
+      "mes_dinheiro_acaba": 12,
+      "ponto_equilibrio_cet_am_pct": 0.8273093034904311
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -8027.54469802442,
+      "ir_total": 4032.2906372408884,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 8027.54469802442,
+      "rendimento_bruto": 19916.305939216436,
+      "mes_dinheiro_acaba": 12,
+      "ponto_equilibrio_cet_am_pct": 0.8212762505146798
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -6889.257586040916,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 6889.257586040916,
+      "rendimento_bruto": 17022.302413959136,
+      "mes_dinheiro_acaba": 12,
+      "ponto_equilibrio_cet_am_pct": 0.87510938837988
+     }
+    ],
+    "cdi_constante": [
+     {
+      "id": "tesouro_selic",
+      "ganho_liquido": -7060.673658334494,
+      "ir_total": 4270.171259011795,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 7060.673658334494,
+      "rendimento_bruto": 21121.057600677286,
+      "mes_dinheiro_acaba": 12,
+      "ponto_equilibrio_cet_am_pct": 0.8686156610087203
+     },
+     {
+      "id": "cdb_100_cdi",
+      "ganho_liquido": -7185.209808899708,
+      "ir_total": 4239.11015910574,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 7185.209808899708,
+      "rendimento_bruto": 20965.460350206053,
+      "mes_dinheiro_acaba": 12,
+      "ponto_equilibrio_cet_am_pct": 0.8626138774928571
+     },
+     {
+      "id": "lci_lca_85_cdi",
+      "ganho_liquido": -5987.735784402725,
+      "ir_total": 0.0,
+      "saldo_final_liquido": 0.0,
+      "aportes_do_bolso": 5987.735784402725,
+      "rendimento_bruto": 17923.82421559733,
+      "mes_dinheiro_acaba": 12,
+      "ponto_equilibrio_cet_am_pct": 0.9189740838194349
+     }
+    ]
+   }
+  }
+ ]
+}

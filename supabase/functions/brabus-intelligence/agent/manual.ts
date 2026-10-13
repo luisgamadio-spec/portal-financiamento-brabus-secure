@@ -72,11 +72,13 @@ Argumento: "sobrou dinheiro? antecipe as últimas parcelas, que têm o maior des
   },
   {
     id: "cash-conversion", titulo: "Cash Conversion",
-    palavras: ["cash conversion", "aplicar", "investir", "capital", "pagar a vista", "a vista", "financiar ou pagar"],
-    texto: `Compara duas escolhas do cliente que TEM o dinheiro: pagar à vista ou financiar e deixar o capital aplicado.
-Conta: valor final do financiamento = parcela × prazo; valor futuro da aplicação = capital × (1 + taxa da aplicação)^prazo.
-Se a aplicação rende mais do que o custo do financiamento, a recomendação é FINANCIAR e preservar o capital; se não, UTILIZAR o capital.
-Argumento: "seu dinheiro rendendo paga o carro e ainda sobra".`,
+    palavras: ["cash conversion", "aplicar", "investir", "capital", "pagar a vista", "a vista", "financiar ou pagar", "selic", "cdi", "tesouro", "cdb", "lci", "lca", "fgc"],
+    texto: `Compara duas escolhas do cliente que TEM o dinheiro: pagar à vista ou financiar e deixar o dinheiro (preço − entrada) aplicado, sacando cada parcela no mês em que vence.
+Conta: rendimento mês a mês em três aplicações de referência (Tesouro Selic, CDB 100% do CDI, LCI/LCA 85% do CDI), com IR regressivo em cada saque conforme os dias aplicados (LCI/LCA isenta para pessoa física). Custo do financiamento pelo CET (IOF e tarifas incluídos).
+Cenários: Selic seguindo o Boletim Focus (conservador, taxa caindo) e CDI atual constante. As taxas vêm da referência oficial do Portal, com data e fonte, atualizada pelo Master.
+Resultado: ganho ou perda líquida em R$, ponto de equilíbrio (CET acima do qual deixa de compensar) e uma frase para o cliente.
+Com o CET do financiamento acima do rendimento líquido, pagar à vista sai mais barato: diga isso com clareza. Liquidez e reserva de emergência são vantagens, mas não são ganho em dinheiro.
+É estimativa, não garantia nem recomendação de investimento: o cliente confirma com o banco ou assessor dele.`,
   },
   {
     id: "calculadora-taxa", titulo: "Calculadora de Taxa",

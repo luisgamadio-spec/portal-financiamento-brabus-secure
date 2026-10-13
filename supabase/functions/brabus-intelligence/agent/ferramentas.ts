@@ -10,6 +10,10 @@ import type { Store } from "../data/store.ts";
 import * as N from "../engine/novos.ts";
 import * as S from "../engine/seminovos.ts";
 import * as F from "../engine/ferramentas.ts";
+// Motor único do Cash Conversion: o MESMO arquivo dos simuladores do Portal (tests/cash_v2_test.ts confere o sha256).
+import "../engine/cash-conversion-v2.js";
+// deno-lint-ignore no-explicit-any
+const CASH = (globalThis as any).NX_CASH_V2;
 import { addMonths, parseISO, toISO } from "../engine/comum.ts";
 import { casaModelo, type Contexto as CtxSim, entradaMinimaParaParcela, type EstruturaBalao, type ModoBalao, normalizaModelo, type Opcao, opcaoSemestralTriton, opcoesParaEntrada } from "../engine/ofertas.ts";
 import { buscaManual } from "./manual.ts";
@@ -134,12 +138,15 @@ export const DEFINICOES = [
       parcela_escolhida: Nul("integer", { description: "Nº da parcela em tipo='uma'. 'A última parcela' quando o contrato tem balão final = o mês do BALÃO." }),
     }),
   tool("simular_cash_conversion",
-    "CASH CONVERSION do Portal. Use SEMPRE que perguntarem se compensa financiar ou pagar à vista / guardar / aplicar o dinheiro. Compara o total pago no financiamento com quanto o capital renderia aplicado no mesmo prazo, e devolve a taxa de empate.",
+    "CASH CONVERSION do Portal (mesmo motor da tela). Use SEMPRE que perguntarem se compensa financiar ou pagar à vista / guardar / aplicar / investir o dinheiro. Compara pagar à vista com financiar e deixar o dinheiro aplicado (Tesouro Selic, CDB 100% do CDI, LCI/LCA 85% do CDI), sacando cada parcela no mês: rendimento líquido de IR, custo pelo CET (IOF e tarifas incluídos), cenário Focus (Selic em queda) e CDI atual constante, ponto de equilíbrio e a frase para o cliente. Taxas: referência oficial do Portal (data e fonte no resultado). Informe UMA das formas: simulacao_id; OU veiculo + entrada + plano + prazo (o backend simula o plano no motor do simulador); OU capital + parcela + prazo (proposta de fora).",
     {
-      simulacao_id: Nul("string", { description: "Opção já simulada. null se o usuário informou parcela e prazo." }),
-      parcela: Nul("number"), prazo: Nul("integer"),
-      capital: S_("number", { description: "Dinheiro que o cliente usaria para pagar à vista (R$). Se ele disse 'financiando 90.000', capital = 90000." }),
-      taxa_aplicacao_mensal: Nul("number", { description: "Rendimento mensal líquido da aplicação do cliente em fração (1% a.m. = 0.01). null se o usuário não disse: o backend roda cenários de referência e a taxa de empate." }),
+      simulacao_id: Nul("string", { description: "Opção já simulada (simular_financiamento, simular_plano_campanha, simular_balao). null se não houver." }),
+      veiculo: Nul("object", { properties: VEICULO, required: Object.keys(VEICULO), additionalProperties: false, description: "Veículo, quando ainda não há simulacao_id. null se houver simulacao_id ou se for proposta de fora." }),
+      entrada: Nul("number", { description: "Entrada em R$ (com veiculo). null = entrada média do histórico (planos normais) ou mínima/fixa (campanhas)." }),
+      plano: Nul("string", { enum: ["LINEAR", "BALAO", "SEMESTRAL_ANUAL", "PARCELA_UNICA", "TAXA_SUBSIDIADA", "COPARTICIPADO", "SEMESTRAL_TAXA_ZERO"], description: "Plano (com veiculo)." }),
+      prazo: Nul("integer", { description: "Prazo em meses (com veiculo, ou com capital + parcela)." }),
+      capital: Nul("number", { description: "Só para proposta de fora: valor que o cliente pagaria à vista além da entrada (= valor financiado), em R$." }),
+      parcela: Nul("number", { description: "Só para proposta de fora: parcela mensal em R$." }),
     }),
   tool("calcular_taxa",
     "Descobre a taxa (NET e CET ao mês) de uma proposta a partir do valor financiado, prazo e parcela. Útil para comparar proposta de concorrente.",
@@ -347,6 +354,37 @@ async function simulacaoPorId(ctx: ToolCtx, id: string): Promise<{ opcao: Opcao;
   if (r.status === "expirada") throw new ErroFerramenta("Essa simulação expirou. Quer que eu refaça?");
   if (r.status === "nao_encontrada") throw new ErroFerramenta("Simulação não encontrada.");
   return { opcao: r.payload.opcao, veiculo: r.payload.veiculo, baloes: Array.isArray(r.payload.baloes) ? r.payload.baloes : [] };
+}
+
+/** Pagamentos da opção mês a mês (o que o cliente sacaria da aplicação), igual à tela. */
+function fluxoDaOpcao(o: Opcao, baloes: N.Balao[]): { mes: number; valor: number }[] {
+  if (o.periodicidade === "mensal") {
+    const f = Array.from({ length: o.prazo }, (_, k) => ({ mes: k + 1, valor: o.parcela }));
+    for (const b of baloes) if (b.mes >= 1 && b.mes <= o.prazo) f[b.mes - 1].valor += Number(b.valor);
+    return f;
+  }
+  if (o.periodicidade === "unica") return [{ mes: o.prazo, valor: o.parcela }];
+  const meses = o.plano === "SEMESTRAL_TAXA_ZERO" ? N.MESES_SEMESTRAL_TRITON : (() => {
+    const passo = o.periodicidade === "semestral" ? 6 : 12, ms: number[] = [];
+    for (let m = passo; m <= o.prazo; m += passo) ms.push(m);
+    return ms;
+  })();
+  return meses.map((mes) => ({ mes, valor: o.parcela }));
+}
+
+/** Veículo + entrada + plano + prazo → simula no motor do simulador e devolve o simulacao_id da opção. */
+async function simulaPlanoParaCash(ctx: ToolCtx, v: any, entrada: number | null, plano: string, prazo: number): Promise<string> {
+  const base = { tipo: v.tipo ?? "novo", modelo: v.modelo, versao: v.versao ?? null, ano_modelo: v.ano_modelo ?? null, valor_veiculo: v.valor_veiculo };
+  if (PLANOS_SUBSIDIO.includes(plano)) {
+    const r: any = await H.simular_plano_campanha({ ...base, plano, entrada, prazos: plano === "SEMESTRAL_TAXA_ZERO" ? null : [prazo] }, ctx);
+    const id = plano === "SEMESTRAL_TAXA_ZERO" ? r.simulacao_id : r.linhas?.[0]?.simulacao_id;
+    if (!id) throw new ErroFerramenta(`Sem opção de ${r.plano_nome ?? plano} em ${prazo}x para esse veículo.`);
+    return id;
+  }
+  const r: any = await H.simular_financiamento({ ...base, entrada, objetivo: "oferta", planos_com_subsidio: null, apenas_planos: [plano], prazos: [prazo], parcela_alvo: null, estrutura_balao: "preferidas" }, ctx);
+  const op = r.opcoes?.[0] ?? r.pagamentos_nao_mensais?.[0];
+  if (!op?.simulacao_id) throw new ErroFerramenta(r.mensagem ?? `Sem opção de ${plano} em ${prazo}x com essa entrada.`);
+  return op.simulacao_id;
 }
 
 // ---------------------------------------------------------------------
@@ -657,30 +695,49 @@ const H: Record<string, Handler> = {
 
   async simular_cash_conversion(a, ctx) {
     exigeSimulador(ctx);
-    let parcela = a.parcela, prazo = a.prazo;
-    if (a.simulacao_id) {
-      const s = await simulacaoPorId(ctx, a.simulacao_id);
-      if (s.opcao.periodicidade !== "mensal") throw new ErroFerramenta("O Cash Conversion usa planos com parcela mensal.");
-      if (s.baloes.length) throw new ErroFerramenta("O Cash Conversion do Portal compara só parcelas iguais; essa simulação tem balões. Use uma opção sem balão.");
-      parcela = s.opcao.parcela; prazo = s.opcao.prazo;
+    // 1) De onde vêm o capital e os pagamentos: simulação do motor do simulador ou proposta de fora.
+    let simId: string | null = a.simulacao_id ?? null, origem: Record<string, unknown>;
+    let capital: number, fluxo: { mes: number; valor: number }[];
+    if (!simId && a.veiculo) {
+      if (!a.plano || !a.prazo) throw new ErroFerramenta("Para simular o plano, informe plano e prazo.");
+      simId = await simulaPlanoParaCash(ctx, a.veiculo, a.entrada ?? null, a.plano, Number(a.prazo));
     }
-    const capital = Number(a.capital);
-    const informada = a.taxa_aplicacao_mensal != null;
-    const taxas: number[] = informada ? [Number(a.taxa_aplicacao_mensal)] : [0.008, 0.01, 0.012];
-    const cenarios = taxas.map((t) => {
-      const r = F.cashConversion(capital, Number(parcela), Number(prazo), t);
-      if ("erro" in r) throw new ErroFerramenta(r.erro);
-      return { taxa_aplicacao_pct_am: r4(t * 100), valor_futuro_da_aplicacao: r2(r.valorFuturoAplicacao), rendimento_da_aplicacao: r2(r.rendimentoAplicacao), diferenca: r2(r.diferencaProjetada), recomendacao: r.classificacao };
+    if (simId) {
+      const s = await simulacaoPorId(ctx, simId);
+      capital = s.opcao.financiado; fluxo = fluxoDaOpcao(s.opcao, s.baloes);
+      origem = { simulacao_id: simId, plano: s.opcao.plano_nome, prazo: s.opcao.prazo, periodicidade: s.opcao.periodicidade, entrada: r2(s.opcao.entrada),
+        parcela: r2(s.opcao.parcela), baloes: s.baloes.length ? s.baloes.map((b) => ({ mes: b.mes, valor: r2(b.valor) })) : undefined, veiculo: s.veiculo };
+    } else {
+      if (!(Number(a.capital) > 0) || !(Number(a.parcela) > 0) || !(Number(a.prazo) >= 1)) {
+        throw new ErroFerramenta("Informe a simulação (simulacao_id), ou veículo + entrada + plano + prazo, ou capital + parcela + prazo.");
+      }
+      capital = Number(a.capital); const p = Number(a.parcela), n = Number(a.prazo);
+      fluxo = Array.from({ length: n }, (_, k) => ({ mes: k + 1, valor: p }));
+      origem = { proposta_de_fora: true, capital: r2(capital), parcela: r2(p), prazo: n };
+    }
+    // 2) Referência de mercado vigente (mesma RPC da tela).
+    const referencias = await ctx.rpc.call<any>("cash_referencias_mercado").catch((e) => {
+      throw new ErroFerramenta(e instanceof RpcError && e.status === 404 ? "As referências de mercado do Cash Conversion ainda não estão disponíveis." : "Não consegui ler as referências de mercado agora. Tente de novo.");
     });
-    const total = Number(parcela) * Number(prazo);
-    // Taxa mensal em que aplicar o capital empata com o total pago no financiamento
-    const empate = capital > 0 && total > 0 ? Math.pow(total / capital, 1 / Number(prazo)) - 1 : null;
+    if (!referencias) throw new ErroFerramenta("Não há referência de mercado cadastrada para o Cash Conversion. O Master precisa cadastrar no Painel Master.");
+    // 3) Motor único (o mesmo arquivo da tela).
+    const r = CASH.calcular({ capital, fluxo, referencias, dataBase: ctx.hoje });
+    if (r.erro) throw new ErroFerramenta(r.erro);
+    const resumo = (c: string) => r.cenarios[c].produtos.map((p: any) => ({
+      produto: p.nome, isento_ir: p.isento_ir_pf, garantia: p.garantia, taxa_media_bruta_pct_am: r4(p.taxa_media_bruta_am_pct),
+      rendimento_bruto: p.rendimento_bruto, ir: p.ir_total, saldo_final_liquido: p.saldo_final_liquido, do_bolso: p.aportes_do_bolso || undefined,
+      ganho_liquido: p.ganho_liquido, resultado: p.resultado, ponto_equilibrio_cet_pct_am: p.ponto_equilibrio_cet_am_pct == null ? null : r4(p.ponto_equilibrio_cet_am_pct),
+    }));
     const out = {
-      capital: r2(capital), parcela: r2(parcela), prazo, total_pago_no_financiamento: r2(total), juros_pagos: r2(total - capital),
-      taxa_de_empate_pct_am: empate == null ? null : r4(empate * 100),
-      leitura_empate: empate == null ? null : `Financiar compensa se a aplicação do cliente render mais que ${(empate * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% a.m. líquido; abaixo disso, compensa pagar à vista.`,
-      taxa_informada: informada, cenarios,
-      observacao: informada ? "Comparação nominal do Cash Conversion do Portal (sem imposto sobre o rendimento)." : "Taxa da aplicação do cliente não informada: cenários de referência (0,8% / 1,0% / 1,2% a.m.). Pergunte quanto rende a aplicação dele para fechar a conta.",
+      origem, capital: r.capital, total_pago: r.total_pago, juros_e_custos: r.juros_e_custos, prazo_meses: r.prazo_meses, pagamentos: r.pagamentos,
+      cet_pct_am: r4(r.cet_am_pct), cet_pct_aa: r4(r.cet_aa_pct), data_base: r.data_base,
+      cenario_focus_conservador: resumo("focus"), cenario_cdi_atual_constante: resumo("cdi_constante"),
+      leitura_ponto_equilibrio: "ponto_equilibrio_cet_pct_am = CET do financiamento acima do qual financiar deixa de compensar naquela aplicação.",
+      leitura_taxas: r.leitura_taxas, frase_cliente: r.frase_cliente, avisos: r.avisos,
+      referencias: { vigencia: r.referencias.vigencia, dias_desde_vigencia: r.referencias.dias_desde_vigencia, desatualizada: r.referencias.desatualizada,
+        selic_pct_aa: r.referencias.selic_aa_pct, cdi_pct_aa: r.referencias.cdi_aa_pct, focus: r.referencias.focus_selic, focus_data: r.referencias.focus_data,
+        fgc_por_instituicao: Number(referencias.fgc_limite_instituicao), fgc_teto: Number(referencias.fgc_teto_total), fgc_teto_anos: Number(referencias.fgc_teto_anos) },
+      fonte: r.fonte, rodape_obrigatorio: r.rodape,
     };
     poeBloco(ctx, "cash", { tipo: "cash", titulo: "Financiar × pagar à vista", ...out });
     return out;

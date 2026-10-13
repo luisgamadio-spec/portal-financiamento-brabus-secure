@@ -1,6 +1,6 @@
 // Testes das ferramentas com Supabase falso (formato real das RPCs).
-import { assert, assertEquals } from "./assert.ts";
-import { fakeFetch, type Usuario } from "./fake_supabase.ts";
+import { assert, assertAlmostEquals, assertEquals } from "./assert.ts";
+import { CASH_REF, fakeFetch, type Usuario } from "./fake_supabase.ts";
 import { Rpc } from "../data/rpc.ts";
 import { Bases } from "../data/bases.ts";
 import { carregaContexto } from "../data/contexto.ts";
@@ -20,6 +20,7 @@ async function ctxPara(u: Usuario, extra = {}, store = storeMemoria(), log: stri
   };
 }
 const VEIC = { tipo: "novo", modelo: "Eclipse Cross", versao: "HPE", ano_modelo: null, valor_veiculo: 180000 };
+const CASH_NULOS = { simulacao_id: null, veiculo: null, entrada: null, plano: null, prazo: null, capital: null, parcela: null };
 
 Deno.test("schemas: todas as ferramentas em modo estrito, required = todas as propriedades", () => {
   for (const d of DEFINICOES as any[]) {
@@ -151,8 +152,11 @@ Deno.test("simulacao_id: reaproveita; expirada pede refazer; inexistente não va
   assertEquals(a.contrato.prazo, 48);
   assertEquals(a.contrato.parcela_mensal, r.opcoes[0].parcela);
   assert(a.valor_a_pagar < a.valor_original);
-  const cc: any = await executar("simular_cash_conversion", { simulacao_id: id, parcela: null, prazo: null, capital: 90000, taxa_aplicacao_mensal: 0.01 }, c);
-  assert(["FINANCIAR", "UTILIZAR", "EQUIVALENTE"].includes(cc.cenarios[0].recomendacao));
+  const cc: any = await executar("simular_cash_conversion", { ...CASH_NULOS, simulacao_id: id }, c);
+  assertEquals(cc.capital, r.opcoes[0].financiado);
+  assertEquals(cc.pagamentos, 48);
+  assertAlmostEquals(cc.total_pago, r.opcoes[0].parcela * 48, 0.5);
+  assert(["FINANCIAR_COMPENSA", "A_VISTA_COMPENSA", "EQUIVALENTE"].includes(cc.cenario_focus_conservador[0].resultado));
   agora += 5 * 3600_000;
   const e: any = await executar("simular_antecipacao", { simulacao_id: id, prazo: null, parcela: null, primeiro_vencimento: null, data_antecipacao: null, tipo: "todo", de: null, ate: null, parcela_escolhida: null }, c);
   assert(String(e.erro).includes("expirou"));
@@ -298,14 +302,53 @@ Deno.test("Antecipação: 'daqui a um ano' = hoje + 12 meses; última parcela co
   assertEquals((c.blocos!.get("antecipacao") as any).tipo, "antecipacao");
 });
 
-Deno.test("Cash Conversion sem taxa: cenários + taxa de empate", async () => {
-  const c = await ctxPara(MASTER);
-  const r: any = await executar("simular_cash_conversion", { simulacao_id: null, parcela: 2985, prazo: 60, capital: 90000, taxa_aplicacao_mensal: null }, c);
-  assertEquals(r.cenarios.length, 3);
-  assertEquals(r.total_pago_no_financiamento, 179100);
-  assert(r.taxa_de_empate_pct_am > 1.1 && r.taxa_de_empate_pct_am < 1.2, String(r.taxa_de_empate_pct_am));
+Deno.test("Cash Conversion, proposta de fora: mesmo motor e mesma referência da tela; à vista sai mais barato", async () => {
+  const log: string[] = [];
+  const c = await ctxPara(MASTER, {}, storeMemoria(), log);
+  const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, capital: 90000, parcela: 2985, prazo: 60 }, c);
+  assert(log.includes("cash_referencias_mercado"));
+  assertEquals(r.total_pago, 179100);
+  assertAlmostEquals(r.cet_pct_am, 2.6097, 1e-4);
+  assertEquals(r.cenario_focus_conservador.map((p: any) => p.produto), ["Tesouro Selic", "CDB 100% do CDI", "LCI/LCA 85% do CDI"]);
+  assert(r.cenario_focus_conservador.every((p: any) => p.resultado === "A_VISTA_COMPENSA"));
+  assert(r.cenario_cdi_atual_constante.every((p: any) => p.ganho_liquido < 0));
+  // mesmo resultado que o motor dá direto (é o que a tela chama)
+  const direto = (globalThis as any).NX_CASH_V2.calcular({ capital: 90000, fluxo: Array.from({ length: 60 }, (_, k) => ({ mes: k + 1, valor: 2985 })), referencias: CASH_REF, dataBase: c.hoje });
+  assertEquals(r.cenario_focus_conservador.map((p: any) => p.ganho_liquido), direto.cenarios.focus.produtos.map((p: any) => p.ganho_liquido));
+  assertEquals(r.frase_cliente, direto.frase_cliente);
+  assert(r.frase_cliente.includes("pagar à vista sai mais barato"), r.frase_cliente);
+  assertEquals(r.rodape_obrigatorio, "Material informativo, não é recomendação de investimento. Confirme com o seu banco ou assessor de investimentos.");
+  assert(r.fonte.includes("Banco Central") && r.referencias.vigencia === "13/10/2026");
   assertEquals((c.blocos!.get("cash") as any).tipo, "cash");
-  assert(/mais que 1,1\d% a\.m\./.test(r.leitura_empate), r.leitura_empate);
+});
+
+Deno.test("Cash Conversion por veículo + entrada + plano + prazo: simula o plano no motor do simulador", async () => {
+  const c = await ctxPara(MASTER);
+  const lin: any = await executar("simular_financiamento", { ...VEIC, entrada: 90000, objetivo: "oferta", planos_com_subsidio: null, apenas_planos: ["LINEAR"], prazos: [48], parcela_alvo: null }, c);
+  const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, veiculo: VEIC, entrada: 90000, plano: "LINEAR", prazo: 48 }, c);
+  assert(!r.erro, r.erro);
+  assertEquals(r.origem.plano, lin.opcoes[0].plano_nome);
+  assertEquals(r.origem.parcela, lin.opcoes[0].parcela);
+  assertEquals(r.capital, 90000);
+  const f: any = await executar("simular_cash_conversion", { ...CASH_NULOS, veiculo: VEIC, entrada: null, plano: "LINEAR", prazo: null }, c);
+  assert(String(f.erro).includes("plano e prazo"), JSON.stringify(f));
+  const nada: any = await executar("simular_cash_conversion", { ...CASH_NULOS }, c);
+  assert(String(nada.erro).includes("Informe a simulação"), JSON.stringify(nada));
+});
+
+Deno.test("Cash Conversion: Plano Balão entra com o balão no mês dele; referência fora do ar falha fechado", async () => {
+  const c = await ctxPara(MASTER);
+  const b: any = await executar("simular_balao", { ...VEIC, entrada: 90000, prazo: 36, baloes: [{ mes: 36, valor: 20000 }] }, c);
+  assert(!b.erro, b.erro);
+  const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, simulacao_id: b.simulacao_id }, c);
+  assertAlmostEquals(r.total_pago, b.parcela * 36 + 20000, 0.5);
+  assertEquals(r.origem.baloes, [{ mes: 36, valor: 20000 }]);
+  const sem = await ctxPara(MASTER, { cash_referencias_mercado: () => new Response("{}", { status: 404 }) });
+  const e: any = await executar("simular_cash_conversion", { ...CASH_NULOS, capital: 90000, parcela: 2985, prazo: 60 }, sem);
+  assert(String(e.erro).includes("referências de mercado"), JSON.stringify(e));
+  const vazio = await ctxPara(MASTER, { cash_referencias_mercado: () => null });
+  const v: any = await executar("simular_cash_conversion", { ...CASH_NULOS, capital: 90000, parcela: 2985, prazo: 60 }, vazio);
+  assert(String(v.erro).includes("O Master precisa cadastrar"), JSON.stringify(v));
 });
 
 Deno.test("Score: composição, destaques e onde perdeu pontos; cartão", async () => {
@@ -440,7 +483,7 @@ Deno.test("Acessos: vendedor só vê o próprio salário/score, sem retorno; mó
   const c2 = await ctxPara(semMod);
   for (const [nome, args] of [
     ["calcular_taxa", { financiado: 90000, prazo: 48, parcela: 2700 }],
-    ["simular_cash_conversion", { simulacao_id: null, parcela: 2985, prazo: 60, capital: 90000, taxa_aplicacao_mensal: null }],
+    ["simular_cash_conversion", { ...CASH_NULOS, capital: 90000, parcela: 2985, prazo: 60 }],
     ["resultado_loja", { loja: null, departamento: null, periodo: null, data_inicio: null, data_fim: null }],
     ["analise_fi", { foco: "geral", plano: null, loja: null, departamento: null, periodo: null, data_inicio: null, data_fim: null }],
     ["consultar_salario", { pessoa: null, fechamento: "competencia_atual", loja: null }],

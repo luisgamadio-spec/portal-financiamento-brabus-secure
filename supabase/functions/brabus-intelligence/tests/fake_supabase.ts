@@ -85,6 +85,9 @@ export const MODEL_METRICS = { rows: [
     plan_breakdown: [{ plan_type: "SUBSIDIADO", financed_count: 4 }] },
 ] };
 
+/** Referência de mercado do Cash Conversion (a mesma carga de 13/10/2026 dos vetores). */
+export const CASH_REF = JSON.parse(Deno.readTextFileSync(new URL("./fixtures/cash_v2_vectors.json", import.meta.url))).referencias;
+
 export function fakeFetch(u: Usuario, extra: Record<string, (args: any) => unknown> = {}, log: string[] = []) {
   return async (url: string, init?: RequestInit): Promise<Response> => {
     const body = init?.body ? JSON.parse(String(init.body)) : {};
@@ -115,6 +118,7 @@ export function fakeFetch(u: Usuario, extra: Record<string, (args: any) => unkno
       case "operational_salary_manager_directory": return resp(200, { rows: [] });
       case "operational_own_commission_summary": return resp(200, { rows: [], comissao_total: 0, profile: u.perfil });
       case "bi_fandi_dashboard": return resp(200, FANDI);
+      case "cash_referencias_mercado": return resp(200, CASH_REF);
       case "operational_commission_metrics": return resp(200, { rows: [
         { seller_id: "s1", seller_name: "CARLOS NOVOS", store: "MITSUBISHI | ALPHAVILLE", department: "NOVOS", sold_count: 3, financed_count: 2, production_value: 200000, return_value: 9000 },
         { seller_id: "s2", seller_name: "PAULA SEMI", store: "MITSUBISHI | ALPHAVILLE", department: "SEMINOVOS", sold_count: 4, financed_count: 3, production_value: 150000, return_value: 7000 },
