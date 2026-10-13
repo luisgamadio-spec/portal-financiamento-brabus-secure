@@ -143,9 +143,9 @@ export const DEFINICOES = [
       pergunta_financeira_direta: S_("boolean", { description: "true SÓ se o usuário perguntou explicitamente se, financeiramente, financiar compensa mais que pagar à vista (ou qual sai mais barato). Pedido de argumento ('o cliente quer pagar à vista, o que eu falo?') = false." }),
       simulacao_id: Nul("string", { description: "Opção já simulada (simular_financiamento, simular_plano_campanha, simular_balao). null se não houver." }),
       veiculo: Nul("object", { properties: VEICULO, required: Object.keys(VEICULO), additionalProperties: false, description: "Veículo, quando ainda não há simulacao_id. null se houver simulacao_id ou se for proposta de fora." }),
-      entrada: Nul("number", { description: "Entrada em R$ (com veiculo). null = entrada média do histórico (planos normais) ou mínima/fixa (campanhas)." }),
+      entrada: Nul("number", { description: "Entrada em R$ (com veiculo). null = entrada média do histórico (planos normais) ou mínima (campanhas). No Semestral Taxa 0% a entrada é fixa: passe null, sem perguntar." }),
       plano: Nul("string", { enum: ["LINEAR", "BALAO", "SEMESTRAL_ANUAL", "PARCELA_UNICA", "TAXA_SUBSIDIADA", "COPARTICIPADO", "SEMESTRAL_TAXA_ZERO"], description: "Plano (com veiculo)." }),
-      prazo: Nul("integer", { description: "Prazo em meses (com veiculo, ou com capital + parcela)." }),
+      prazo: Nul("integer", { description: "Prazo em meses (com veiculo, ou com capital + parcela). Semestral Taxa 0% e Parcela Única têm prazo único: passe null, sem perguntar." }),
       capital: Nul("number", { description: "Só para proposta de fora: valor que o cliente pagaria à vista além da entrada (= valor financiado), em R$." }),
       parcela: Nul("number", { description: "Só para proposta de fora: parcela mensal em R$." }),
     }),
@@ -356,6 +356,9 @@ async function simulacaoPorId(ctx: ToolCtx, id: string): Promise<{ opcao: Opcao;
   if (r.status === "nao_encontrada") throw new ErroFerramenta("Simulação não encontrada.");
   return { opcao: r.payload.opcao, veiculo: r.payload.veiculo, baloes: Array.isArray(r.payload.baloes) ? r.payload.baloes : [] };
 }
+
+/** Planos de prazo único no simulador: Semestral Taxa 0% (Triton/Outlander: 4 semestrais em 24 meses, entrada fixa) e Parcela Única (mês 25). */
+const PRAZO_UNICO: Record<string, number> = { SEMESTRAL_TAXA_ZERO: 24, PARCELA_UNICA: 25 };
 
 /** Pagamentos da opção mês a mês (o que o cliente sacaria da aplicação), igual à tela. */
 function fluxoDaOpcao(o: Opcao, baloes: N.Balao[]): { mes: number; valor: number }[] {
@@ -696,12 +699,29 @@ const H: Record<string, Handler> = {
 
   async simular_cash_conversion(a, ctx) {
     exigeSimulador(ctx);
+    const lerReferencias = () => ctx.rpc.call<any>("cash_referencias_mercado").catch((e) => {
+      throw new ErroFerramenta(e instanceof RpcError && e.status === 404 ? "As referências de mercado do Cash Conversion ainda não estão disponíveis." : "Não consegui ler as referências de mercado agora. Tente de novo.");
+    });
+    const dataBr = (iso: string) => String(iso).slice(0, 10).split("-").reverse().join("/");
+    if (!a.simulacao_id && !a.veiculo && a.capital == null && a.parcela == null) {
+      const ref = await lerReferencias();
+      const vig = ref ? dataBr(ref.vigencia) : null;
+      return {
+        modo: "sem_plano",
+        responda_assim: 'Fale assim: "Financiando, o senhor não tira o dinheiro de uma vez: ele fica guardado e protegido, e sai aos poucos nas parcelas. E, se quiser, pode quitar antes com desconto dos juros." Me passe o carro, a entrada e o plano que eu faço a conta.',
+        termine_com: vig ? `Estimativa com taxas de ${vig}. Não é garantia nem recomendação de investimento.` : "Estimativa. Não é garantia nem recomendação de investimento.",
+        regra: "Sem cartão nesta resposta: escreva responda_assim e, na última linha, termine_com. Nada além disso.",
+      };
+    }
     // 1) De onde vêm o capital e os pagamentos: simulação do motor do simulador ou proposta de fora.
     let simId: string | null = a.simulacao_id ?? null, origem: Record<string, unknown>;
     let capital: number, fluxo: { mes: number; valor: number }[];
     if (!simId && a.veiculo) {
-      if (!a.plano || !a.prazo) throw new ErroFerramenta("Para simular o plano, informe plano e prazo.");
-      simId = await simulaPlanoParaCash(ctx, a.veiculo, a.entrada ?? null, a.plano, Number(a.prazo));
+      if (!a.plano) throw new ErroFerramenta("Para simular, informe o plano.");
+      // Planos de prazo único: usa o prazo do plano direto, sem perguntar (e ignora outro prazo informado).
+      const prazo = PRAZO_UNICO[a.plano] ?? (a.prazo ? Number(a.prazo) : null);
+      if (!prazo) throw new ErroFerramenta("Para simular esse plano, informe o prazo.");
+      simId = await simulaPlanoParaCash(ctx, a.veiculo, a.entrada ?? null, a.plano, prazo);
     }
     if (simId) {
       const s = await simulacaoPorId(ctx, simId);
@@ -716,10 +736,8 @@ const H: Record<string, Handler> = {
       fluxo = Array.from({ length: n }, (_, k) => ({ mes: k + 1, valor: p }));
       origem = { proposta_de_fora: true, capital: r2(capital), parcela: r2(p), prazo: n };
     }
-    // 2) Referência de mercado vigente (mesma RPC da tela).
-    const referencias = await ctx.rpc.call<any>("cash_referencias_mercado").catch((e) => {
-      throw new ErroFerramenta(e instanceof RpcError && e.status === 404 ? "As referências de mercado do Cash Conversion ainda não estão disponíveis." : "Não consegui ler as referências de mercado agora. Tente de novo.");
-    });
+    // 2) Referência de mercado vigente (a do Painel Master).
+    const referencias = await lerReferencias();
     if (!referencias) throw new ErroFerramenta("Não há referência de mercado cadastrada para o Cash Conversion. O Master precisa cadastrar no Painel Master.");
     // 3) Motor único (o mesmo arquivo da tela).
     const r = CASH.calcular({ capital, fluxo, referencias, dataBase: ctx.hoje });
@@ -749,7 +767,7 @@ const H: Record<string, Handler> = {
       "Reserva para imprevistos ou oportunidades, sem descapitalizar.",
       `Dinheiro protegido: Tesouro Selic é do governo federal; CDB, LCI e LCA têm o FGC até ${brl0(fgc)} por instituição.`,
     ];
-    const outros = ["Parcela fixa: dá para planejar o orçamento.", "Se sobrar dinheiro, dá para quitar antes com desconto de juros."];
+    const outros = ["Parcela fixa: dá para planejar o orçamento.", "Se quiser, pode quitar antes com desconto dos juros (tarifas e IOF não voltam)."];
     const destaque = favoravel
       ? { rotulo: "Sobra estimada no fim, com o dinheiro aplicado", valor: faixa(foco.map((p) => p.ganho_liquido)) }
       : { rotulo: "Parcela", valor: comoPaga, complemento: `Dinheiro que continua com o cliente no início: ${brl2(r.capital)}` };
@@ -772,11 +790,13 @@ const H: Record<string, Handler> = {
     // Resposta de Cash Conversion não mostra o cartão de plano com rebate (HPE/Brabus): só parcela, prazo e entrada (no cartão cash).
     ctx.blocos?.delete("plano"); ctx.blocos?.delete("opcoes");
     const out: Record<string, unknown> = {
-      modo, cartao_ja_mostra: "veredito, número em destaque, plano (parcela, prazo e entrada), argumentos, detalhes e o rodapé — não repita no texto",
-      frase_para_o_cliente: frase, mais_argumentos: outros, taxas_de: vig, desatualizada: r.referencias.desatualizada, rodape_curto: rodape,
+      modo, responda_assim: `Fale assim: "${frase}"`,
+      regra: "O cartão já mostra veredito, número, plano, argumentos, detalhes e rodapé. Sua resposta é SÓ responda_assim (1 a 2 linhas): sem lista, sem números, sem repetir o cartão, sem rodapé.",
+      desatualizada: r.referencias.desatualizada ? `Comece dizendo: as taxas são de ${vig} e podem estar desatualizadas.` : undefined,
+      rodape_para_resposta_sem_cartao: rodape,
     };
     if (modo === "resposta_direta") {
-      out.resposta_financeira_curta = "Na ponta do lápis, não: à vista sai mais barato.";
+      out.responda_assim = `Na ponta do lápis, não: à vista sai mais barato. O forte aqui é a segurança: "${frase}"`;
       out.diferenca_so_se_pedirem = foco.some((p) => p.ganho_liquido > 0)
         ? "Depende da aplicação: só em parte delas o rendimento cobre o custo do financiamento."
         : `À vista sairia ${faixa(foco.map((p) => -p.ganho_liquido))} mais barato no período, pelas taxas de hoje (estimativa).`;

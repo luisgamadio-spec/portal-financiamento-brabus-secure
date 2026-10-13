@@ -66,3 +66,31 @@ Deno.test("OpenAI 429: espera e tenta de novo; se continuar, vira LimiteLlm", as
   try { await new OpenAiLlm("k", "m", f2).passo("i", [], []); } catch (e) { erro = e; }
   assert(erro instanceof LimiteLlm && (erro as any).segundos === 45);
 });
+
+Deno.test("pergunta exata: 'Outlander HPE-S de R$ 250 mil na Semestral Taxa 0%: compensa financiar e deixar aplicado?' — sem pedir prazo", async () => {
+  const PERGUNTA = "Outlander HPE-S de R$ 250 mil na Semestral Taxa 0%: compensa financiar e deixar aplicado?";
+  const llm = new Roteiro([
+    () => ({ itens: [{ type: "function_call", call_id: "c1" }], chamadas: [{ id: "c1", nome: "simular_cash_conversion", args: {
+      pergunta_financeira_direta: false, simulacao_id: null, veiculo: { tipo: "novo", modelo: "Outlander", versao: "HPE-S", ano_modelo: null, valor_veiculo: 250000 },
+      entrada: null, plano: "SEMESTRAL_TAXA_ZERO", prazo: null, capital: null, parcela: null } }], texto: "" }),
+    (itens) => {
+      const out = JSON.parse(itens.find((x) => x.type === "function_call_output").output);
+      return { itens: [], chamadas: [], texto: out.erro ? `ERRO: ${out.erro}` : out.responda_assim };
+    },
+  ]);
+  const c: any = await ctx();
+  const r = await conversar(llm, c, [], PERGUNTA);
+  assert(JSON.stringify(llm.vistos[0]).includes(PERGUNTA));
+  assertEquals(r.ferramentas, [{ nome: "simular_cash_conversion", ok: true }]);
+  assert(!/prazo/i.test(r.texto) && r.texto.startsWith("Fale assim:"), r.texto);
+  const k = c.blocos?.get("cash");
+  assert(k && k.veredito && k.plano.como_paga.startsWith("4 parcelas semestrais"), JSON.stringify(k?.plano));
+});
+
+Deno.test("prompt: planos de prazo único sem perguntar prazo/entrada; resposta com cartão = só a frase", async () => {
+  const { systemPrompt } = await import("../agent/prompt.ts");
+  const s = systemPrompt({ perfil: "VENDEDOR", perfil_bruto: "VENDEDOR", nome: "Ana", loja: "EUROPA", departamentos: ["NOVOS"] } as any, "2026-10-13", "portal");
+  assert(s.includes("NUNCA pergunte prazo ou entrada desses planos"));
+  assert(s.includes("RESPOSTA = o campo responda_assim, e só ele (1 a 2 linhas)"));
+  assert(s.includes("pode quitar antes com desconto dos juros"));
+});

@@ -319,7 +319,8 @@ Deno.test("Cash Conversion, conta desfavorável: cartão 🔒 segurança, parcel
   assertEquals(k.argumentos[0], "O dinheiro fica com o cliente e sai aos poucos, nas parcelas.");
   assert(k.argumentos[2].includes("FGC até R$ 250.000 por instituição"), k.argumentos[2]);
   assertEquals(k.rodape, RODAPE);
-  assertEquals(r.rodape_curto, RODAPE);
+  assertEquals(r.rodape_para_resposta_sem_cartao, RODAPE);
+  assert(!/\d/.test(r.responda_assim) && r.responda_assim.startsWith("Fale assim: \""), r.responda_assim);
   assert(k.detalhes.fonte.includes("Banco Central") && k.detalhes.custo_do_financiamento.startsWith("2,61% ao mês"));
   assertEquals(k.detalhes.aplicacoes, undefined);
   for (const x of ["à vista", "mais barato", "sobra estimada", "rende"]) assert(!JSON.stringify(r).includes(x) && !JSON.stringify(k).includes(x), x);
@@ -330,7 +331,7 @@ Deno.test("Cash Conversion, pergunta direta: 'Na ponta do lápis, não' e o valo
   const c = await ctxPara(MASTER);
   const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, pergunta_financeira_direta: true, capital: 90000, parcela: 2985, prazo: 60 }, c);
   assertEquals(r.modo, "resposta_direta");
-  assertEquals(r.resposta_financeira_curta, "Na ponta do lápis, não: à vista sai mais barato.");
+  assert(r.responda_assim.startsWith("Na ponta do lápis, não: à vista sai mais barato."), r.responda_assim);
   assert(/^À vista sairia R\$ [\d.]+ a R\$ [\d.]+ mais barato no período, pelas taxas de hoje \(estimativa\)\.$/.test(r.diferenca_so_se_pedirem), r.diferenca_so_se_pedirem);
   assertEquals((c.blocos!.get("cash") as any).veredito, "🔒 Por que financiar: segurança");
   assert(!JSON.stringify(c.blocos!.get("cash")).includes("mais barato"), "o cartão não traz a diferença");
@@ -347,7 +348,7 @@ Deno.test("Cash Conversion, conta favorável: cartão ✅ com a sobra estimada e
     const g = d.cenarios.focus.produtos.map((p: any) => p.ganho_liquido), r0 = (v: number) => "R$ " + Math.round(v).toLocaleString("pt-BR");
     assertEquals(k.destaque, { rotulo: "Sobra estimada no fim, com o dinheiro aplicado", valor: `${r0(Math.min(...g))} a ${r0(Math.max(...g))}` });
     assertEquals(k.detalhes.aplicacoes.map((x: any) => x.sobra_estimada), g.map(r0));
-    assert(r.frase_para_o_cliente.includes("pelas taxas de hoje"));
+    assert(r.responda_assim.includes("pelas taxas de hoje") && !/\d/.test(r.responda_assim), r.responda_assim);
     semJargao({ r, k: { ...k, detalhes: { ...k.detalhes, fonte: "", observacoes: [] } } });
   }
 });
@@ -363,9 +364,35 @@ Deno.test("Cash Conversion por veículo + entrada + plano + prazo: só parcela, 
   assertEquals([...c.blocos!.keys()], ["cash"], "sem cartão de opções/plano junto");
   assert(!JSON.stringify(k).toLowerCase().includes("rebate"));
   const f: any = await executar("simular_cash_conversion", { ...CASH_NULOS, veiculo: VEIC, entrada: null, plano: "LINEAR", prazo: null }, c);
-  assert(String(f.erro).includes("plano e prazo"), JSON.stringify(f));
-  const nada: any = await executar("simular_cash_conversion", { ...CASH_NULOS }, c);
-  assert(String(nada.erro).includes("Informe a simulação"), JSON.stringify(nada));
+  assert(String(f.erro).includes("informe o prazo"), JSON.stringify(f));
+  const parcial: any = await executar("simular_cash_conversion", { ...CASH_NULOS, capital: 90000 }, c);
+  assert(String(parcial.erro).includes("Informe a simulação"), JSON.stringify(parcial));
+});
+
+Deno.test("Cash Conversion: prazo único — Semestral Taxa 0% (24 meses) e Parcela Única (mês 25) sem pedir prazo nem entrada", async () => {
+  const c = await ctxPara(MASTER);
+  const outlander = { tipo: "novo", modelo: "Outlander HPE-S", versao: null, ano_modelo: null, valor_veiculo: 250000 };
+  const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS, veiculo: outlander, plano: "SEMESTRAL_TAXA_ZERO", prazo: null, entrada: null }, c);
+  assert(!r.erro, r.erro);
+  const k: any = c.blocos!.get("cash");
+  assert(k.plano.como_paga.startsWith("4 parcelas semestrais de R$ "), k.plano.como_paga);
+  assert(k.plano.nome.includes("Taxa 0%"), k.plano.nome);
+  // prazo informado errado é ignorado: o plano só tem 24 meses
+  const r48: any = await executar("simular_cash_conversion", { ...CASH_NULOS, veiculo: outlander, plano: "SEMESTRAL_TAXA_ZERO", prazo: 48, entrada: null }, c);
+  assert(!r48.erro && (c.blocos!.get("cash") as any).plano.como_paga.startsWith("4 parcelas semestrais"), r48.erro);
+  const pu: any = await executar("simular_cash_conversion", { ...CASH_NULOS, veiculo: VEIC, plano: "PARCELA_UNICA", prazo: null, entrada: 100000 }, c);
+  assert(!pu.erro, pu.erro);
+  assert((c.blocos!.get("cash") as any).plano.como_paga.includes("no mês 25"), (c.blocos!.get("cash") as any).plano.como_paga);
+});
+
+Deno.test("Cash Conversion sem plano: frase de segurança com 'pode quitar antes com desconto dos juros' e rodapé curto com a data, sem cartão", async () => {
+  const c = await ctxPara(MASTER);
+  const r: any = await executar("simular_cash_conversion", { ...CASH_NULOS }, c);
+  assertEquals(r.modo, "sem_plano");
+  assert(r.responda_assim.includes("pode quitar antes com desconto dos juros"), r.responda_assim);
+  assert(!/quando quiser|tempo usado/.test(r.responda_assim));
+  assertEquals(r.termine_com, RODAPE);
+  assert(!c.blocos?.has("cash"), "sem cartão");
 });
 
 Deno.test("Cash Conversion: campanha simulada antes no mesmo turno — o cartão de rebate (HPE/Brabus) sai da resposta", async () => {

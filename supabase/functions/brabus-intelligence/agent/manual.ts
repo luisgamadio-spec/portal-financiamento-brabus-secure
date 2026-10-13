@@ -74,7 +74,7 @@ Argumento: "sobrou dinheiro? antecipe as últimas parcelas, que têm o maior des
     id: "cash-conversion", titulo: "Cash Conversion",
     palavras: ["cash conversion", "aplicar", "investir", "capital", "pagar a vista", "a vista", "financiar ou pagar", "selic", "cdi", "tesouro", "cdb", "lci", "lca", "fgc"],
     texto: `Para o cliente que TEM o dinheiro e pensa em pagar à vista: argumentos de segurança para financiar.
-O dinheiro fica com o cliente e sai aos poucos, nas parcelas. Fica como reserva para imprevistos ou oportunidades, sem descapitalizar. Parcela fixa ajuda a planejar o orçamento. Se sobrar dinheiro, dá para quitar antes com desconto de juros. Aplicado, o dinheiro fica protegido: Tesouro Selic é do governo federal; CDB, LCI e LCA têm o FGC até o limite por instituição.
+O dinheiro fica com o cliente e sai aos poucos, nas parcelas. Fica como reserva para imprevistos ou oportunidades, sem descapitalizar. Parcela fixa ajuda a planejar o orçamento. Se quiser, pode quitar antes com desconto dos juros (tarifas e IOF não voltam). Aplicado, o dinheiro fica protegido: Tesouro Selic é do governo federal; CDB, LCI e LCA têm o FGC até o limite por instituição.
 Ganho em dinheiro só quando a conta mostra (em geral Taxa 0% em 24x ou mais): a ferramenta simular_cash_conversion faz a conta com as taxas de hoje e diz se dá para falar em ganho.
 É sempre estimativa, não garantia nem recomendação de investimento.`,
   },
