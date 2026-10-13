@@ -752,7 +752,7 @@ const H: Record<string, Handler> = {
     const outros = ["Parcela fixa: dá para planejar o orçamento.", "Se sobrar dinheiro, dá para quitar antes com desconto de juros."];
     const destaque = favoravel
       ? { rotulo: "Sobra estimada no fim, com o dinheiro aplicado", valor: faixa(foco.map((p) => p.ganho_liquido)) }
-      : { rotulo: "Parcela", valor: comoPaga, complemento: `Reserva que fica com o cliente: ${brl2(r.capital)}` };
+      : { rotulo: "Parcela", valor: comoPaga, complemento: `Dinheiro que continua com o cliente no início: ${brl2(r.capital)}` };
     const detalhes = {
       aplicacoes: favoravel ? foco.map((p) => ({ aplicacao: p.nome, sobra_estimada: brl0(p.ganho_liquido) })) : undefined,
       mais_argumentos: outros,

@@ -314,7 +314,7 @@ Deno.test("Cash Conversion, conta desfavorável: cartão 🔒 segurança, parcel
   assertEquals(r.modo, "argumentos_liquidez");
   const k: any = c.blocos!.get("cash");
   assertEquals(k.veredito, "🔒 Por que financiar: segurança");
-  assertEquals(k.destaque, { rotulo: "Parcela", valor: "60x de R$ 2.985,00", complemento: "Reserva que fica com o cliente: R$ 90.000,00" });
+  assertEquals(k.destaque, { rotulo: "Parcela", valor: "60x de R$ 2.985,00", complemento: "Dinheiro que continua com o cliente no início: R$ 90.000,00" });
   assertEquals(k.argumentos.length, 3);
   assertEquals(k.argumentos[0], "O dinheiro fica com o cliente e sai aos poucos, nas parcelas.");
   assert(k.argumentos[2].includes("FGC até R$ 250.000 por instituição"), k.argumentos[2]);
