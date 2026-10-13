@@ -1,6 +1,6 @@
 // Laço de conversa: modelo → ferramentas → modelo, até a resposta final.
 
-import { DEFINICOES, executar, type ToolCtx } from "./ferramentas.ts";
+import { ajustaCartoesDoTurno, DEFINICOES, executar, type ToolCtx } from "./ferramentas.ts";
 import type { Llm } from "./llm.ts";
 import { systemPrompt } from "./prompt.ts";
 
@@ -31,6 +31,7 @@ export async function conversar(llm: Llm, ctx: ToolCtx, historico: Mensagem[], p
     itens.push(...r.itens);
     if (!r.chamadas.length) {
       tempos.push({ passo, modelo_ms: t1 - t0, ferramentas_ms: 0, ferramentas: [] });
+      ajustaCartoesDoTurno(ctx);
       return { texto: r.texto || "Não consegui montar uma resposta. Pode reformular?", ferramentas: usadas, passos: passo, tempos };
     }
     const saidas = await Promise.all(r.chamadas.map(async (c) => {

@@ -347,7 +347,26 @@ function saidaOpcao(ctx: ToolCtx, o: Opcao, id: string, extra: Record<string, un
 async function salvar(ctx: ToolCtx, base: Record<string, unknown>, ops: Opcao[]): Promise<string[]> {
   const itens = ops.map((o) => ({ id: ctx.uuid(), payload: { ...base, opcao: o, ...(o.baloes?.length && !base.baloes ? { baloes: o.baloes } : {}) } }));
   await ctx.store.salvarSimulacoes(ctx.sessao, itens);
+  // Simulações desta pergunta: o Cash Conversion as reencontra se o modelo copiar o simulacao_id errado.
+  const doTurno = (ctx.cache.get("simulacoes_do_turno") as { id: string; plano: string; prazo: number }[] | undefined) ?? [];
+  doTurno.push(...ops.map((o, k) => ({ id: itens[k].id, plano: o.plano, prazo: o.prazo })));
+  ctx.cache.set("simulacoes_do_turno", doTurno);
   return itens.map((i) => i.id);
+}
+
+/** simulacao_id mal copiado pelo modelo: acha a simulação feita nesta mesma pergunta pelo começo do id ou por plano + prazo (só se for única). */
+function simulacaoDoTurno(ctx: ToolCtx, id: string, plano: string | null, prazo: number | null): string | null {
+  const doTurno = (ctx.cache.get("simulacoes_do_turno") as { id: string; plano: string; prazo: number }[] | undefined) ?? [];
+  const prefixo = String(id || "").toLowerCase().slice(0, 8);
+  const porPrefixo = doTurno.filter((s) => prefixo.length === 8 && s.id.toLowerCase().startsWith(prefixo));
+  if (porPrefixo.length === 1) return porPrefixo[0].id;
+  const porPlano = doTurno.filter((s) => (!plano || s.plano === plano) && (!prazo || s.prazo === prazo));
+  return porPlano.length === 1 ? porPlano[0].id : null;
+}
+
+/** No fim da pergunta: se houve cartão do Cash Conversion, ele substitui o cartão do simulador (opções/plano com rebate e base histórica). */
+export function ajustaCartoesDoTurno(ctx: ToolCtx) {
+  if (ctx.blocos?.has("cash")) { ctx.blocos.delete("opcoes"); ctx.blocos.delete("plano"); }
 }
 
 async function simulacaoPorId(ctx: ToolCtx, id: string): Promise<{ opcao: Opcao; veiculo: any; baloes: N.Balao[] }> {
@@ -724,7 +743,12 @@ const H: Record<string, Handler> = {
       simId = await simulaPlanoParaCash(ctx, a.veiculo, a.entrada ?? null, a.plano, prazo);
     }
     if (simId) {
-      const s = await simulacaoPorId(ctx, simId);
+      const s = await simulacaoPorId(ctx, simId).catch(async (e) => {
+        const achado = e instanceof ErroFerramenta && /não encontrada/.test(e.message) ? simulacaoDoTurno(ctx, simId!, a.plano ?? null, a.prazo ? Number(a.prazo) : null) : null;
+        if (!achado) throw e;
+        simId = achado;
+        return await simulacaoPorId(ctx, achado);
+      });
       capital = s.opcao.financiado; fluxo = fluxoDaOpcao(s.opcao, s.baloes);
       origem = { simulacao_id: simId, plano: s.opcao.plano_nome, prazo: s.opcao.prazo, periodicidade: s.opcao.periodicidade, entrada: r2(s.opcao.entrada),
         parcela: r2(s.opcao.parcela), baloes: s.baloes.length ? s.baloes.map((b) => ({ mes: b.mes, valor: r2(b.valor) })) : undefined, veiculo: s.veiculo };
