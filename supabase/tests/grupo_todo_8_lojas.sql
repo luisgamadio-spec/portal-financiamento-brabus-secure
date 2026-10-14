@@ -3,7 +3,8 @@
 -- 20261008200000_retorno_so_perfis_autorizados, que tirou o p_group_view.) Decisões do Luis em 14/10:
 --   - todos os departamentos nas duas telas;
 --   - Análise F&I liberada para Master, Diretor, Gerente, Analista e Vendedor (RH sem);
---   - ANALISTA e GERENTE: retorno por vendedor só da própria loja; das outras lojas só o total por loja;
+--   - ANALISTA e GERENTE: veem os vendedores de todas as lojas, mas retorno por vendedor só da própria loja
+--     (das outras lojas, o retorno só como total da loja);
 --   - vendedor e RH nunca recebem retorno.
 --
 -- TESTE (somente leitura, termina em ROLLBACK): para um usuário ativo de CADA perfil, chama as mesmas funções das duas
@@ -65,9 +66,16 @@ begin
       v_falhas := v_falhas || format('%s: recebeu retorno/rentabilidade na Análise Geral', r.grupo);
     end if;
     if r.grupo in ('ANALISTA', 'GERENTE') then
+      -- 14/10/2026: vê os VENDEDORES de todas as lojas (vendas e financiados), mas retorno em R$ por vendedor só da própria loja
+      select array_agg(distinct upper(x->>'store')) into v_achadas from jsonb_array_elements(v_j->'rows') x where x->>'seller_id' is not null;
+      if not (v_lojas <@ coalesce(v_achadas, array[]::text[])) then
+        v_falhas := v_falhas || format('%s: não vê os vendedores das 8 lojas: %s', r.grupo, v_achadas);
+      end if;
       if exists (select 1 from jsonb_array_elements(v_j->'rows') x
-                 where x->>'seller_id' is not null and upper(trim(coalesce(x->>'store', ''))) is distinct from v_loja) then
-        v_falhas := v_falhas || format('%s: recebeu linha POR VENDEDOR de outra loja (só pode o total por loja)', r.grupo);
+                 where x->>'seller_id' is not null and upper(trim(coalesce(x->>'store', ''))) is distinct from v_loja
+                   and (x ?| array['return_value', 'profitability_value', 'return_gross', 'return_considered']
+                        or exists (select 1 from jsonb_array_elements(coalesce(x->'plan_breakdown', '[]'::jsonb)) b where b ? 'return_value'))) then
+        v_falhas := v_falhas || format('%s: recebeu retorno POR VENDEDOR de outra loja (só pode o total por loja)', r.grupo);
       end if;
       if exists (
         select 1 from (
