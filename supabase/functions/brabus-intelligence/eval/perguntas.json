@@ -442,5 +442,116 @@
       "DIEGO"
     ],
     "nota": "vendedor: só os próprios números, sem colegas"
+  },
+  {
+    "id": "Q30",
+    "perfil": "MASTER",
+    "historico": [
+      [
+        "user",
+        "Como está o resultado da Bandeirantes em Novos este mês?"
+      ],
+      [
+        "assistant",
+        "Bandeirantes Novos, mês atual: vendeu 8 carros, financiou 5, share 62,5%."
+      ]
+    ],
+    "pergunta": "e comparado ao mês anterior?",
+    "ferramentas": [
+      "comparar_periodos"
+    ],
+    "deve_conter": [],
+    "nao_deve_conter": [
+      "período anterior comparável",
+      "não consigo",
+      "não é possível"
+    ],
+    "nota": "conversa de referência (15/10/2026): comparação justa com o MESMO trecho do mês anterior e com as datas"
+  },
+  {
+    "id": "Q31",
+    "perfil": "MASTER",
+    "historico": [
+      [
+        "user",
+        "Como está o resultado da Bandeirantes em Novos este mês?"
+      ],
+      [
+        "assistant",
+        "Bandeirantes Novos, mês atual: vendeu 8 carros, financiou 5, share 62,5%."
+      ],
+      [
+        "user",
+        "e comparado ao mês anterior?"
+      ],
+      [
+        "assistant",
+        "No mesmo trecho de setembro (01 a 15/09) foram 7 vendidos."
+      ]
+    ],
+    "pergunta": "consegue fazer um comparativo dos dois períodos?",
+    "ferramentas": [
+      "comparar_periodos"
+    ],
+    "deve_conter": [],
+    "nao_deve_conter": [
+      "não consigo",
+      "não é possível",
+      "Informe pelo menos 2 lojas"
+    ],
+    "nota": "antes respondia que não dava (chamava comparar_lojas com uma loja só)"
+  },
+  {
+    "id": "Q32",
+    "perfil": "MASTER",
+    "historico": [
+      [
+        "user",
+        "Como está o resultado da Bandeirantes em Novos este mês?"
+      ],
+      [
+        "assistant",
+        "Bandeirantes Novos, mês atual: vendeu 8 carros, financiou 5, share 62,5%."
+      ]
+    ],
+    "pergunta": "faça uma análise dos últimos 60 dias",
+    "ferramentas": [],
+    "deve_conter": [],
+    "nao_deve_conter": [
+      "período anterior comparável"
+    ],
+    "nota": "um período só (60 dias); pode usar resultado_loja ou comparar_periodos"
+  },
+  {
+    "id": "Q33",
+    "perfil": "MASTER",
+    "historico": [
+      [
+        "user",
+        "Como está o resultado da Bandeirantes em Novos este mês?"
+      ],
+      [
+        "assistant",
+        "Bandeirantes Novos, mês atual: vendeu 8 carros, financiou 5, share 62,5%."
+      ],
+      [
+        "user",
+        "faça uma análise dos últimos 60 dias"
+      ],
+      [
+        "assistant",
+        "Nos últimos 60 dias a Bandeirantes Novos vendeu 30 carros."
+      ]
+    ],
+    "pergunta": "eu quero separado mês a mês",
+    "ferramentas": [
+      "comparar_periodos"
+    ],
+    "deve_conter": [],
+    "nao_deve_conter": [
+      "falha",
+      "não respondeu"
+    ],
+    "nota": "antes dava 504 (4 consultas pesadas ao mesmo tempo); agora mes_a_mes com no máx. 2 consultas juntas"
   }
 ]

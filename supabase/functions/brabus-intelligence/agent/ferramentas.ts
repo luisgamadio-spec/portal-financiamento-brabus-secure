@@ -18,6 +18,7 @@ import { addMonths, parseISO, toISO } from "../engine/comum.ts";
 import { casaModelo, type Contexto as CtxSim, entradaMinimaParaParcela, type EstruturaBalao, type ModoBalao, normalizaModelo, type Opcao, opcaoSemestralTriton, opcoesParaEntrada } from "../engine/ofertas.ts";
 import { buscaManual } from "./manual.ts";
 import { filtraPorNome } from "../data/nomes.ts";
+import { agregaMetricas, agregaModelo, type Coluna, ErroPeriodos, montaLinhas, planejaColunas, textoComparacao } from "./periodos.ts";
 
 export type ToolCtx = {
   rpc: Rpc; bases: Bases; usuario: Contexto; store: Store;
@@ -32,6 +33,7 @@ export type Bloco =
   | { tipo: "opcoes"; titulo: string; veiculo: Record<string, unknown>; parcela_alvo?: number | null; destaque: OpcaoSaida | null; alternativas: OpcaoSaida[]; base?: string | null }
   | { tipo: "resultado"; titulo: string; periodo: string; visao: string; lojas: Record<string, unknown>[]; total?: Record<string, unknown> | null }
   | { tipo: "comparacao"; titulo: string; periodo: string; visao: string; lojas: string[]; linhas: { indicador: string; rotulo: string; formato: "int" | "brl" | "pct"; valores: (number | null)[]; lider: string | null }[] }
+  | { tipo: "periodos"; modo: string; titulo: string; visao: string; colunas: { rotulo: string; datas: string; papel: string; parcial: boolean }[]; linhas: { indicador: string; rotulo: string; formato: "int" | "brl" | "pct"; valores: (number | null)[]; variacao: number | null; variacao_formato: "pct" | "pp"; base_zero: { de: number; para: number; diferenca: number } | null; melhor: number | null; pior: number | null }[]; comparacao: string; notas: string[] }
   | { tipo: "score"; titulo: string; periodo: string; visao: string; vendedor: Record<string, unknown>; composicao: Record<string, unknown>[]; destaques: string[]; melhorar: Record<string, unknown>[]; utilizacao_conversao?: Record<string, unknown>; ranking: Record<string, unknown>[] }
   | { tipo: "antecipacao"; titulo: string; [k: string]: unknown }
   | { tipo: "cash"; titulo: string; [k: string]: unknown }
@@ -161,6 +163,21 @@ export const DEFINICOES = [
   tool("comparar_lojas",
     "Compara 2 ou mais lojas no mesmo período: indicadores de cada uma, líder por indicador e diferença de cada loja para o líder.",
     { lojas: S_("array", { items: S_("string"), description: "Nomes das lojas (2 ou mais)." }), departamento: Nul("string", { enum: ["NOVOS", "SEMINOVOS", null], description: "Visão do Portal. NOVOS ou SEMINOVOS quando o usuário disser; null = Grupo (Novos + Seminovos), que já vem com a divisão por departamento." }), ...periodoProps("competencia_atual") }),
+  tool("comparar_periodos",
+    "Comparativo de resultados NO TEMPO (use SEMPRE que o pedido for comparar períodos: 'e comparado ao mês anterior?', 'compare os dois períodos', 'mês a mês', 'últimos N meses', evolução de um modelo, dois intervalos). Escopo: grupo, loja, departamento, modelo ou vendedor. A comparação é justa: período atual incompleto é comparado com o MESMO trecho do período anterior (ex.: 01–15/10 × 01–15/09) e o mês anterior inteiro vem só como referência. Devolve as datas de cada período e as variações já calculadas; períodos de tamanhos diferentes vêm sem variação.",
+    {
+      modo: S_("string", { enum: ["atual_vs_anterior", "mes_a_mes", "intervalos", "modelos"], description: "'atual_vs_anterior' = período atual × o mesmo trecho do anterior (padrão para 'e comparado ao mês anterior?'). 'mes_a_mes' = uma coluna por mês dos últimos N meses ('separado mês a mês', 'últimos 6 meses mês a mês'). 'intervalos' = dois ou mais intervalos com datas dadas pelo usuário. 'modelos' = vários modelos lado a lado no mesmo período." }),
+      meses: Nul("integer", { description: "Só em mes_a_mes: quantos meses (2 a 12), incluindo o atual. 'Últimos 60 dias separado mês a mês' = 3 (os dois meses anteriores + o atual parcial). null = 6." }),
+      data_inicio: Nul("string", { description: "AAAA-MM-DD. Em atual_vs_anterior/modelos: início do período atual (null = 1º dia do mês atual)." }),
+      data_fim: Nul("string", { description: "AAAA-MM-DD. Em atual_vs_anterior/modelos: fim do período atual (null = hoje)." }),
+      intervalos: Nul("array", { items: { type: "object", properties: { inicio: S_("string"), fim: S_("string") }, required: ["inicio", "fim"], additionalProperties: false }, description: "Só em 'intervalos': 2 a 6 intervalos {inicio, fim} AAAA-MM-DD." }),
+      loja: lojaProp("null = escopo do usuário (grupo, se ele puder ver)."),
+      departamento: Nul("string", { enum: ["NOVOS", "SEMINOVOS", null], description: "null = Novos + Seminovos." }),
+      modelo: Nul("string", { description: "Um modelo/família (ex.: 'Eclipse Cross') para ver ao longo dos períodos. null = todos." }),
+      versao: Nul("string", { description: "Versão do modelo, se dita. null = todas." }),
+      modelos: Nul("array", { items: S_("string"), description: "Só em 'modelos': 2 ou mais modelos para comparar no mesmo período." }),
+      vendedor: Nul("string", { description: "Nome (ou parte) do vendedor. Perfil Vendedor só pode o próprio nome. null = sem recorte por vendedor." }),
+    }),
   tool("ranking_vendedores",
     "Ranking de vendedores no período por um critério. O banco limita quem aparece conforme o perfil.",
     {
@@ -930,6 +947,88 @@ const H: Record<string, Handler> = {
     });
   },
 
+  async comparar_periodos(a, ctx) {
+    exigeModulo(ctx, MODULO.analiseGeral, "Análise Geral");
+    const modo: string = a.modo ?? "atual_vs_anterior";
+    const loja = lojaOuErro(a.loja);
+    const dep: string | null = a.departamento ?? null;
+    const vendedor: string | null = a.vendedor ? String(a.vendedor) : null;
+    if (vendedor && ctx.usuario.perfil === "VENDEDOR" && !ehProprio(ctx, vendedor)) throw new ErroFerramenta("Seu perfil vê só os seus próprios resultados por vendedor.");
+    const modelos: string[] = modo === "modelos" ? (a.modelos ?? []).filter(Boolean).map(String) : (a.modelo ? [String(a.modelo)] : []);
+    if (modo === "modelos" && modelos.length < 2) throw new ErroFerramenta("Para comparar modelos, informe pelo menos 2.");
+    if (modelos.length && vendedor) throw new ErroFerramenta("Por modelo não há separação por vendedor no Portal.");
+    let cols: Coluna[];
+    try { cols = planejaColunas(modo, ctx.hoje, { meses: a.meses, data_inicio: a.data_inicio, data_fim: a.data_fim, intervalos: a.intervalos }); }
+    catch (e) { if (e instanceof ErroPeriodos) throw new ErroFerramenta(e.message); throw e; }
+    const rpcNome = modelos.length ? "operational_model_metrics" : "operational_metrics";
+    const dados = await buscaPorPeriodo(ctx, rpcNome, cols);
+    const escopo = { loja, departamento: dep, vendedor };
+    const veRetorno = podeVerRetorno(ctx.usuario);
+    const partes = [loja ?? "Grupo", dep ? (dep === "NOVOS" ? "Novos" : "Seminovos") : "Novos + Seminovos"];
+    if (modo !== "modelos") for (const m of modelos) partes.push(`${m}${a.versao ? " " + a.versao : ""}`);
+    if (vendedor) partes.push(vendedor);
+    const visao = partes.join(" · ");
+
+    if (modo === "modelos") {
+      // vários modelos lado a lado no mesmo período (sem variação no tempo)
+      const accs = modelos.map((m) => agregaModelo(dados[0]?.rows, escopo, (x) => casaModeloTexto(x, m, null)));
+      const { linhas } = montaLinhas("modelos", modelos.map(() => cols[0]), accs, veRetorno);
+      const lider = (vs: (number | null)[]) => {
+        const xs = vs.map((v, i) => ({ v, i })).filter((x) => x.v != null) as { v: number; i: number }[];
+        if (!xs.length) return null;
+        const m = Math.max(...xs.map((x) => x.v));
+        const top = xs.filter((x) => x.v === m);
+        return top.length === 1 ? modelos[top[0].i] : null;
+      };
+      poeBloco(ctx, "comparacao", {
+        tipo: "comparacao", titulo: `Comparativo ${modelos.join(" × ")}`, periodo: cols[0].datas, visao, lojas: modelos,
+        linhas: linhas.map((l) => ({ indicador: l.indicador, rotulo: l.rotulo, formato: l.formato, valores: l.valores, lider: lider(l.valores) })),
+      });
+      return filtraCampos(ctx.usuario, {
+        modo, escopo: visao, periodo: cols[0].datas,
+        modelos: modelos.map((m, i) => ({ modelo: m, ...Object.fromEntries(linhas.map((l) => [l.rotulo, l.valores[i]])) })),
+        sem_dados: modelos.filter((_, i) => accs[i].linhas === 0),
+      });
+    }
+
+    const accs = dados.map((d) => modelos.length
+      ? agregaModelo(d?.rows, escopo, (x) => casaModeloTexto(x, modelos[0], a.versao ?? null))
+      : agregaMetricas(d?.rows, escopo));
+    const { linhas, comparacao, tamanhos_diferentes } = montaLinhas(modo, cols, accs, veRetorno);
+    const texto = textoComparacao(modo, cols, comparacao, tamanhos_diferentes);
+    const notas: string[] = [];
+    if (cols.some((c) => c.papel === "referencia")) notas.push("O mês anterior inteiro aparece só como referência; a variação compara trechos de mesmo tamanho.");
+    const parcial = modo === "mes_a_mes" ? cols.find((c) => c.parcial) : undefined;
+    if (parcial) notas.push(`${parcial.rotulo} está em andamento (${parcial.datas}) e fica fora de melhor/pior mês.`);
+    if (linhas.some((l) => l.indicador === "retorno" && l.valores.some((v) => v == null))) notas.push("Retorno por vendedor de outras lojas não é exibido para o seu perfil.");
+    const atual = cols.find((c) => c.papel === "atual"), base = cols.find((c) => c.papel === "base");
+    const titulo = modo === "mes_a_mes" ? `Mês a mês · ${cols[0].rotulo} a ${cols[cols.length - 1].rotulo}`
+      : modo === "intervalos" ? "Comparativo de períodos"
+      : `${atual!.datas} × ${base!.datas}`;
+    poeBloco(ctx, "periodos", {
+      tipo: "periodos", modo, titulo, visao,
+      colunas: cols.map((c) => ({ rotulo: c.rotulo, datas: c.datas, papel: c.papel, parcial: c.parcial })),
+      linhas, comparacao: texto, notas,
+    });
+    const ind = (l: typeof linhas[number]) => ({
+      indicador: l.rotulo,
+      por_periodo: cols.map((c, i) => ({ periodo: c.rotulo, datas: c.datas, papel: c.papel, parcial: c.parcial, valor: l.valores[i] })),
+      variacao: l.variacao != null ? (l.variacao_formato === "pp" ? `${l.variacao > 0 ? "+" : ""}${l.variacao} p.p.` : `${l.variacao > 0 ? "+" : ""}${l.variacao}%`)
+        : l.base_zero ? `de 0 para ${l.base_zero.para} (+${l.base_zero.diferenca}; sem % porque a base é zero)` : null,
+      melhor_mes: l.melhor != null ? cols[l.melhor].rotulo : undefined,
+      pior_mes: l.pior != null ? cols[l.pior].rotulo : undefined,
+    });
+    return filtraCampos(ctx.usuario, {
+      modo, escopo: visao,
+      periodos: cols.map((c) => ({ rotulo: c.rotulo, datas: c.datas, papel: c.papel, parcial: c.parcial, dias: c.dias })),
+      comparacao: texto,
+      regra: "Só diga que subiu/caiu pela 'variacao' devolvida (períodos de mesmo tamanho). Referência e meses parciais não são base de variação.",
+      indicadores: linhas.map(ind),
+      notas,
+      sem_dados: cols.filter((_, i) => accs[i].linhas === 0).map((c) => c.datas),
+    });
+  },
+
   async ranking_vendedores(a, ctx) {
     exigeModulo(ctx, MODULO.analiseGeral, "Análise Geral");
     if (a.criterio === "retorno" && !podeVerRetorno(ctx.usuario)) throw new ErroFerramenta("Seu perfil não vê retorno.");
@@ -1260,6 +1359,33 @@ function montaSalario(ctx: ToolCtx, origem: string, competencia: string, pessoa:
   return out;
 }
 
+/**
+ * Busca uma consulta por coluna (período) com no máximo 2 ao mesmo tempo -- várias consultas pesadas em paralelo
+ * estouravam o limite de 8 s do banco (504 no "mês a mês" de 15/10/2026). Tempo esgotado/5xx: 1 nova tentativa.
+ * O mesmo período não é consultado duas vezes na mesma pergunta (cache do turno).
+ */
+async function buscaPorPeriodo(ctx: ToolCtx, fn: string, cols: Coluna[]): Promise<any[]> {
+  const out: any[] = new Array(cols.length);
+  let prox = 0;
+  const uma = async (c: Coluna): Promise<any> => {
+    const chave = `${fn}|${c.inicio}|${c.fim}`;
+    if (ctx.cache.has(chave)) return ctx.cache.get(chave);
+    for (let tentativa = 1; ; tentativa++) {
+      try {
+        const r = await ctx.rpc.call<any>(fn, { p_start: c.inicio, p_end: c.fim, p_group_view: true });
+        ctx.cache.set(chave, r);
+        return r;
+      } catch (e) {
+        if (tentativa >= 2 || !(e instanceof RpcError) || e.negado || e.status < 500) throw e;
+        await new Promise((ok) => setTimeout(ok, 700));
+      }
+    }
+  };
+  const trabalhador = async () => { while (prox < cols.length) { const i = prox++; out[i] = await uma(cols[i]); } };
+  await Promise.all([trabalhador(), trabalhador()]);
+  return out;
+}
+
 /** Filtra linhas por departamento (NOVOS/SEMINOVOS). null = Grupo. */
 function doDep(rows: any[] | undefined, dep: string | null): any[] {
   const xs = rows ?? [];
@@ -1307,7 +1433,7 @@ function indicadores(loja: string, a: Acc, b: Acc | null, shareMin: number | nul
       share_pp: shareB == null ? null : r2((share - shareB) * 100),
       producao: d(a.producao, b.producao), producao_pct: dp(a.producao, b.producao),
       retorno: d(a.retorno, b.retorno), retorno_pct: dp(a.retorno, b.retorno),
-      spf_qtd: d(a.spf_qtd, b.spf_qtd),
+      spf_qtd: d(a.spf_qtd, b.spf_qtd), spf_qtd_pct: dp(a.spf_qtd, b.spf_qtd),
     } : null,
   };
 }
