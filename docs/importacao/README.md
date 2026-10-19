@@ -18,6 +18,15 @@ Problema: a Gestão de Bases falhava com "canceling statement due to statement t
 Prova (rollback, arquivos reais do dia, envios montados pelo código da tela): linhas gravadas e pendências cadastrais com
 md5 idêntico ao código anterior; pior parte Base 01 8,8 s → 0,4–1,2 s; Base 02 7,7–29 s → 0,5–0,8 s; com +50%: < 0,5 s.
 
+## Fase 2 (Base 03) — função aplicada em 19/10/2026
+- `master_operational_base03_consolidar(p_spf_batch_id, p_finance_rows)`: o SPF vai em partes (`begin_import` + `import_spf`,
+  lote em validação, invisível); a consolidação faz numa transação só o enriquecimento (trecho copiado da `apply_base03`),
+  as travas (principais > 0, enriquecidas > 0 e ≥ 50% da última normal — agora também no servidor) e a confirmação.
+- A `apply_base03` não mudou (a tela atual da produção usa). Migração `20261019160000_importacao_fase2_base03_consolidar.sql`;
+  desfazer: `docs/rollback/importacao_fase2_base03_rollback.sql`.
+- Prova (rollback): SPF, enriquecimento e mensagem do lote com md5 idêntico ao fluxo antigo; consolidação 2,6 s hoje e
+  3,8 s com +50% (antes, a chamada única: 7,6 s hoje e até 9,7 s com +50%); partes ≤ 0,23 s; travas bloqueiam sem mudar nada.
+
 ## Testes (`testes/`)
 Rodam contra o banco ligado, sempre em transação com ROLLBACK (exceto `gera_fase1.py`, que só lê e gera SQL).
 Precisam dos auxiliares `sq.py`/`rpc.py`/`harness.py` do ambiente local e dos envios em `payloads/` (gerados por
