@@ -27,6 +27,15 @@ md5 idêntico ao código anterior; pior parte Base 01 8,8 s → 0,4–1,2 s; Bas
 - Prova (rollback): SPF, enriquecimento e mensagem do lote com md5 idêntico ao fluxo antigo; consolidação 2,6 s hoje e
   3,8 s com +50% (antes, a chamada única: 7,6 s hoje e até 9,7 s com +50%); partes ≤ 0,23 s; travas bloqueiam sem mudar nada.
 
+## Fase 3 (banco) — aplicada em 19/10/2026
+- Lote VALIDATING sem atividade há 6 h vira ARQUIVADO (no início de qualquer importação; linhas preservadas; coluna
+  `portal_import_batches.ultima_atividade_em`). Não há pg_cron.
+- `begin_import` não reabre mais lote VALIDATED do mesmo arquivo (antes reabria e tirava a base oficial do ar até a
+  nova confirmação): recusa com "Este arquivo já foi importado e confirmado em …. Nada foi alterado."
+- `portal_import_duracoes` + `master_operational_registrar_duracao` (aviso na Auditoria acima de 5 s por chamada ou em
+  falha) + `master_operational_list_duracoes`. Só o Master. Validação: `testes/validar_fase3_db.py` (15/15, rollback).
+- Migração `20261019180000_importacao_fase3_arquivamento_duracao.sql`; desfazer: `docs/rollback/importacao_fase3_rollback.sql`.
+
 ## Testes (`testes/`)
 Rodam contra o banco ligado, sempre em transação com ROLLBACK (exceto `gera_fase1.py`, que só lê e gera SQL).
 Precisam dos auxiliares `sq.py`/`rpc.py`/`harness.py` do ambiente local e dos envios em `payloads/` (gerados por
