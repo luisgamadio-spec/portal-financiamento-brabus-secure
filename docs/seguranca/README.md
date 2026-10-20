@@ -54,3 +54,15 @@ Desfazer o banco (de um clone ligado ao projeto):
 - `apoio/`: harness de teste. Os logins são simulados, e as funções do banco rodam com usuários reais em rollback.
 
 Nenhum script grava dados reais. O analista "online" dos testes é um registro falso criado e desfeito dentro da transação.
+
+## Resultado da aplicação (20/10/2026 13:42, produção)
+
+- Migração aplicada (sha256 `470d6306f61d1143…`, o mesmo arquivo provado), sem erro.
+- Guarda: **10/10**. Vendedor, Analista e Master reais negados na leitura direta das 6 tabelas.
+- `pos_seg5_prod.py`: 15/16 na primeira rodada. O item "Configurações do Master" (`master_admin_security_data`) mudou
+  por dado vivo (log de acesso e lista de usuários), que mudou entre a captura de antes e a conferência.
+  Comparando no mesmo instante com o estado anterior recriado pelo desfazer em rollback (`diag_master_seg.py`): **idêntico**.
+  Para essa função, compare sempre no mesmo instante.
+- Períodos iguais, agora sem `criado_por`, para os 3 perfis. Painel Master e configuração do portal idênticos.
+- "Falar com um Analista" entrega o analista para os 3 perfis. A 2ª chamada pede para aguardar, libera depois de 61 s
+  e nega o perfil sem Simulador. Tabela de controle: 0 registros (nenhuma chamada real ainda).
