@@ -1,0 +1,163 @@
+{
+ "capturado_em": "2026-10-20",
+ "politicas": [
+  {
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "policyname": "analistas_select_authenticated",
+   "qual": "(ativo = true)",
+   "roles": "{authenticated}",
+   "tablename": "analistas_fi",
+   "with_check": null
+  },
+  {
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "policyname": "ausencias_insert_master",
+   "qual": null,
+   "roles": "{authenticated}",
+   "tablename": "ausencias_analistas",
+   "with_check": "is_master()"
+  },
+  {
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "policyname": "ausencias_select_authenticated",
+   "qual": "true",
+   "roles": "{authenticated}",
+   "tablename": "ausencias_analistas",
+   "with_check": null
+  },
+  {
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "policyname": "ausencias_update_master",
+   "qual": "is_master()",
+   "roles": "{authenticated}",
+   "tablename": "ausencias_analistas",
+   "with_check": "is_master()"
+  },
+  {
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "policyname": "config_insert_master",
+   "qual": null,
+   "roles": "{authenticated}",
+   "tablename": "configuracoes",
+   "with_check": "is_master()"
+  },
+  {
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "policyname": "config_select_authenticated",
+   "qual": "true",
+   "roles": "{authenticated}",
+   "tablename": "configuracoes",
+   "with_check": null
+  },
+  {
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "policyname": "config_update_master",
+   "qual": "is_master()",
+   "roles": "{authenticated}",
+   "tablename": "configuracoes",
+   "with_check": "is_master()"
+  },
+  {
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "policyname": "mudancas_insert_master",
+   "qual": null,
+   "roles": "{authenticated}",
+   "tablename": "mudancas_loja_vendedores",
+   "with_check": "is_master()"
+  },
+  {
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "policyname": "mudancas_select_authenticated",
+   "qual": "true",
+   "roles": "{authenticated}",
+   "tablename": "mudancas_loja_vendedores",
+   "with_check": null
+  },
+  {
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "policyname": "mudancas_update_master",
+   "qual": "is_master()",
+   "roles": "{authenticated}",
+   "tablename": "mudancas_loja_vendedores",
+   "with_check": "is_master()"
+  },
+  {
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "policyname": "periodos_insert_master",
+   "qual": null,
+   "roles": "{authenticated}",
+   "tablename": "periodos_comissao",
+   "with_check": "is_master()"
+  },
+  {
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "policyname": "periodos_select_authenticated",
+   "qual": "true",
+   "roles": "{authenticated}",
+   "tablename": "periodos_comissao",
+   "with_check": null
+  },
+  {
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "policyname": "periodos_update_master",
+   "qual": "is_master()",
+   "roles": "{authenticated}",
+   "tablename": "periodos_comissao",
+   "with_check": "is_master()"
+  }
+ ],
+ "funcoes": {
+  "chamar_analista_fi": "CREATE OR REPLACE FUNCTION public.chamar_analista_fi()\n RETURNS TABLE(analista_id uuid, nome text, whatsapp text, teams_link text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\r\ndeclare\r\n  v_analista public.analistas_fi%rowtype;\r\nbegin\r\n  select *\r\n  into v_analista\r\n  from public.analistas_fi\r\n  where ativo = true\r\n    and coalesce(online, false) = true\r\n    and coalesce(ocupado, false) = false\r\n    and status = 'ONLINE'\r\n  order by ordem_fila asc, ultimo_atendimento asc nulls first\r\n  limit 1;\r\n\r\n  if not found then\r\n    return;\r\n  end if;\r\n\r\n  insert into public.atendimentos_fi (\r\n    analista_id,\r\n    nome_analista,\r\n    canal,\r\n    origem,\r\n    status\r\n  )\r\n  values (\r\n    v_analista.id,\r\n    v_analista.nome,\r\n    'WHATSAPP',\r\n    'SIMULADOR_FI',\r\n    'ABERTO'\r\n  );\r\n\r\n  insert into public.historico_atendimentos_fi (\r\n    analista_id,\r\n    cpf_analista,\r\n    nome_analista,\r\n    canal,\r\n    origem,\r\n    status_atendimento\r\n  )\r\n  values (\r\n    v_analista.id,\r\n    v_analista.cpf_normalizado,\r\n    v_analista.nome,\r\n    'WHATSAPP',\r\n    'SIMULADOR_FI',\r\n    'ABERTO'\r\n  );\r\n\r\n  update public.analistas_fi\r\n  set\r\n    ultimo_atendimento = now(),\r\n    atendimentos_hoje = coalesce(atendimentos_hoje, 0) + 1,\r\n    ordem_fila = (\r\n      select coalesce(max(ordem_fila), 0) + 1\r\n      from public.analistas_fi\r\n    )\r\n  where id = v_analista.id;\r\n\r\n  return query\r\n  select\r\n    v_analista.id,\r\n    v_analista.nome,\r\n    v_analista.whatsapp,\r\n    v_analista.teams_link;\r\nend;\r\n$function$",
+  "operational_commission_periods": "CREATE OR REPLACE FUNCTION public.operational_commission_periods()\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\r\n  select jsonb_build_object(\r\n    'rows',\r\n    coalesce(\r\n      jsonb_agg(to_jsonb(p) order by p.data_inicio desc)\r\n        filter (where p.id is not null),\r\n      '[]'::jsonb\r\n    )\r\n  )\r\n  from public.periodos_comissao p\r\n  where auth.uid() is not null\r\n    and p.ativo is true;\r\n$function$"
+ },
+ "acl_funcoes": [
+  {
+   "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+   "proname": "chamar_analista_fi"
+  },
+  {
+   "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+   "proname": "operational_commission_periods"
+  }
+ ],
+ "acl_tabelas": [
+  {
+   "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+   "relname": "analistas_fi",
+   "rls": true
+  },
+  {
+   "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+   "relname": "ausencias_analistas",
+   "rls": true
+  },
+  {
+   "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+   "relname": "configuracoes",
+   "rls": true
+  },
+  {
+   "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+   "relname": "mudancas_loja_vendedores",
+   "rls": true
+  },
+  {
+   "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+   "relname": "periodos_comissao",
+   "rls": true
+  }
+ ]
+}

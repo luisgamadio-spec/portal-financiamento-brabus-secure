@@ -1,0 +1,48 @@
+{
+ "periodos:VENDEDOR": [
+  {
+   "h": "2c56a7f6a65c9f758c9c107813f0c980",
+   "n": 5,
+   "tem_criado_por": true
+  }
+ ],
+ "periodos:ANALISTA": [
+  {
+   "h": "2c56a7f6a65c9f758c9c107813f0c980",
+   "n": 5,
+   "tem_criado_por": true
+  }
+ ],
+ "periodos:MASTER": [
+  {
+   "h": "2c56a7f6a65c9f758c9c107813f0c980",
+   "n": 5,
+   "tem_criado_por": true
+  }
+ ],
+ "master_ref:MASTER": [
+  {
+   "h": "5c654c1e3365a50d771b035cd302cfdd"
+  }
+ ],
+ "master_seg:MASTER": [
+  {
+   "h": "1e297e1af7cf328586c6472811a96dcb"
+  }
+ ],
+ "config:VENDEDOR": [
+  {
+   "h": "ccbace9167ccf8075a2e7e6d31b691c5"
+  }
+ ],
+ "config:ANALISTA": [
+  {
+   "h": "ccbace9167ccf8075a2e7e6d31b691c5"
+  }
+ ],
+ "config:MASTER": [
+  {
+   "h": "ccbace9167ccf8075a2e7e6d31b691c5"
+  }
+ ]
+}

@@ -1,0 +1,4 @@
+# arquivos que precisam ficar byte a byte (desfazer guarda o texto exato de produção, com CRLF)
+docs/rollback/seguranca_20261020_rollback.sql -text
+docs/seguranca/** -text
+supabase/migrations/20261020120000_seguranca_tabelas_internas_chamar_analista.sql -text
