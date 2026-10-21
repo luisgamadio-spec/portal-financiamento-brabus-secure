@@ -2,3 +2,6 @@
 docs/rollback/seguranca_20261020_rollback.sql -text
 docs/seguranca/** -text
 supabase/migrations/20261020120000_seguranca_tabelas_internas_chamar_analista.sql -text
+docs/rollback/fechamento_20261021_rollback.sql -text
+docs/fechamento/** -text
+supabase/migrations/20261021150000_fechamento_centavos_identificacao_spf.sql -text
