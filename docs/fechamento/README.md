@@ -52,3 +52,17 @@ Depois de qualquer mudança no banco, rode a guarda: `python -I docs/seguranca/g
   - **Perfis:** Analista e Vendedor sem acesso às funções do Master nem ao snapshot.
 - Guarda das tabelas internas: **10/10**.
 - RH/DP do fechamento 22/09–20/10 exportado pelo piloto depois da mudança: idêntico (0 células diferentes).
+
+## 21/10/2026 — reabertura e indicadores do Resumo
+
+- **Reabertura (feita pelo Luis, de propósito):** reimportou as bases 15:00–15:03, reabriu às 15:06 e fechou de novo às 16:10 (Brasília).
+  - **v2** (`b22983bf…`) é a oficial, já com as regras novas.
+  - **v1** (`56c80a93…`) ficou intacta e inativa.
+- **Indicadores do Resumo** (homolog `d023825`, piloto `891cc40`): Vendida, Financiada, Produção, Retorno e SPF eram a soma de **todas** as linhas (vendedor + gerente + analista + gestor) e contavam a mesma venda 3–4 vezes.
+  - Agora são os **totais do grupo**: soma dos VENDEDORES, igual à linha do Gestor F&I.
+  - Vale no próximo fechamento (o que é gravado) e no RH/DP dos fechamentos já feitos (calculado do snapshot congelado).
+  - O que já estava gravado fica no banco como está. A comissão não muda.
+- **Valores corretos de 22/09–20/10 (v2):** 314 vendidas, 139 financiadas, produção R$ 14.140.279,00, retorno R$ 669.386,08, SPF R$ 130.868,34, comissão R$ 219.661,09.
+- **Fechamentos feitos no V1** (ex.: 21/08–20/09) já gravavam os totais certos.
+- Outras telas: só o RH/DP usava esses indicadores. Histórico, Salários & Comissões e Brabus IA usam só a Comissão Total.
+- Provas: `compara_resumo.py` e `esperado_grupo.py` (abas 2–8 idênticas; Resumo = totais do grupo), `captura_payload.py` com `SEM_SIM=1` (pedido de fechamento: linhas idênticas, só os 5 indicadores mudam). Guarda 10/10.

@@ -6,7 +6,8 @@ import io, json, os, sys, tempfile
 AQUI = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(AQUI, "apoio"))
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 os.environ["NX_SIM_SQL"] = os.path.join(AQUI, "fech.sql")
-os.environ["NX_SIM_FNS"] = "operational_analyst_commission_metrics_v2,operational_salary_manager_directory"
+# Depois de aplicado o fech.sql (21/10 16:01) as funções novas já estão em produção: use SEM_SIM=1 para ler direto.
+os.environ["NX_SIM_FNS"] = "" if os.environ.get("SEM_SIM") == "1" else "operational_analyst_commission_metrics_v2,operational_salary_manager_directory"
 from playwright.sync_api import sync_playwright
 import harness
 from harness import Fake
@@ -29,7 +30,10 @@ pasta, saida = sys.argv[1], sys.argv[2]
 # Respostas da versão nova calculadas antes (mesma transação com rollback do harness) e servidas na hora:
 # a tela desiste de uma leitura depois de ~10 s, e aplicar o SQL inteiro a cada chamada passa disso.
 corpo = {"p_start": per["data_inicio"], "p_end": per["data_fim"]}
-PRONTO = {fn: harness.rpc_real(fn, corpo) for fn in os.environ["NX_SIM_FNS"].split(",")}
+PRONTO = {fn: harness.rpc_real(fn, corpo) for fn in os.environ["NX_SIM_FNS"].split(",") if fn}
+if os.environ.get("SEM_SIM") == "1":  # todas as leituras da prévia pré-carregadas (só leitura): a tela desiste após ~10 s
+    for fn in ("operational_commission_metrics", "operational_analyst_commission_metrics_v2", "operational_salary_manager_directory"): PRONTO[fn] = harness.rpc_real(fn, corpo)
+    PRONTO["master_admin_security_data"] = harness.rpc_real("master_admin_security_data", {})
 for fn, r in PRONTO.items(): print("versão nova", fn, "→", r["status"])
 class FakePronto(Fake):
     def handle(self, route):

@@ -10,8 +10,8 @@ from harness import Fake
 import tempfile
 harness.CACHE = tempfile.mkdtemp(prefix="rpc_cache_rhdp_")  # sempre leitura nova do banco
 harness.LEITURA_MASTER_OK = harness.LEITURA_MASTER_OK + ("master_commission_snapshot_export", "master_commission_operational_detail", "master_commission_snapshot")
-FID = "56c80a93-9558-4230-9ca0-d6f01e13fae3"
 pasta, rot = sys.argv[1], sys.argv[2]
+FID = sys.argv[3] if len(sys.argv) > 3 else "b22983bf-19a7-4030-a79a-8cb98dcb9514"  # v2 = oficial
 os.makedirs(os.path.join(AQUI, "saida"), exist_ok=True)
 with sync_playwright() as p:
     br = p.chromium.launch()
