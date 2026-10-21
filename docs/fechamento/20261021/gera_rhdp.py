@@ -7,6 +7,8 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 from playwright.sync_api import sync_playwright
 import harness
 from harness import Fake
+import tempfile
+harness.CACHE = tempfile.mkdtemp(prefix="rpc_cache_rhdp_")  # sempre leitura nova do banco
 harness.LEITURA_MASTER_OK = harness.LEITURA_MASTER_OK + ("master_commission_snapshot_export", "master_commission_operational_detail", "master_commission_snapshot")
 FID = "56c80a93-9558-4230-9ca0-d6f01e13fae3"
 pasta, rot = sys.argv[1], sys.argv[2]

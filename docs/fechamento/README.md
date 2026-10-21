@@ -40,3 +40,15 @@ O **retorno de R$ 1,00 da Base 02** (marcador do NBS em contratos personalizados
 - `sqlexato.py`: roda SQL por arquivo gravado em binário (o `apoio/sq.py` em modo texto troca LF por CRLF e altera o texto exato).
 
 Depois de qualquer mudança no banco, rode a guarda: `python -I docs/seguranca/guarda_tabelas_internas.py` (10/10).
+
+## Resultado da aplicação (21/10/2026 16:01, produção)
+
+- Migração aplicada (sha256 `657006d3c34e8b15…`, o mesmo arquivo provado), sem erro. A tela já estava no ar (homolog `41e419e`, piloto `f0a6d06`).
+- `pos_fech_prod.py`: **15/15**.
+  - **Não mudou:** comissão dos vendedores, o fechamento 22/09–20/10 (snapshot e detalhe) e os períodos vistos pelo Vendedor.
+  - **Analistas:** 23 unidades de SPF (sem os 4 de R$ 1,00) e identificador em todas as linhas. Gerentes também com identificador.
+  - **Auditoria SPF:** código e banco preenchidos, com 4 linhas "não conta".
+  - **Fechamento simulado** (rollback): 90 linhas em centavos, total igual à soma, CPF 90/90.
+  - **Perfis:** Analista e Vendedor sem acesso às funções do Master nem ao snapshot.
+- Guarda das tabelas internas: **10/10**.
+- RH/DP do fechamento 22/09–20/10 exportado pelo piloto depois da mudança: idêntico (0 células diferentes).
