@@ -46,3 +46,5 @@ Scripts:
 - **Correção:** o período estimado termina no **início** da 1ª pergunta registrada (fim − duração).
   - Migração `20261026170000_brabus_ia_utilizacao_corte.sql`; desfazer em `docs/rollback/brabus_ia_utilizacao_corte_20261026_rollback.sql` (texto exato de antes).
   - Prova: `test_fix_corte.py`, 6/6 em rollback.
+- Aplicada em produção às 16:18. A tela (piloto) mostra **203** perguntas (201 estimadas + 2 reais) e 21 usuários; 72 nunca usaram.
+- Guarda: 1ª rodada 8/11, sem saída detalhada; as 2 rodadas completas seguintes deram **11/11**. Provável falha passageira da API do Supabase (já houve 502 neste dia), contada como "não negado".
