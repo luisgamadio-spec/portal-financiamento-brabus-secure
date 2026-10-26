@@ -6,7 +6,8 @@ import io, json, os, subprocess, sys, tempfile
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 PROJETO = "yacqlelpzchcotgngwbh"
 CWD = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
-TABELAS = ["configuracoes", "periodos_comissao", "ausencias_analistas", "mudancas_loja_vendedores", "analistas_fi", "chamar_analista_fi_controle"]
+TABELAS = ["configuracoes", "periodos_comissao", "ausencias_analistas", "mudancas_loja_vendedores", "analistas_fi", "chamar_analista_fi_controle",
+           "bi_uso_perguntas"]  # 26/10/2026: utilização da Brabus IA (só o Master lê, via master_ia_usage_data)
 PAPEIS = ("anon", "authenticated")
 
 def q(sql):

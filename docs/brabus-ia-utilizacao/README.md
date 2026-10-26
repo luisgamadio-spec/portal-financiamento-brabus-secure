@@ -26,3 +26,8 @@ Scripts:
 - `pos_ia_prod.py`: conferência em produção.
 - `backup_ia.py`: captura do estado anterior.
 - `diag_ia*.py`: diagnóstico (só agregados).
+
+## Resultado da aplicação (26/10/2026 15:05, produção)
+
+- Migração aplicada (sha256 `a53b20a5…`), sem erro. `pos_ia_prod.py`: **16/16**.
+- A guarda das tabelas internas inclui `bi_uso_perguntas` (7 tabelas): **11/11**.

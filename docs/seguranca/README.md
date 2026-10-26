@@ -8,7 +8,7 @@ python -I docs/seguranca/guarda_tabelas_internas.py
 
 Rodar **depois de toda mudança no banco** (migração, função, permissão) **e de toda publicação do portal**
 (homolog e piloto). Só lê o banco (transações somente leitura com rollback) e não imprime dados.
-Tem que terminar com **"10/10 verificações OK"** (código de saída 0). Qualquer FALHA = parar e investigar.
+Tem que terminar com **"11/11 verificações OK"** (7 tabelas desde 26/10/2026) (código de saída 0). Qualquer FALHA = parar e investigar.
 
 O que ela garante, para `configuracoes`, `periodos_comissao`, `ausencias_analistas`,
 `mudancas_loja_vendedores`, `analistas_fi` e `chamar_analista_fi_controle`:
