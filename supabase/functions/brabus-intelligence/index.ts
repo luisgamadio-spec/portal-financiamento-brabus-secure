@@ -21,6 +21,7 @@ import { storeSupabase } from "./data/store.ts";
 import { conversar, type Mensagem } from "./agent/loop.ts";
 import { LimiteLlm, OpenAiLlm } from "./agent/llm.ts";
 import { decodificaAudio, ErroVoz, falar, MAX_PARTE_CHARS, partesDaFala, textoParaFala, transcrever } from "./agent/voz.ts";
+import { acessoLiberado, registrarPergunta, statusDoErro } from "./data/utilizacao.ts";
 
 const ORIGENS = new Set([
   "https://brabus.blistiq.com.br",
@@ -76,11 +77,14 @@ Deno.serve(async (req) => {
   const t0 = Date.now();
   const marcas: Record<string, number> = {};
   const rpc = new Rpc(Deno.env.get("SUPABASE_URL")!, req.headers.get("apikey") || Deno.env.get("SUPABASE_ANON_KEY")!, jwt);
+  // Utilização (só quando é uma pergunta de verdade): registrada no fim, com sucesso ou erro.
+  let emPergunta = false;
+  const canal: "texto" | "voz" = temAudio ? "voz" : "texto";
   try {
     const usuario = await carregaContexto(rpc);
     marcas.contexto_ms = Date.now() - t0;
-    const liberados = (Deno.env.get("BI_PERFIS") ?? "MASTER").split(",").map((s) => s.trim().toUpperCase());
-    if (!liberados.includes(usuario.perfil) && !liberados.includes(usuario.perfil_bruto)) {
+    // Lista de perfis no banco (configuracoes.ia_perfis_liberados: todos, exceto RH/DP — 26/10/2026).
+    if (!(await acessoLiberado(rpc, usuario, Deno.env.get("BI_PERFIS")))) {
       return json(403, { erro: "A Brabus Intelligence ainda não está liberada para o seu perfil." });
     }
     if (soAcesso) return json(200, { liberado: true });
@@ -90,6 +94,7 @@ Deno.serve(async (req) => {
       const audio = await falar(apiKey, textoFalar);
       return json(200, { audio, tempos: { contexto_ms: marcas.contexto_ms, voz_ms: Date.now() - tf } });
     }
+    emPergunta = true;
     let transcricao: string | undefined;
     if (temAudio) {
       transcricao = await transcrever(apiKey, decodificaAudio(body.audio_base64, body.audio_mime));
@@ -118,8 +123,13 @@ Deno.serve(async (req) => {
     // Só tempos e nomes de ferramentas (nada de dados) — para medir onde a resposta demora.
     saida.tempos = { ...marcas, passos: r.tempos ?? [] };
     console.log("[bi] tempos", JSON.stringify(saida.tempos));
+    await registrarPergunta(rpc, { sessao, canal, ferramentas: r.ferramentas.map((f) => f.nome), status: "ok", duracaoMs: Date.now() - t0 });
     return json(200, saida);
   } catch (e) {
+    if (emPergunta) {
+      const status = statusDoErro(e);
+      if (status) await registrarPergunta(rpc, { sessao, canal, ferramentas: [], status, duracaoMs: Date.now() - t0 });
+    }
     if (e instanceof ErroVoz) return json(422, { erro: e.message });
     if (textoFalar && !(e instanceof RpcError)) { console.error("[bi] voz", e); return json(502, { erro: "Não consegui gerar a voz agora." }); }
     if (e instanceof LimiteLlm) return json(429, { erro: `Muitas perguntas em sequência agora. Tente de novo em ${e.segundos} segundos.` });

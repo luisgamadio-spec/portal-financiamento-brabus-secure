@@ -1,0 +1,6 @@
+{
+  "tasks": {
+    "test": "deno test -A tests/",
+    "eval": "deno run -A eval/rodar_eval.ts"
+  }
+}

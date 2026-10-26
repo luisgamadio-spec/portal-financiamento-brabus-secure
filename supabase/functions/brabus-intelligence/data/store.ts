@@ -17,12 +17,14 @@ export type EventoAuditoria = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Remove do log qualquer valor que pareça dado pessoal ou salário: o log guarda só o "quê", não o "quanto". */
+/** Remove do log qualquer valor que pareça dado pessoal ou salário: o log guarda só o "quê", não o "quanto".
+ *  26/10/2026 (decisão do Luis): também nunca o texto de uma pergunta (ex.: consultar_manual recebe a pergunta). */
 export function sanitizaParametros(p: unknown): unknown {
   const SENSIVEIS = /cpf|telefone|email|salario|comissao/i;
+  const TEXTO_LIVRE = /^(pergunta|mensagem|texto)$/i; // exato: "pergunta_financeira_direta" (sim/não) continua
   const limpa = (x: any): any => {
     if (Array.isArray(x)) return x.map(limpa);
-    if (x && typeof x === "object") return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, SENSIVEIS.test(k) ? "[omitido]" : limpa(v)]));
+    if (x && typeof x === "object") return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, SENSIVEIS.test(k) || TEXTO_LIVRE.test(k) ? "[omitido]" : limpa(v)]));
     return x;
   };
   return limpa(p);
