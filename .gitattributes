@@ -8,3 +8,5 @@ supabase/migrations/20261021150000_fechamento_centavos_identificacao_spf.sql -te
 docs/brabus-ia-utilizacao/** -text
 docs/rollback/brabus_ia_utilizacao_20261026_rollback.sql -text
 supabase/migrations/20261026120000_brabus_ia_utilizacao.sql -text
+docs/rollback/brabus_ia_utilizacao_corte_20261026_rollback.sql -text
+supabase/migrations/20261026170000_brabus_ia_utilizacao_corte.sql -text

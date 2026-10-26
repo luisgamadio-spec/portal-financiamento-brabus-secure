@@ -39,3 +39,10 @@ Scripts:
   - Para desfazer: publicar `funcao_v40_antes/`.
 - **Tela** Painel Master → Utilização (Simuladores e Brabus IA), aba **Brabus IA**: homolog `55f1496`, piloto `36f1903`.
   - `test_ia_tela.py`: 16/16 no clone, no homolog publicado e no piloto publicado. Guarda 11/11.
+
+## Correção do corte estimado/real (26/10/2026)
+
+- **Defeito:** a ferramenta da 1ª pergunta real é auditada segundos antes do registro, que acontece no fim da pergunta. Por isso ela contava também como "estimada" (total 204 em vez de 203).
+- **Correção:** o período estimado termina no **início** da 1ª pergunta registrada (fim − duração).
+  - Migração `20261026170000_brabus_ia_utilizacao_corte.sql`; desfazer em `docs/rollback/brabus_ia_utilizacao_corte_20261026_rollback.sql` (texto exato de antes).
+  - Prova: `test_fix_corte.py`, 6/6 em rollback.
