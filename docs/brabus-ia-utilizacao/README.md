@@ -31,3 +31,11 @@ Scripts:
 
 - Migração aplicada (sha256 `a53b20a5…`), sem erro. `pos_ia_prod.py`: **16/16**.
 - A guarda das tabelas internas inclui `bi_uso_perguntas` (7 tabelas): **11/11**.
+
+## Função e tela (26/10/2026)
+
+- **Função** `brabus-intelligence` **v41** publicada às 15:20, com `verify_jwt` ligado; a versão publicada é idêntica ao branch (`8a48561`).
+  - O acesso vem da lista do banco: **mesmo acesso de hoje para os 117 usuários reais e os 8 perfis do cadastro** (`test_acesso_igual.py`). Testes da função: 155/155.
+  - Para desfazer: publicar `funcao_v40_antes/`.
+- **Tela** Painel Master → Utilização (Simuladores e Brabus IA), aba **Brabus IA**: homolog `55f1496`, piloto `36f1903`.
+  - `test_ia_tela.py`: 16/16 no clone, no homolog publicado e no piloto publicado. Guarda 11/11.
