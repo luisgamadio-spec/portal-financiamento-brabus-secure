@@ -1,0 +1,29 @@
+{
+ "capturado_em": "2026-10-26",
+ "objetos_novos_ja_existem": [],
+ "config_ia_perfis_liberados": [],
+ "auditoria_ia_textos": [
+  {
+   "chaves": [
+    "pergunta"
+   ],
+   "created_at": "2026-10-07 14:34:39.055418+00",
+   "id": 109,
+   "md5_parametros": "db8d0fb6d4bb963c270b37e8fa57d8d9"
+  },
+  {
+   "chaves": [
+    "pergunta"
+   ],
+   "created_at": "2026-10-07 16:26:04.947676+00",
+   "id": 138,
+   "md5_parametros": "baa1dc49438930cfd0e23d5d7956a67f"
+  }
+ ],
+ "bi_audit_log_resto_md5": {
+  "h": "db4549580af9fa72106ab858c1807172",
+  "n": 374
+ },
+ "auditoria_BI_TEXTO_REMOVIDO": 0,
+ "gatilhos_bi_audit_log": []
+}
