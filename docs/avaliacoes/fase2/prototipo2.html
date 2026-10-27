@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Protótipo — Vistoria 3D (v2)</title>
+<style>
+  :root { --bg:#0b0b0c; --card:#141416; --line:#2c2c31; --txt:#f2f2f3; --mut:#a3a3ad; --acc:#ee4b57;
+          --leve:#f5c518; --media:#ff8c1a; --grave:#e3262f; --toque:#39b6ff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--txt); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body.folhaAberta { padding-bottom: 62vh; }
+  .topo { padding:14px 16px 6px; }
+  .topo h1 { margin:0; font-size:20px; font-weight:400; }
+  .topo p { margin:4px 0 0; color:var(--mut); font-size:13px; }
+  .carrs { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:8px 16px; }
+  button { font-family:inherit; }
+  .carrs button, .vistas button, .chips button, .extra button { min-height:42px; border-radius:8px; border:1px solid var(--line); background:#1b1b1f; color:var(--mut); font-size:13px; }
+  .carrs button.on, .vistas button.on, .chips button.on { border-color:var(--acc); background:rgba(238,75,87,.16); color:var(--txt); }
+  #palco { position:relative; height:44vh; min-height:300px; touch-action:none; background: radial-gradient(ellipse at 50% 60%, #2a2c31 0%, #141518 70%); }
+  #palco canvas { display:block; width:100%; height:100%; }
+  .dica { position:absolute; left:0; right:0; bottom:6px; text-align:center; font-size:12px; color:var(--mut); pointer-events:none; }
+  .legenda { position:absolute; top:8px; left:10px; display:flex; gap:10px; font-size:11px; color:var(--mut); pointer-events:none; }
+  .legenda i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .vistas { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; padding:6px 16px; }
+  .vistas button { min-height:44px; font-size:12px; }
+  .extra { display:flex; gap:6px; padding:0 16px 6px; }
+  .extra button { flex:1; }
+  .lista { padding:8px 16px 24px; }
+  .lista h2 { font-size:15px; margin:12px 0 6px; display:flex; justify-content:space-between; }
+  .av { display:flex; justify-content:space-between; gap:8px; padding:10px 12px; border:1px solid var(--line); border-left-width:4px; border-radius:10px; background:var(--card); margin-bottom:6px; font-size:13px; }
+  .av small { color:var(--mut); display:block; margin-top:2px; }
+  .av b { font-family: ui-monospace, monospace; white-space:nowrap; color:var(--mut); font-weight:500; }
+  .chk { border:1px solid var(--line); border-radius:10px; background:var(--card); padding:10px 12px; margin-bottom:8px; }
+  .chk p { margin:0 0 6px; font-size:13px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chips button { padding:0 12px; }
+  .folha { position:fixed; left:0; right:0; bottom:0; max-height:min(78vh, 560px); overflow-y:auto; overscroll-behavior:contain;
+           background:#151518; border-top:1px solid var(--line); border-radius:16px 16px 0 0;
+           padding:14px 16px calc(16px + env(safe-area-inset-bottom)); transform:translateY(105%); transition:transform .22s; box-shadow:0 -12px 40px rgba(0,0,0,.55); }
+  .folha.aberta { transform:none; }
+  .folha h3 { margin:0 0 2px; font-size:17px; }
+  .folha .sub { color:var(--mut); font-size:12px; }
+  .folha label { display:block; margin:10px 0 6px; font-size:12px; color:var(--mut); }
+  .grav button[data-v="Leve"].on { border-color:var(--leve); background:rgba(245,197,24,.18); }
+  .grav button[data-v="Média"].on { border-color:var(--media); background:rgba(255,140,26,.18); }
+  .grav button[data-v="Grave"].on { border-color:var(--grave); background:rgba(227,38,47,.2); }
+  .custo { margin-top:10px; font-size:13px; color:var(--mut); }
+  .foto { margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .btn { min-height:48px; border-radius:10px; border:1px solid var(--line); background:#1f1f24; color:var(--txt); font-size:14px; padding:0 14px; }
+  .acoes { position:sticky; bottom:calc(-16px - env(safe-area-inset-bottom)); background:#151518; display:grid; grid-template-columns:1fr 2fr; gap:8px; margin-top:12px; padding:8px 0 4px; }
+  .prim { background:var(--acc); border-color:var(--acc); color:#1a0506; font-weight:600; }
+  .offline { margin:4px 16px 0; padding:8px 10px; border-radius:8px; border:1px dashed var(--line); font-size:12px; color:var(--mut); }
+</style>
+</head>
+<body>
+<div class="topo"><h1>Vistoria · AV-12</h1><p>Toque na peça para marcar a avaria · arraste para girar</p></div>
+<div class="carrs" id="carrs"></div>
+<div id="palco">
+  <div class="legenda"><span><i style="background:var(--leve)"></i>leve</span><span><i style="background:var(--media)"></i>média</span><span><i style="background:var(--grave)"></i>grave</span></div>
+  <div class="dica">Arraste para girar · toque na peça</div>
+</div>
+<div class="vistas" id="vistas"></div>
+<div class="extra"><button type="button" id="btnEstepe">Pneu estepe</button><button type="button" id="btnChecklist">Ir para o checklist ↓</button></div>
+<div class="offline" id="offline">Rascunho salvo neste celular · fotos sobem quando houver sinal</div>
+<div class="lista">
+  <h2><span>Avarias</span><span id="total"></span></h2><div id="avarias"></div>
+  <h2 id="tituloChecklist"><span>Checklist</span></h2><div id="checklist"></div>
+</div>
+<div class="folha" id="folha" role="dialog" aria-modal="false">
+  <h3 id="fPeca"></h3><div class="sub" id="fSub"></div>
+  <label>Tipo de avaria</label><div class="chips" id="fTipo"></div>
+  <label>Gravidade</label><div class="chips grav" id="fGrav"></div>
+  <div class="custo">Desconto pela tabela de reparos: <b id="fCusto">a definir</b></div>
+  <div class="foto"><button class="btn" type="button">📷 Tirar foto</button><span class="sub">obrigatória em média e grave</span></div>
+  <div class="acoes"><button class="btn" type="button" id="fCancelar">Cancelar</button><button class="btn prim" type="button" id="fSalvar">Marcar avaria</button></div>
+</div>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+// ---------------------------------------------------------------- carrocerias (metros; x = comprimento, frente em +x; y = altura; z = largura, direita em +z)
+// T = linha de cima da carroceria (de trás para a frente); F = frente (de cima para baixo); R = traseira (de cima para baixo);
+// cab = cabine [base traseira, topo traseiro, topo dianteiro, base dianteira]; lat = recortes das peças laterais (x);
+// pc = altura do para-choque; far/lan = faixa de altura de faróis e lanternas.
+const C = {
+  HATCH: { nome: 'Hatch', L: 3.8, W: 1.72, R: .3, eixos: [-1.2, 1.22],
+    T: [[-1.88,.9],[-1.0,.94],[0.8,.96],[1.5,.84],[1.87,.74]], F: [[1.87,.74],[1.9,.6],[1.9,.34],[1.82,.2]], Rr: [[-1.88,.9],[-1.9,.7],[-1.9,.34],[-1.82,.2]],
+    cab: [[-1.86,.91],[-1.2,1.4],[0.02,1.44],[0.84,.96]], pc: [.52, .5], far: [.6,.7], lan: [.7,.86],
+    lat: [['Para-lama dianteiro', .76, 1.66], ['Porta dianteira', -.18, .76], ['Porta traseira', -1.04, -.18], ['Lateral traseira', -1.66, -1.04]] },
+  SEDAN: { nome: 'Sedan', L: 4.58, W: 1.78, R: .32, eixos: [-1.4, 1.37],
+    T: [[-2.27,.97],[-1.9,1.0],[-1.28,1.01],[0.95,1.02],[1.7,.9],[2.25,.8]], F: [[2.25,.8],[2.29,.62],[2.29,.36],[2.2,.24]], Rr: [[-2.27,.97],[-2.29,.74],[-2.29,.38],[-2.2,.24]],
+    cab: [[-1.3,1.01],[-0.68,1.44],[0.38,1.46],[1.0,1.02]], pc: [.56, .58], far: [.63,.75], lan: [.78,.94],
+    lat: [['Para-lama dianteiro', .96, 2.05], ['Porta dianteira', -.05, .96], ['Porta traseira', -1.06, -.05], ['Lateral traseira', -2.05, -1.06]] },
+  SUV: { nome: 'SUV', L: 4.46, W: 1.85, R: .36, eixos: [-1.36, 1.38],
+    T: [[-2.21,1.12],[0.8,1.15],[1.6,1.06],[2.2,.98]], F: [[2.2,.98],[2.24,.8],[2.24,.48],[2.14,.34]], Rr: [[-2.21,1.12],[-2.24,.96],[-2.24,.48],[-2.14,.34]],
+    cab: [[-2.2,1.13],[-2.12,1.75],[0.42,1.79],[1.3,1.15]], pc: [.68, .66], far: [.8,.92], lan: [.92,1.1],
+    lat: [['Para-lama dianteiro', .98, 1.99], ['Porta dianteira', -.1, .98], ['Porta traseira', -1.12, -.1], ['Lateral traseira', -1.99, -1.12]] },
+  PICKUP: { nome: 'Pickup', L: 5.3, W: 1.86, R: .38, eixos: [-1.72, 1.6], cacamba: [-2.63, -0.82, .82],
+    T: [[-2.63,1.12],[-0.82,1.12],[0.9,1.14],[1.75,1.06],[2.6,.98]], F: [[2.6,.98],[2.66,.8],[2.66,.52],[2.55,.4]], Rr: [[-2.63,1.12],[-2.66,.96],[-2.66,.52],[-2.55,.4]],
+    cab: [[-0.82,1.13],[-0.76,1.9],[0.7,1.92],[1.5,1.14]], pc: [.72, .7], far: [.82,.94], lan: [.8,1.06],
+    lat: [['Para-lama dianteiro', 1.02, 2.42], ['Porta dianteira', .08, 1.02], ['Porta traseira', -0.82, .08], ['Caçamba (lateral)', -2.42, -0.82]] }
+};
+// tipos de avaria conforme a peça
+const TIPOS = {
+  lataria: ['Risco', 'Amassado', 'Pintura danificada', 'Repintura', 'Ferrugem'],
+  'para-choque': ['Risco', 'Amassado', 'Trinca/quebra', 'Pintura danificada', 'Repintura'],
+  vidro: ['Risco', 'Trinca/quebra'],
+  farol: ['Trinca/quebra', 'Embaçado/infiltração', 'Opaco/amarelado', 'Faltando'],
+  grade: ['Risco', 'Trinca/quebra', 'Faltando'],
+  roda: ['Risco', 'Empeno', 'Faltando'],
+  pneu: ['Desgaste', 'Corte/bolha', 'Remendo', 'Faltando'],
+  retrovisor: ['Risco', 'Trinca/quebra', 'Faltando']
+};
+const GRAV = ['Leve', 'Média', 'Grave'];
+const COR_GRAV = { Leve: 0xf5c518, 'Média': 0xff8c1a, Grave: 0xe3262f };
+const COR = { lataria: 0xd5d8de, 'para-choque': 0xc4c8cf, vidro: 0x7f93a8, farol: 0xf2f5f8, lanterna: 0xc8323a, grade: 0x30333a, roda: 0xb4b8bf, pneu: 0x222327, retrovisor: 0xd5d8de, corpo: 0xbfc3ca };
+const TOQUE = 0x39b6ff;
+
+let tipo = 'SUV', avarias = [], pendente = null, sel = { t: null, g: 'Leve' };
+const palco = document.getElementById('palco');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+palco.prepend(renderer.domElement);
+const cena = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+cena.add(new THREE.HemisphereLight(0xffffff, 0x3a3c42, 2.2));
+const sol = new THREE.DirectionalLight(0xffffff, 1.2); sol.position.set(5, 9, 6); cena.add(sol);
+const carro = new THREE.Group(); cena.add(carro);
+const ALVO = new THREE.Vector3(0, 0.9, 0);
+let teta = -0.75, fi = 1.15, alvoTeta = teta, alvoFi = fi, raio = 10;
+const linhaMat = new LineMaterial({ color: 0x15171c, linewidth: 2.2 });
+let partes = [], bloqueios = [];   // malhas clicáveis / malhas que só bloqueiam o toque
+
+// ---------------------------------------------------------------- geometria
+function corta(poli, eixo, v, maior) {   // Sutherland–Hodgman com um semiplano (eixo 0 = x, 1 = y)
+  const dentro = p => maior ? p[eixo] >= v : p[eixo] <= v, out = [];
+  for (let i = 0; i < poli.length; i++) {
+    const a = poli[i], b = poli[(i + 1) % poli.length], da = dentro(a), db = dentro(b);
+    if (da) out.push(a);
+    if (da !== db) { const t = (v - a[eixo]) / (b[eixo] - a[eixo]); out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]); }
+  }
+  return out;
+}
+const faixaX = (p, x0, x1) => corta(corta(p, 0, x0, true), 0, x1, false);
+const faixaY = (p, y0, y1) => corta(corta(p, 1, y0, true), 1, y1, false);
+function trecho(cad, x0, x1) {   // pedaço de uma linha (crescente em x) entre x0 e x1
+  const out = [];
+  for (let i = 0; i < cad.length - 1; i++) {
+    const [a, b] = [cad[i], cad[i + 1]];
+    const lo = Math.max(x0, Math.min(a[0], b[0])), hi = Math.min(x1, Math.max(a[0], b[0]));
+    if (hi < lo || b[0] === a[0]) continue;
+    const em = x => [x, a[1] + (x - a[0]) / (b[0] - a[0]) * (b[1] - a[1])];
+    if (!out.length) out.push(em(lo)); out.push(em(hi));
+  }
+  return out;
+}
+function silhueta(c, topoCorpo) {   // polígono lateral: traseira (de baixo p/ cima) + topo + frente
+  const T = topoCorpo || c.T;
+  return [...c.Rr.slice(1).reverse(), ...T, ...c.F.slice(1)];
+}
+function contorno(pts3) {   // linha fechada grossa (desenho das peças)
+  const pos = []; for (let i = 0; i < pts3.length; i++) { const a = pts3[i], b = pts3[(i + 1) % pts3.length]; pos.push(a.x, a.y, a.z, b.x, b.y, b.z); }
+  const g = new LineSegmentsGeometry(); g.setPositions(pos); const l = new LineSegments2(g, linhaMat); carro.add(l); return l;
+}
+function material(cor) { return new THREE.MeshStandardMaterial({ color: cor, roughness: .55, metalness: .08, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }); }
+function parte(geo, nome, grupo, chave) {
+  const m = new THREE.Mesh(geo, material(grupo === 'lanterna' ? COR.lanterna : COR[grupo]));
+  m.userData = { nome, grupo: grupo === 'lanterna' ? 'farol' : grupo, chave: chave || nome, corBase: grupo === 'lanterna' ? COR.lanterna : COR[grupo] };
+  carro.add(m); partes.push(m); return m;
+}
+function placaLateral(poli, z, nome, grupo, chave) {   // peça plana na lateral
+  if (poli.length < 3) return;
+  const s = new THREE.Shape(poli.map(p => new THREE.Vector2(p[0], p[1])));
+  const g = new THREE.ShapeGeometry(s); g.translate(0, 0, z);
+  parte(g, nome, grupo, chave);
+  contorno(poli.map(p => new THREE.Vector3(p[0], p[1], z + Math.sign(z) * .002)));
+}
+function fita(cad, z0, z1, nome, grupo, normalDireita, chave, desenhar = true) {   // peça que acompanha uma linha (capô, teto, frente…)
+  if (cad.length < 2) return;
+  const pos = [], idx = [], off = .006, pts = [];
+  cad.forEach((p, i) => {
+    const a = cad[Math.max(0, i - 1)], b = cad[Math.min(cad.length - 1, i + 1)];
+    let nx = -(b[1] - a[1]), ny = b[0] - a[0]; if (normalDireita) { nx = -nx; ny = -ny; }
+    const n = Math.hypot(nx, ny) || 1; const x = p[0] + nx / n * off, y = p[1] + ny / n * off;
+    pts.push([x, y]); pos.push(x, y, z0, x, y, z1);
+    if (i) { const k = (i - 1) * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+  });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  parte(g, nome, grupo, chave);
+  if (desenhar) contorno([...pts.map(p => new THREE.Vector3(p[0], p[1], z0)), ...pts.slice().reverse().map(p => new THREE.Vector3(p[0], p[1], z1))]);
+}
+function solido(poli, largura, cor) {
+  const g = new THREE.ExtrudeGeometry(new THREE.Shape(poli.map(p => new THREE.Vector2(p[0], p[1]))), { depth: largura, bevelEnabled: false });
+  g.translate(0, 0, -largura / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: cor, roughness: .6 })); carro.add(m); bloqueios.push(m); return m;
+}
+function caixa(dx, dy, dz, x, y, z, nome, grupo, chave) {
+  const g = new THREE.BoxGeometry(dx, dy, dz); g.translate(x, y, z); const m = parte(g, nome, grupo, chave);
+  const e = new THREE.EdgesGeometry(g); const s = new LineSegmentsGeometry(); s.setPositions(e.attributes.position.array); carro.add(new LineSegments2(s, linhaMat));
+  return m;
+}
+
+function montar() {
+  carro.clear(); partes = []; bloqueios = [];
+  const c = C[tipo], W = c.W, w2 = W / 2, xf = c.L / 2, xr = -c.L / 2;
+  const cabW = W - .34, c2 = cabW / 2;
+  const S = silhueta(c);
+  // corpo (por baixo das peças); na pickup o corpo desce até o assoalho da caçamba
+  const topoCorpo = c.cacamba ? [[c.cacamba[0], c.cacamba[2]], [c.cacamba[1] - .02, c.cacamba[2]], ...c.T.slice(1)] : null;
+  solido(silhueta(c, topoCorpo), W - .02, COR.corpo);
+  solido(c.cab, cabW - .02, COR.corpo);
+  // laterais: para-choques nas pontas + peças recortadas
+  for (const lado of [1, -1]) {
+    const nomeLado = lado > 0 ? 'direita' : 'esquerda', z = lado * w2;
+    placaLateral(faixaY(faixaX(S, c.lat[0][2], xf + .01), -1, c.pc[0]), z, 'Para-choque dianteiro', 'para-choque');
+    placaLateral(faixaY(faixaX(S, xr - .01, c.lat[c.lat.length - 1][1]), -1, c.pc[1]), z, 'Para-choque traseiro', 'para-choque');
+    placaLateral(faixaY(faixaX(S, c.lat[0][2], xf + .01), c.pc[0], 9), z, 'Para-lama dianteiro ' + nomeLado, 'lataria');
+    placaLateral(faixaY(faixaX(S, xr - .01, c.lat[c.lat.length - 1][1]), c.pc[1], 9), z, (c.cacamba ? 'Caçamba (lateral) ' : 'Lateral traseira ') + nomeLado, 'lataria');
+    c.lat.forEach(([nome, x0, x1]) => placaLateral(faixaX(S, x0, x1), z, nome + ' ' + nomeLado, 'lataria'));
+    // vidros laterais (deixam as colunas aparecendo)
+    const vidro = (x0, x1, nome) => placaLateral(faixaY(faixaX(c.cab, x0 + .06, x1 - .06), c.cab[0][1] + .05, 9), lado * c2, nome, 'vidro');
+    const portas = c.lat.filter(l => l[0].startsWith('Porta'));
+    portas.forEach(([nome, x0, x1]) => vidro(x0, x1, 'Vidro da ' + nome.toLowerCase() + ' ' + nomeLado));
+    const xPortaTras = Math.min(...portas.map(p => p[1]));
+    if (!c.cacamba && xPortaTras - c.cab[0][0] > .3) vidro(c.cab[0][0] + .1, xPortaTras, 'Vidro lateral traseiro ' + nomeLado);
+    // caixas de roda (só desenho, não clicável)
+    for (const x of c.eixos) {
+      const arco = new THREE.Mesh(new THREE.RingGeometry(c.R + .02, c.R + .085, 32, 1, 0, Math.PI), new THREE.MeshBasicMaterial({ color: 0x1a1b1f, side: THREE.DoubleSide }));
+      arco.position.set(x, c.R, z + lado * .004); if (lado < 0) arco.rotation.y = Math.PI; carro.add(arco); bloqueios.push(arco);
+    }
+  }
+  // cima: capô, teto, vidros dianteiro/traseiro, tampa
+  fita(trecho(c.T, c.cab[3][0], xf), -w2, w2, 'Capô', 'lataria');
+  fita([c.cab[1], c.cab[2]], -c2, c2, 'Teto', 'lataria');
+  // vidros recuados AO LONGO da própria linha (sobra a moldura/coluna em volta)
+  const ao = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  fita([ao(c.cab[2], c.cab[3], .05), ao(c.cab[2], c.cab[3], .93)], -c2 + .08, c2 - .08, 'Para-brisa', 'vidro');
+  fita([ao(c.cab[0], c.cab[1], .08), ao(c.cab[0], c.cab[1], .94)], -c2 + .1, c2 - .1, 'Vidro traseiro', 'vidro');
+  if (tipo === 'SEDAN') fita(trecho(c.T, xr, c.cab[0][0]), -w2, w2, 'Tampa do porta-malas', 'lataria');
+  if (c.cacamba) {
+    fita([[c.cacamba[0] + .04, c.cacamba[2] + .005], [c.cacamba[1] - .04, c.cacamba[2] + .005]], -w2 + .08, w2 - .08, 'Caçamba (assoalho)', 'lataria', false, undefined, false);
+    for (const s of [1, -1]) {
+      const g = new THREE.BoxGeometry(c.cacamba[1] - c.cacamba[0], c.T[0][1] - c.cacamba[2], .06);
+      g.translate((c.cacamba[0] + c.cacamba[1]) / 2, (c.T[0][1] + c.cacamba[2]) / 2, s * (w2 - .05));
+      parte(g, 'Caçamba (lateral) ' + (s > 0 ? 'direita' : 'esquerda'), 'lataria');
+    }
+  }
+  // frente: grade em cima, para-choque embaixo; faróis
+  const Fs = c.F.map(p => p.slice());
+  fita(Fs.filter(p => p[1] >= c.pc[0] - .001).concat([[Fs[1][0], c.pc[0]]]).sort((a, b) => b[1] - a[1]), -w2 + .3, w2 - .3, 'Grade', 'grade', false);
+  fita([[c.F[c.F.length - 2][0], c.pc[0]], ...c.F.slice(2)], -w2, w2, 'Para-choque dianteiro', 'para-choque', false, 'Para-choque dianteiro');
+  // traseira: tampa / tampa da caçamba em cima, para-choque embaixo
+  const nomeTampa = c.cacamba ? 'Tampa da caçamba' : tipo === 'SEDAN' ? 'Tampa do porta-malas' : 'Tampa traseira';
+  fita([c.Rr[0], c.Rr[1], [c.Rr[2][0], c.pc[1]]], -w2 + .02, w2 - .02, nomeTampa, 'lataria', true);
+  fita([[c.Rr[2][0], c.pc[1]], ...c.Rr.slice(2)], -w2, w2, 'Para-choque traseiro', 'para-choque', true);
+  for (const s of [1, -1]) {
+    const nomeLado = s > 0 ? 'direito' : 'esquerdo', zz = s * (w2 - .2);
+    caixa(.035, c.far[1] - c.far[0], .36, xf - .005, (c.far[0] + c.far[1]) / 2, zz, 'Farol ' + nomeLado, 'farol');
+    caixa(.035, c.lan[1] - c.lan[0], .26, xr + .005, (c.lan[0] + c.lan[1]) / 2, s * (w2 - .17), 'Lanterna traseira ' + (s > 0 ? 'direita' : 'esquerda'), 'lanterna');
+    caixa(.13, .1, .16, c.cab[3][0] - .12, c.cab[3][1] + .1, s * (w2 + .07), 'Retrovisor ' + nomeLado, 'retrovisor');
+  }
+  if (tipo === 'SUV') {
+    for (const s of [1, -1]) {
+      const g = new THREE.BoxGeometry(c.cab[2][0] - c.cab[1][0] - .3, .05, .05); g.translate((c.cab[1][0] + c.cab[2][0]) / 2, c.cab[2][1] + .04, s * (c2 - .1));
+      const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x2a2c31 })); carro.add(m); bloqueios.push(m);
+      const sv = faixaY(faixaX(S, xr + .3, xf - .3), 0, .5);
+      const sh = new THREE.ShapeGeometry(new THREE.Shape(sv.map(q => new THREE.Vector2(q[0], q[1])))); sh.translate(0, 0, s * (w2 + .003));
+      const cl = new THREE.Mesh(sh, new THREE.MeshStandardMaterial({ color: 0x3a3d44, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      carro.add(cl); bloqueios.push(cl);
+    }
+  }
+  // rodas e pneus
+  c.eixos.forEach((x, i) => {
+    for (const s of [1, -1]) {
+      const pos = (i ? 'dianteir' : 'traseir'), lado = s > 0 ? 'direit' : 'esquerd', z = s * (w2 - .06);
+      const gp = new THREE.CylinderGeometry(c.R, c.R, .24, 36); gp.rotateX(Math.PI / 2); gp.translate(x, c.R, z);
+      parte(gp, 'Pneu ' + pos + 'o ' + lado + 'o', 'pneu');
+      const gr = new THREE.CylinderGeometry(c.R * .62, c.R * .62, .246, 28); gr.rotateX(Math.PI / 2); gr.translate(x, c.R, z);
+      parte(gr, 'Roda ' + pos + 'a ' + lado + 'a', 'roda');
+    }
+  });
+  pintar();
+  raio = c.L * 2.25 / Math.min(1, cam.aspect || 1);
+}
+
+// cor de cada peça: em toque (azul) > pior gravidade marcada > cor normal
+function pintar() {
+  const ordem = { Leve: 1, 'Média': 2, Grave: 3 };
+  for (const m of partes) {
+    const marc = avarias.filter(a => a.tipoCarro === tipo && a.chave === m.userData.chave);
+    const pior = marc.sort((a, b) => ordem[b.g] - ordem[a.g])[0];
+    const cor = pendente && pendente.chave === m.userData.chave ? TOQUE : pior ? COR_GRAV[pior.g] : m.userData.corBase;
+    m.material.color.setHex(cor);
+    m.material.emissive.setHex(pendente && pendente.chave === m.userData.chave ? 0x0b3b55 : 0x000000);
+  }
+}
+
+// ---------------------------------------------------------------- girar e tocar
+let arrastando = false, moveu = 0, ux = 0, uy = 0;
+renderer.domElement.addEventListener('pointerdown', e => { arrastando = true; moveu = 0; ux = e.clientX; uy = e.clientY; renderer.domElement.setPointerCapture(e.pointerId); });
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!arrastando) return;
+  const dx = e.clientX - ux, dy = e.clientY - uy; moveu += Math.abs(dx) + Math.abs(dy); ux = e.clientX; uy = e.clientY;
+  alvoTeta -= dx * .01; alvoFi = Math.max(.06, Math.min(1.5, alvoFi - dy * .006));
+});
+renderer.domElement.addEventListener('pointerup', e => { arrastando = false; if (moveu < 8) tocar(e); });
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+function tocar(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ptr, cam);
+  const hit = ray.intersectObjects([...partes, ...bloqueios], false)[0];
+  if (!hit || !hit.object.userData.chave) return;
+  abrirFolha(hit.object.userData);
+}
+function abrirFolha(ud) {
+  pendente = { chave: ud.chave, nome: ud.nome, grupo: ud.grupo, tipoCarro: tipo };
+  sel = { t: null, g: 'Leve' };
+  renderFolha(); pintar();
+  document.getElementById('folha').classList.add('aberta'); document.body.classList.add('folhaAberta');
+}
+function chips(id, lista, chave) {
+  const el = document.getElementById(id);
+  el.innerHTML = lista.map(v => `<button type="button" class="${sel[chave] === v ? 'on' : ''}" data-v="${v}">${v}</button>`).join('');
+  el.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; sel[chave] = b.dataset.v; renderFolha(); };
+}
+function renderFolha() {
+  document.getElementById('fPeca').textContent = pendente.nome;
+  const ja = avarias.filter(a => a.chave === pendente.chave && a.tipoCarro === tipo).length;
+  document.getElementById('fSub').textContent = { lataria: 'Lataria', 'para-choque': 'Para-choque', vidro: 'Vidro', farol: 'Farol/lanterna', grade: 'Grade', roda: 'Roda', pneu: 'Pneu', retrovisor: 'Retrovisor' }[pendente.grupo] + (ja ? ` · já tem ${ja} avaria(s) marcada(s)` : '');
+  chips('fTipo', TIPOS[pendente.grupo], 't'); chips('fGrav', GRAV, 'g');
+  document.getElementById('fSalvar').disabled = !sel.t; document.getElementById('fSalvar').style.opacity = sel.t ? 1 : .45;
+}
+function fecharFolha() { pendente = null; document.getElementById('folha').classList.remove('aberta'); document.body.classList.remove('folhaAberta'); pintar(); }
+document.getElementById('fCancelar').onclick = fecharFolha;
+document.getElementById('fSalvar').onclick = () => { if (!sel.t) return; avarias.push({ ...pendente, t: sel.t, g: sel.g }); fecharFolha(); lista(); };
+document.getElementById('btnEstepe').onclick = () => abrirFolha({ chave: 'Pneu estepe', nome: 'Pneu estepe', grupo: 'pneu' });
+document.getElementById('btnChecklist').onclick = () => document.getElementById('tituloChecklist').scrollIntoView({ behavior: 'smooth' });
+function lista() {
+  const cor = { Leve: 'var(--leve)', 'Média': 'var(--media)', Grave: 'var(--grave)' };
+  document.getElementById('avarias').innerHTML = avarias.map(a => `<div class="av" style="border-left-color:${cor[a.g]}"><div>${a.nome} · ${a.t}<small>${a.g} · 1 foto</small></div><b>a definir</b></div>`).join('')
+    || '<div class="av"><div>Nenhuma avaria marcada</div></div>';
+  document.getElementById('total').textContent = avarias.length ? avarias.length + ' avaria(s) · reparos: a definir' : '';
+}
+
+// ---------------------------------------------------------------- checklist depois da lataria
+const CHECK = [['Interior (bancos, forros, carpete)', ['Bom', 'Regular', 'Ruim']], ['Luzes de alerta no painel', ['Nenhuma', 'Acesa(s)']],
+  ['Ar-condicionado', ['Gela', 'Fraco', 'Não funciona']], ['Chave reserva', ['Tem', 'Não tem']], ['Manual do proprietário', ['Tem', 'Não tem']],
+  ['Revisões', ['Em dia na concessionária', 'Parciais', 'Sem comprovação']]];
+const resp = {};
+function checklist() {
+  document.getElementById('checklist').innerHTML = CHECK.map(([p, ops], i) => `<div class="chk"><p>${p}</p><div class="chips" data-i="${i}">${ops.map(o => `<button type="button" class="${resp[i] === o ? 'on' : ''}">${o}</button>`).join('')}</div></div>`).join('');
+  document.querySelectorAll('#checklist .chips').forEach(el => el.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; resp[el.dataset.i] = b.textContent; checklist(); });
+}
+
+// ---------------------------------------------------------------- vistas e carrocerias
+const VISTAS = [['3D', -0.75, 1.15], ['Frente', 0, 1.38], ['Traseira', Math.PI, 1.38], ['Lat. esq.', -Math.PI / 2, 1.45], ['Lat. dir.', Math.PI / 2, 1.45], ['Teto', -Math.PI / 2, .06]];
+document.getElementById('vistas').innerHTML = VISTAS.map((v, i) => `<button type="button" data-i="${i}" class="${i === 0 ? 'on' : ''}">${v[0]}</button>`).join('');
+document.getElementById('vistas').onclick = ev => {
+  const b = ev.target.closest('button'); if (!b) return; const v = VISTAS[+b.dataset.i]; alvoTeta = v[1]; alvoFi = v[2];
+  document.querySelectorAll('#vistas button').forEach(x => x.classList.toggle('on', x === b));
+};
+document.getElementById('carrs').innerHTML = Object.keys(C).map(k => `<button type="button" data-k="${k}" class="${k === tipo ? 'on' : ''}">${C[k].nome}</button>`).join('');
+document.getElementById('carrs').onclick = ev => {
+  const b = ev.target.closest('button'); if (!b) return; tipo = b.dataset.k; fecharFolha(); montar();
+  document.querySelectorAll('#carrs button').forEach(x => x.classList.toggle('on', x === b));
+};
+function tamanho() {
+  const w = palco.clientWidth, h = palco.clientHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
+  linhaMat.resolution.set(w, h); raio = C[tipo].L * 2.25 / Math.min(1, cam.aspect);
+}
+addEventListener('resize', tamanho); tamanho(); montar(); lista(); checklist();
+(function loop() {
+  let d = alvoTeta - teta; d = Math.atan2(Math.sin(d), Math.cos(d)); teta += d * .15; fi += (alvoFi - fi) * .15;
+  cam.position.set(ALVO.x + raio * Math.sin(fi) * Math.cos(teta), ALVO.y + raio * Math.cos(fi), ALVO.z + raio * Math.sin(fi) * Math.sin(teta));
+  if (fi < .2) cam.up.set(-Math.cos(teta), 0, -Math.sin(teta)); else cam.up.set(0, 1, 0);
+  cam.lookAt(ALVO); renderer.render(cena, cam); requestAnimationFrame(loop);
+})();
+window.__proto = { abrir: ud => abrirFolha(ud), avarias: () => avarias, partes: () => partes.map(p => p.userData.nome), pendente: () => pendente,
+  // só para os testes: ponto da tela onde está o centro de uma peça
+  onde: nome => { const m = partes.find(p => p.userData.nome === nome); if (!m) return null; const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).project(cam);
+                  const r = renderer.domElement.getBoundingClientRect(); return { x: r.left + (c.x + 1) / 2 * r.width, y: r.top + (1 - c.y) / 2 * r.height }; } };
+</script>
+</body>
+</html>
