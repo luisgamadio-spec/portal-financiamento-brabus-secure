@@ -1,0 +1,1 @@
+Modelo usado: Khronos glTF-Sample-Assets "CarConcept" (CC-BY 4.0), baixar de https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CarConcept/glTF-Binary/CarConcept.glb — não versionado aqui (11,8 MB). Só demonstração de acabamento; não é o modelo a comprar.

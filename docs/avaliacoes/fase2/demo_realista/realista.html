@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demonstração — acabamento realista</title>
+<style>
+  :root { --bg:#0b0b0c; --mut:#a3a3ad; --leve:#f5c518; --media:#ff8c1a; --grave:#e3262f; }
+  body { margin:0; background:var(--bg); color:#f2f2f3; font-family:system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .topo { padding:14px 16px 4px; } .topo h1 { margin:0; font-size:20px; font-weight:400; } .topo p { margin:4px 0 0; color:var(--mut); font-size:12px; }
+  #palco { position:relative; height:52vh; min-height:320px; background: radial-gradient(ellipse at 50% 62%, #30333a 0%, #15161a 72%); }
+  canvas { display:block; width:100%; height:100%; }
+  .legenda { position:absolute; top:8px; left:10px; display:flex; gap:10px; font-size:11px; color:var(--mut); }
+  .legenda i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .selo { position:absolute; right:10px; bottom:8px; font-size:10px; color:#7d7d87; }
+  .lista { padding:10px 16px; } .av { display:flex; justify-content:space-between; padding:10px 12px; border:1px solid #2c2c31; border-left-width:4px; border-radius:10px; background:#141416; margin-bottom:6px; font-size:13px; }
+  .av small { color:var(--mut); display:block; margin-top:2px; }
+</style></head>
+<body>
+<div class="topo"><h1>Vistoria · AV-12</h1><p>Demonstração do acabamento realista (pintura metálica, reflexo) — toque na peça</p></div>
+<div id="palco"><div class="legenda"><span><i style="background:var(--leve)"></i>leve</span><span><i style="background:var(--media)"></i>média</span><span><i style="background:var(--grave)"></i>grave</span></div>
+<div class="selo">Modelo de demonstração: Khronos “Car Concept”, CC-BY 4.0</div></div>
+<div class="lista" id="lista"></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+const palco = document.getElementById('palco');
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true }); r.setPixelRatio(Math.min(devicePixelRatio, 2));
+r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; palco.prepend(r.domElement);
+const cena = new THREE.Scene();
+cena.environment = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.04).texture;   // reflexo sem baixar imagem
+const cam = new THREE.PerspectiveCamera(28, 1, .05, 200);
+const COR = { 'Média': 0xff8c1a, Grave: 0xe3262f, Leve: 0xf5c518, toque: 0x39b6ff };
+// peças: nome na tela -> prefixo dos objetos do modelo
+const PECAS = { 'Capô': /^BodyHood$/, 'Porta dianteira esquerda': /^BodyDoorLColor/, 'Porta dianteira direita': /^BodyDoorRColor/, 'Teto': /^BodyRoofPanel/,
+  'Para-brisa': /^BodyWindshield$/, 'Faróis': /^BodyHeadlights/, 'Lanternas': /^BodyTaillights$/, 'Retrovisor esquerdo': /^BodyDoorLMirrorColor/ };
+const marcadas = {}; let tocada = null; const malhas = [];
+let teta = -0.8, fi = 1.18, raio = 9, alvo = new THREE.Vector3();
+function nomeDa(m) { for (const [p, re] of Object.entries(PECAS)) if (re.test(m.name)) return p; return null; }
+function pintar() {
+  for (const m of malhas) {
+    const p = nomeDa(m); const mat = m.material;
+    const cor = p && p === tocada ? COR.toque : p && marcadas[p] ? COR[marcadas[p]] : null;
+    if (cor != null) { mat.color.setHex(cor); mat.emissive?.setHex(p === tocada ? 0x0a3550 : 0x200a00); }
+    else { mat.color.copy(mat.userData.corOriginal); mat.emissive?.setHex(0x000000); }
+  }
+}
+new GLTFLoader().load('CarConcept.glb', g => {
+  const o = g.scene; cena.add(o);
+  o.traverse(m => {
+    if (!m.isMesh) return;
+    m.material = m.material.clone();
+    // pintura metálica grafite-prata, com verniz (clearcoat) e reflexo
+    if (/^Paint|Panel Sides/.test(m.material.name || '')) { m.material.color.setHex(0x8f959d); m.material.metalness = .85; m.material.roughness = .28; if ('clearcoat' in m.material) { m.material.clearcoat = 1; m.material.clearcoatRoughness = .06; } }
+    m.material.userData.corOriginal = m.material.color.clone(); malhas.push(m);
+  });
+  const b = new THREE.Box3().setFromObject(o); b.getCenter(alvo); raio = b.getSize(new THREE.Vector3()).length() * 2.0 / Math.min(1, cam.aspect);
+  window.__pronto = true; desenhar();
+});
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+r.domElement.addEventListener('pointerup', e => {
+  const rc = r.domElement.getBoundingClientRect(); ptr.set(((e.clientX - rc.left) / rc.width) * 2 - 1, -((e.clientY - rc.top) / rc.height) * 2 + 1);
+  ray.setFromCamera(ptr, cam); const h = ray.intersectObjects(malhas, false)[0]; tocada = h ? nomeDa(h.object) : null; pintar(); desenhar();
+});
+function lista() {
+  const c = { 'Média': 'var(--media)', Grave: 'var(--grave)', Leve: 'var(--leve)' };
+  document.getElementById('lista').innerHTML = Object.entries(marcadas).map(([p, g]) => `<div class="av" style="border-left-color:${c[g]}"><div>${p}<small>${g} · 1 foto</small></div><span>a definir</span></div>`).join('');
+}
+function tam() { const w = palco.clientWidth, h = palco.clientHeight; r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); desenhar?.(); }
+addEventListener('resize', () => tam());
+// desenha só quando algo muda (economiza bateria no celular)
+let pedido = false;
+function desenhar() { if (pedido) return; pedido = true; requestAnimationFrame(() => { pedido = false;
+  cam.position.set(alvo.x + raio * Math.sin(fi) * Math.cos(teta), alvo.y + raio * Math.cos(fi), alvo.z + raio * Math.sin(fi) * Math.sin(teta)); cam.lookAt(alvo);
+  r.render(cena, cam); window.__quadros = (window.__quadros || 0) + 1; }); }
+let arr = false, ux = 0, uy = 0;
+r.domElement.addEventListener('pointerdown', e => { arr = true; ux = e.clientX; uy = e.clientY; });
+addEventListener('pointermove', e => { if (!arr) return; teta -= (e.clientX - ux) * .01; fi = Math.max(.1, Math.min(1.5, fi - (e.clientY - uy) * .006)); ux = e.clientX; uy = e.clientY; desenhar(); });
+addEventListener('pointerup', () => { arr = false; });
+tam(); desenhar();
+window.__demo = { girar: (t, f) => { teta = t; fi = f ?? fi; desenhar(); }, marcar: (p, g) => { marcadas[p] = g; pintar(); lista(); desenhar(); }, tocar: p => { tocada = p; pintar(); desenhar(); },
+  pecas: () => [...new Set(malhas.map(nomeDa).filter(Boolean))] };
+</script></body></html>
