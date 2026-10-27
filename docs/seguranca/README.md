@@ -10,6 +10,26 @@ Rodar **depois de toda mudança no banco** (migração, função, permissão) **
 (homolog e piloto). Só lê o banco (transações somente leitura com rollback) e não imprime dados.
 Tem que terminar com **"11/11 verificações OK"** (7 tabelas desde 26/10/2026) (código de saída 0). Qualquer FALHA = parar e investigar.
 
+### Como ler o resultado (desde 27/10/2026)
+
+Cada verificação termina em um de três estados:
+
+- **OK**: conferido e certo.
+- **FALHA**: conferido e errado. Exemplos: um perfil conseguiu ler uma tabela, apareceu uma regra de RLS para logado, ou o banco devolveu um erro inesperado.
+- **NÃO FOI POSSÍVEL CONFERIR**: o banco não respondeu (erro de conexão/API, por exemplo 502 ou tempo esgotado). A consulta é **repetida até 3 vezes** (esperas de 5, 10 e 20 s).
+  - Erro de conexão **nunca** conta como acesso negado nem como acesso liberado.
+  - Se uma verificação ficar assim, rode a guarda de novo antes de concluir qualquer coisa.
+
+Código de saída: **0** = tudo OK; **1** = alguma FALHA; **2** = sem falha, mas algo não pôde ser conferido.
+
+Toda execução grava um registro em `docs/seguranca/registros/guarda_AAAAMMDD_HHMMSS.txt`, ou na pasta indicada em `GUARDA_REGISTROS`. O registro traz:
+
+- o estado de cada verificação;
+- o **detalhe de cada falha**: código, trecho da mensagem e tentativas;
+- **toda tentativa que deu erro de conexão**, mesmo quando a repetição seguinte funcionou.
+
+Os caminhos de erro foram testados com o modo de teste `GUARDA_TESTE` (`conexao:N`, `conexao:sempre`, `liberado:<tabela>`). Os registros desses testes estão em `registros/testes_simulados_20261027/`.
+
 O que ela garante, para `configuracoes`, `periodos_comissao`, `ausencias_analistas`,
 `mudancas_loja_vendedores`, `analistas_fi` e `chamar_analista_fi_controle`:
 - nenhuma permissão de tabela para `anon` (visitante) nem `authenticated` (qualquer logado);

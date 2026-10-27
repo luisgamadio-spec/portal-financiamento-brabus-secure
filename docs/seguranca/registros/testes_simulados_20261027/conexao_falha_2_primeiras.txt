@@ -1,0 +1,21 @@
+Guarda das tabelas internas — 26/10/2026 17:17:18 (horário local)
+Projeto: yacqlelpzchcotgngwbh
+MODO DE TESTE: GUARDA_TESTE=conexao:2
+Resultado: 11/11 verificações OK (tentativas com erro de conexão: 2)
+
+OK — configuracoes: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — periodos_comissao: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — ausencias_analistas: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — mudancas_loja_vendedores: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — analistas_fi: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — chamar_analista_fi_controle: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — bi_uso_perguntas: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — chamar_analista_fi: visitante não chama; logado chama [[{'anon_chama': False, 'logado_chama': True}]]
+OK — VENDEDOR real: leitura direta negada em 7/7 tabelas
+OK — ANALISTA real: leitura direta negada em 7/7 tabelas
+OK — MASTER real: leitura direta negada em 7/7 tabelas
+
+Repetições por erro de conexão: 3
+    consulta nº 1, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    consulta nº 2, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    consulta nº 3: respondeu na tentativa 3

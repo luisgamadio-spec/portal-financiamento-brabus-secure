@@ -1,0 +1,17 @@
+Guarda das tabelas internas — 27/10/2026 09:55:57 (horário local)
+Projeto: yacqlelpzchcotgngwbh
+Resultado: 11/11 verificações OK
+
+OK — configuracoes: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — periodos_comissao: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — ausencias_analistas: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — mudancas_loja_vendedores: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — analistas_fi: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — chamar_analista_fi_controle: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — bi_uso_perguntas: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [acesso=False rls=True regras=0]
+OK — chamar_analista_fi: visitante não chama; logado chama [[{'anon_chama': False, 'logado_chama': True}]]
+OK — VENDEDOR real: leitura direta negada em 7/7 tabelas
+OK — ANALISTA real: leitura direta negada em 7/7 tabelas
+OK — MASTER real: leitura direta negada em 7/7 tabelas
+
+Repetições por erro de conexão: nenhuma

@@ -1,0 +1,121 @@
+Guarda das tabelas internas — 27/10/2026 09:51:36 (horário local)
+Projeto: yacqlelpzchcotgngwbh
+MODO DE TESTE: GUARDA_TESTE=conexao:sempre
+Resultado: 0/11 verificações OK | 11 NÃO FOI POSSÍVEL CONFERIR (tentativas com erro de conexão: 92)
+
+NÃO FOI POSSÍVEL CONFERIR — configuracoes: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [consulta de estrutura não respondeu]
+    detalhe: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — periodos_comissao: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [consulta de estrutura não respondeu]
+    detalhe: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — ausencias_analistas: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [consulta de estrutura não respondeu]
+    detalhe: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — mudancas_loja_vendedores: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [consulta de estrutura não respondeu]
+    detalhe: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — analistas_fi: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [consulta de estrutura não respondeu]
+    detalhe: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — chamar_analista_fi_controle: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [consulta de estrutura não respondeu]
+    detalhe: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — bi_uso_perguntas: sem permissão para visitante/logado, RLS ligada, nenhuma regra para eles [consulta de estrutura não respondeu]
+    detalhe: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — chamar_analista_fi: visitante não chama; logado chama [o banco não respondeu]
+    detalhe: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — VENDEDOR real: leitura direta negada nas 7 tabelas [negadas 0/7, sem resposta em 7]
+    detalhe: configuracoes: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; periodos_comissao: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; ausencias_analistas: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; mudancas_loja_vendedores: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; analistas_fi: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; chamar_analista_fi_controle: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; bi_uso_perguntas: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — ANALISTA real: leitura direta negada nas 7 tabelas [negadas 0/7, sem resposta em 7]
+    detalhe: configuracoes: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; periodos_comissao: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; ausencias_analistas: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; mudancas_loja_vendedores: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; analistas_fi: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; chamar_analista_fi_controle: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; bi_uso_perguntas: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+NÃO FOI POSSÍVEL CONFERIR — MASTER real: leitura direta negada nas 7 tabelas [negadas 0/7, sem resposta em 7]
+    detalhe: configuracoes: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; periodos_comissao: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; ausencias_analistas: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; mudancas_loja_vendedores: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; analistas_fi: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; chamar_analista_fi_controle: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}; bi_uso_perguntas: erro de conexão em 4 tentativa(s); última: {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+
+Repetições por erro de conexão: 92
+    chamada nº 1, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 2, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 3, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 4, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 5, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 6, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 7, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 8, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 9, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 10, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 11, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 12, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 13, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 14, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 15, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 16, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 17, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 18, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 19, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 20, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 21, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 22, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 23, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 24, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 25, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 26, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 27, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 28, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 29, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 30, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 31, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 32, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 33, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 34, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 35, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 36, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 37, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 38, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 39, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 40, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 41, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 42, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 43, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 44, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 45, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 46, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 47, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 48, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 49, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 50, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 51, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 52, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 53, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 54, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 55, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 56, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 57, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 58, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 59, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 60, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 61, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 62, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 63, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 64, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 65, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 66, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 67, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 68, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 69, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 70, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 71, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 72, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 73, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 74, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 75, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 76, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 77, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 78, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 79, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 80, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 81, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 82, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 83, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 84, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 85, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 86, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 87, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 88, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 89, tentativa 1: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 90, tentativa 2: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 91, tentativa 3: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
+    chamada nº 92, tentativa 4: erro de conexão — {"_tag":"Error","error":{"message":"unexpected status 502: Bad gateway (SIMULADO por GUARDA_TESTE)"}}
