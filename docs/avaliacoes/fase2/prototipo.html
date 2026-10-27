@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Protótipo — Vistoria 3D</title>
+<style>
+  :root { --bg:#0b0b0c; --card:#141416; --line:#2c2c31; --txt:#f2f2f3; --mut:#9a9aa3; --acc:#ee4b57; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .topo { padding:14px 16px 6px; }
+  .topo h1 { margin:0; font-size:20px; font-weight:400; }
+  .topo p { margin:4px 0 0; color:var(--mut); font-size:13px; }
+  .carrs { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:8px 16px; }
+  .carrs button, .vistas button, .chips button { min-height:40px; border-radius:8px; border:1px solid var(--line); background:#1b1b1f; color:var(--mut); font-size:13px; }
+  .carrs button.on, .vistas button.on, .chips button.on { border-color:var(--acc); background:rgba(238,75,87,.14); color:var(--txt); }
+  #palco { position:relative; height:46vh; min-height:300px; touch-action:none; }
+  #palco canvas { display:block; width:100%; height:100%; }
+  .dica { position:absolute; left:0; right:0; bottom:6px; text-align:center; font-size:12px; color:var(--mut); pointer-events:none; }
+  .vistas { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; padding:6px 16px; }
+  .vistas button { min-height:44px; font-size:12px; }
+  .lista { padding:8px 16px 120px; }
+  .lista h2 { font-size:15px; margin:10px 0 6px; display:flex; justify-content:space-between; }
+  .av { display:flex; justify-content:space-between; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); margin-bottom:6px; font-size:13px; }
+  .av small { color:var(--mut); display:block; margin-top:2px; }
+  .av b { font-family: ui-monospace, monospace; white-space:nowrap; }
+  .folha { position:fixed; left:0; right:0; bottom:0; background:#151518; border-top:1px solid var(--line); border-radius:16px 16px 0 0; padding:14px 16px 18px; transform:translateY(105%); transition:transform .22s; box-shadow:0 -12px 40px rgba(0,0,0,.5); }
+  .folha.aberta { transform:none; }
+  .folha h3 { margin:0 0 2px; font-size:17px; }
+  .folha .lado { color:var(--mut); font-size:12px; }
+  .folha label { display:block; margin:10px 0 6px; font-size:12px; color:var(--mut); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chips button { padding:0 12px; }
+  .foto { margin-top:12px; display:flex; gap:8px; align-items:center; }
+  .foto .btn, .acoes .btn { min-height:48px; border-radius:10px; border:1px solid var(--line); background:#1f1f24; color:var(--txt); font-size:14px; padding:0 14px; }
+  .acoes { display:grid; grid-template-columns:1fr 2fr; gap:8px; margin-top:14px; }
+  .acoes .prim { background:var(--acc); border-color:var(--acc); color:#1a0506; font-weight:600; }
+  .custo { margin-top:10px; font-size:13px; color:var(--mut); }
+  .custo b { color:var(--txt); font-family: ui-monospace, monospace; }
+  .offline { margin:0 16px; padding:8px 10px; border-radius:8px; border:1px dashed var(--line); font-size:12px; color:var(--mut); }
+</style>
+</head>
+<body>
+<div class="topo"><h1>Vistoria · AV-12</h1><p>ECLIPSE CROSS HPE-S 2023 · toque no carro para marcar a avaria</p></div>
+<div class="carrs" id="carrs"></div>
+<div id="palco"><div class="dica">Arraste para girar · toque na peça para marcar</div></div>
+<div class="vistas" id="vistas"></div>
+<div class="offline">Rascunho salvo neste celular · 2 fotos aguardando sinal para enviar</div>
+<div class="lista"><h2><span>Avarias</span><span id="total"></span></h2><div id="avarias"></div></div>
+<div class="folha" id="folha">
+  <h3 id="fPeca"></h3><div class="lado" id="fLado"></div>
+  <label>Tipo</label><div class="chips" id="fTipo"></div>
+  <label>Gravidade</label><div class="chips" id="fGrav"></div>
+  <div class="custo">Desconto pela tabela de reparos: <b id="fCusto">—</b></div>
+  <div class="foto"><button class="btn" type="button">📷 Tirar foto</button><span class="lado">obrigatória para gravidade média/grave</span></div>
+  <div class="acoes"><button class="btn" type="button" id="fCancelar">Cancelar</button><button class="btn prim" type="button" id="fSalvar">Marcar avaria</button></div>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
+
+// Perfis laterais (x = comprimento, frente em +x; y = altura; metros). Só a silhueta, gerada por código:
+// carroceria (até a linha da cintura) + cabine mais estreita com vidros. Nenhum arquivo de modelo.
+const PERFIS = {
+  HATCH:  { L: 4.0, W: 1.74, rodas: [-1.28, 1.3], espelho: 0.95,
+            baixo: [[-2.0,.3],[-2.0,.86],[-1.93,.97],[1.25,.99],[1.9,.86],[2.0,.66],[2.0,.3]],
+            cabine: [[-1.9,.97],[-1.72,1.42],[0.25,1.48],[1.22,.99]] },
+  SEDAN:  { L: 4.6, W: 1.78, rodas: [-1.45, 1.4], espelho: 1.05,
+            baixo: [[-2.3,.32],[-2.3,.84],[-2.18,.97],[-1.3,1.0],[1.4,1.0],[2.2,.88],[2.3,.64],[2.3,.32]],
+            cabine: [[-1.35,.99],[-0.8,1.44],[0.45,1.46],[1.38,.99]] },
+  SUV:    { L: 4.5, W: 1.84, rodas: [-1.42, 1.38], espelho: 1.2,
+            baixo: [[-2.25,.42],[-2.25,1.0],[-2.15,1.1],[1.45,1.12],[2.15,1.03],[2.25,.78],[2.25,.42]],
+            cabine: [[-2.12,1.1],[-1.98,1.66],[0.55,1.7],[1.42,1.12]] },
+  PICKUP: { L: 5.3, W: 1.84, rodas: [-1.78, 1.6], espelho: 1.2,
+            baixo: [[-2.65,.5],[-2.65,1.12],[1.5,1.14],[2.5,1.06],[2.65,.84],[2.65,.5]],
+            cabine: [[-0.62,1.12],[-0.56,1.82],[0.8,1.84],[1.48,1.14]] }
+};
+const TIPOS = ['Risco', 'Amassado', 'Pintura', 'Trinca/quebra', 'Ferrugem', 'Faltando'];
+const GRAV = ['Leve', 'Média', 'Grave'];
+// Tabela de custos de reparo (exemplo; a real é editada pelo Master): base por peça × gravidade
+const BASE = { 'Para-choque dianteiro': 450, 'Para-choque traseiro': 450, 'Capô': 600, 'Teto': 900, 'Para-brisa': 1400, 'Vidro traseiro': 900,
+  'Tampa traseira': 650, 'Caçamba': 800, 'Para-lama dianteiro': 500, 'Porta dianteira': 650, 'Porta traseira': 650, 'Lateral traseira': 800, 'Roda/pneu': 700, 'Retrovisor': 350 };
+const FATOR = { Leve: 1, 'Média': 2.2, Grave: 4.5 };
+
+let tipo = 'SUV', avarias = [], pendente = null, sel = { t: 'Risco', g: 'Leve' };
+const palco = document.getElementById('palco');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+palco.prepend(renderer.domElement);
+const cena = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+cena.add(new THREE.HemisphereLight(0xffffff, 0x202024, 1.7));
+const sol = new THREE.DirectionalLight(0xffffff, 1.3); sol.position.set(4, 8, 6); cena.add(sol);
+const carro = new THREE.Group(); cena.add(carro);
+const marcas = new THREE.Group();
+const ALVO = new THREE.Vector3(0, 0.85, 0);
+let teta = -0.75, fi = 1.15, alvoTeta = teta, alvoFi = fi, raio = 9.6, arrastando = false, moveu = 0, ux = 0, uy = 0;
+
+function extrudar(pts, largura, mat, nome) {
+  const geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))),
+    { depth: largura, bevelEnabled: true, bevelThickness: .07, bevelSize: .05, bevelSegments: 3, curveSegments: 4 });
+  geo.translate(0, 0, -largura / 2);
+  const m = new THREE.Mesh(geo, mat); m.userData.parte = nome; carro.add(m);
+  carro.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color: 0xee4b57, transparent: true, opacity: .5 })));
+}
+function montar() {
+  carro.clear(); marcas.clear(); carro.add(marcas);
+  const p = PERFIS[tipo];
+  extrudar(p.baixo, p.W - .12, new THREE.MeshStandardMaterial({ color: 0x46464e, roughness: .5, metalness: .3 }), 'carroceria');
+  extrudar(p.cabine, p.W - .42, new THREE.MeshStandardMaterial({ color: 0x1d2633, roughness: .2, metalness: .6 }), 'cabine');
+  const rg = new THREE.CylinderGeometry(.35, .35, .26, 28); rg.rotateX(Math.PI / 2);
+  for (const x of p.rodas) for (const z of [-1, 1]) {
+    const r = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ color: 0x0f0f12, roughness: .9 }));
+    r.position.set(x, .35, z * (p.W / 2 - .02)); r.userData.parte = 'roda'; carro.add(r);
+  }
+  for (const z of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.BoxGeometry(.12, .1, .2), new THREE.MeshStandardMaterial({ color: 0x46464e }));
+    e.position.set(p.espelho, p.cabine[0][1] + .08, z * (p.W / 2 + .02)); e.userData.parte = 'retrovisor'; carro.add(e);
+  }
+  avarias.filter(a => a.tipoCarro === tipo).forEach(a => marcar(a.ponto, a.normal));
+  // distância que cabe o carro inteiro também na tela em pé (celular)
+  raio = p.L * 2.3 / Math.min(1, cam.aspect || 1);
+}
+
+// Peça pela parte tocada + direção da face (normal) + posição ao longo do carro.
+function peca(pt, n, parte) {
+  const p = PERFIS[tipo], L = p.L / 2, lado = pt.z > 0 ? 'direita' : 'esquerda';
+  if (parte === 'roda') return { peca: 'Roda/pneu', lado };
+  if (parte === 'retrovisor') return { peca: 'Retrovisor', lado };
+  const f = (pt.x + L) / (2 * L);   // 0 = traseira, 1 = frente
+  const porta = () => f > .78 ? 'Para-lama dianteiro' : f > .52 ? 'Porta dianteira' : (f > .3 && tipo !== 'PICKUP') ? 'Porta traseira'
+                     : (tipo === 'PICKUP' && pt.x < p.cabine[0][0]) ? 'Caçamba' : 'Lateral traseira';
+  if (parte === 'cabine') {
+    if (n.y > .6) return { peca: 'Teto', lado: 'cima' };
+    if (Math.abs(n.z) > .6) return { peca: porta() + ' (vidro)', lado };
+    return n.x > 0 ? { peca: 'Para-brisa', lado: 'frente' } : { peca: 'Vidro traseiro', lado: 'traseira' };
+  }
+  if (Math.abs(n.z) > .6) return { peca: porta(), lado };
+  if (n.y > .6) {
+    if (pt.x > 0) return { peca: 'Capô', lado: 'cima' };
+    return { peca: tipo === 'PICKUP' ? 'Caçamba' : tipo === 'SEDAN' ? 'Tampa do porta-malas' : 'Tampa traseira', lado: 'cima' };
+  }
+  if (n.x > 0) return { peca: 'Para-choque dianteiro', lado: 'frente' };
+  if (tipo === 'PICKUP' && pt.y > .8) return { peca: 'Tampa da caçamba', lado: 'traseira' };
+  if (tipo !== 'SEDAN' && pt.y > .85) return { peca: 'Tampa traseira', lado: 'traseira' };
+  return { peca: 'Para-choque traseiro', lado: 'traseira' };
+}
+
+function marcar(pt, n) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(.07, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff3344 }));
+  m.position.copy(pt); marcas.add(m);
+  const anel = new THREE.Mesh(new THREE.RingGeometry(.1, .14, 24), new THREE.MeshBasicMaterial({ color: 0xff3344, side: THREE.DoubleSide, transparent: true, opacity: .75 }));
+  anel.position.copy(pt).addScaledVector(n, .01); anel.lookAt(pt.clone().add(n)); marcas.add(anel);
+}
+
+// câmera em órbita: arrastar gira em volta do carro; os botões de vista levam a ângulos exatos
+renderer.domElement.addEventListener('pointerdown', e => { arrastando = true; moveu = 0; ux = e.clientX; uy = e.clientY; renderer.domElement.setPointerCapture(e.pointerId); });
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!arrastando) return;
+  const dx = e.clientX - ux, dy = e.clientY - uy; moveu += Math.abs(dx) + Math.abs(dy); ux = e.clientX; uy = e.clientY;
+  alvoTeta -= dx * .01; alvoFi = Math.max(.06, Math.min(1.5, alvoFi - dy * .006));
+});
+renderer.domElement.addEventListener('pointerup', e => { arrastando = false; if (moveu < 8) tocar(e); });
+
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+function tocar(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ptr, cam);
+  const hit = ray.intersectObjects(carro.children.filter(o => o.isMesh && o.userData.parte), false)[0];
+  if (!hit) return;
+  const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+  pendente = { ponto: hit.point.clone(), normal: n, ...peca(hit.point, n, hit.object.userData.parte), tipoCarro: tipo };
+  abrirFolha();
+}
+
+function chips(id, lista, chave) {
+  document.getElementById(id).innerHTML = lista.map(v => `<button type="button" class="${sel[chave] === v ? 'on' : ''}" data-v="${v}">${v}</button>`).join('');
+  document.getElementById(id).onclick = ev => { const b = ev.target.closest('button'); if (!b) return; sel[chave] = b.dataset.v; abrirFolha(); };
+}
+const brl = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+function custo(a) { const vidro = a.peca.includes('(vidro)'); return Math.round((BASE[a.peca.replace(' (vidro)', '')] || 500) * (vidro ? 1.3 : 1) * FATOR[a.g] / 10) * 10; }
+function abrirFolha() {
+  document.getElementById('fPeca').textContent = pendente.peca;
+  document.getElementById('fLado').textContent = 'Lado: ' + pendente.lado;
+  chips('fTipo', TIPOS, 't'); chips('fGrav', GRAV, 'g');
+  document.getElementById('fCusto').textContent = brl(custo({ peca: pendente.peca, g: sel.g }));
+  document.getElementById('folha').classList.add('aberta');
+}
+document.getElementById('fCancelar').onclick = () => { pendente = null; document.getElementById('folha').classList.remove('aberta'); };
+document.getElementById('fSalvar').onclick = () => {
+  const a = { ...pendente, t: sel.t, g: sel.g }; a.custo = custo(a); avarias.push(a); marcar(a.ponto, a.normal);
+  pendente = null; document.getElementById('folha').classList.remove('aberta'); lista();
+};
+function lista() {
+  document.getElementById('avarias').innerHTML = avarias.map(a => `<div class="av"><div>${a.peca} · ${a.t}<small>${a.g} · ${a.lado} · 1 foto</small></div><b>− ${brl(a.custo)}</b></div>`).join('') || '<div class="av"><div>Nenhuma avaria marcada</div></div>';
+  document.getElementById('total').textContent = avarias.length ? 'Reparos: ' + brl(avarias.reduce((s, a) => s + a.custo, 0)) : '';
+}
+
+const VISTAS = [['3D', -0.75, 1.15], ['Frente', 0, 1.35], ['Traseira', Math.PI, 1.35], ['Lat. esq.', -Math.PI / 2, 1.42], ['Lat. dir.', Math.PI / 2, 1.42], ['Teto', -Math.PI / 2, .06]];
+document.getElementById('vistas').innerHTML = VISTAS.map((v, i) => `<button type="button" data-i="${i}" class="${i === 0 ? 'on' : ''}">${v[0]}</button>`).join('');
+document.getElementById('vistas').onclick = ev => {
+  const b = ev.target.closest('button'); if (!b) return; const v = VISTAS[+b.dataset.i]; alvoTeta = v[1]; alvoFi = v[2];
+  document.querySelectorAll('#vistas button').forEach(x => x.classList.toggle('on', x === b));
+};
+document.getElementById('carrs').innerHTML = Object.keys(PERFIS).map(k => `<button type="button" data-k="${k}" class="${k === tipo ? 'on' : ''}">${k === 'PICKUP' ? 'Pickup' : k === 'SUV' ? 'SUV' : k[0] + k.slice(1).toLowerCase()}</button>`).join('');
+document.getElementById('carrs').onclick = ev => {
+  const b = ev.target.closest('button'); if (!b) return; tipo = b.dataset.k; montar();
+  document.querySelectorAll('#carrs button').forEach(x => x.classList.toggle('on', x === b));
+};
+
+function tamanho() { const w = palco.clientWidth, h = palco.clientHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); raio = PERFIS[tipo].L * 2.3 / Math.min(1, cam.aspect); }
+addEventListener('resize', tamanho); tamanho(); montar(); lista();
+(function loop() {
+  // menor caminho angular ao trocar de vista
+  let d = alvoTeta - teta; d = Math.atan2(Math.sin(d), Math.cos(d)); teta += d * .15; fi += (alvoFi - fi) * .15;
+  cam.position.set(ALVO.x + raio * Math.sin(fi) * Math.cos(teta), ALVO.y + raio * Math.cos(fi), ALVO.z + raio * Math.sin(fi) * Math.sin(teta));
+  if (fi < .2) cam.up.set(-Math.cos(teta), 0, -Math.sin(teta)); else cam.up.set(0, 1, 0);
+  cam.lookAt(ALVO);
+  renderer.render(cena, cam); requestAnimationFrame(loop);
+})();
+window.__proto = { tocarEm: (x, y) => tocar({ clientX: x, clientY: y }), vista: i => document.querySelectorAll('#vistas button')[i].click(), carroceria: k => document.querySelector(`#carrs [data-k="${k}"]`).click(), avarias: () => avarias };
+</script>
+</body>
+</html>
