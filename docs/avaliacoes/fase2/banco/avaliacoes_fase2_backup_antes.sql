@@ -1,0 +1,30 @@
+-- Backup da Fase 2 das Avaliações (28/10/2026).
+-- A Fase 2 não altera nenhum objeto existente: não há definição antiga a guardar.
+-- Impressões digitais (md5 de pg_get_functiondef) das funções de que ela depende, conferidas antes de aplicar:
+--   public._aval_contexto()  6b54a9b8e39f28a7b6f0ac9be2f1b478
+--   public._aval_carregar(uuid,jsonb)  54419227f050155e385c8ecb30433793
+--   public.portal_modulos_permitidos()  59abb8b9f5298478c8fb7334edd66c78
+--   public.aval_contexto()  bda1697da36d46cf36827a09e23e943c
+--   public.aval_obter(uuid)  06b5f8340c634bc6f5105d8fc64fa19b
+--   public.aval_salvar_identificacao(uuid,jsonb)  2dc807a3a969f5f065004b5b2b792e18
+-- Objetos que a Fase 2 cria (e o desfazer remove):
+--   tabela public.aval_tabela_reparos
+--   tabela public.aval_vistorias
+--   tabela public.aval_avarias
+--   tabela public.aval_fotos
+--   função public._aval_peca_info(text)
+--   função public._aval_tipos_avaria(text)
+--   função public._aval_checklist_opcoes()
+--   função public._aval_tabela_vigente()
+--   função public._aval_pode_editar(public.aval_avaliacoes, jsonb)
+--   função public._aval_vistoria_json(public.aval_avaliacoes, jsonb)
+--   função public.aval_vistoria_obter(uuid)
+--   função public.aval_vistoria_salvar(uuid, jsonb)
+--   função public.aval_vistoria_concluir(uuid)
+--   função public.aval_foto_preparar(uuid, uuid, uuid, integer)
+--   função public.aval_foto_registrar(uuid, integer)
+--   função public.aval_fotos_listar(uuid)
+--   função public.aval_foto_remover(uuid)
+--   função public.aval_reparos_listar()
+--   função public.aval_master_salvar_reparos(jsonb, text)
+--   bucket privado storage.buckets 'avaliacoes-fotos'
