@@ -123,6 +123,35 @@ for perfil in ("VENDEDOR", "ANALISTA", "MASTER"):
     else:
         registra("OK", f"{perfil} real: leitura direta negada em {len(negadas)}/{len(tabs)} tabelas")
 
+# 28/10/2026 (loja fantasma "NACOES UNIDAS", pedido do Luis): nenhum nome de loja fora das 8 oficiais (+ REVENDA)
+# nos lotes vigentes de vendas e financiamentos (só linhas com vendedor ligado), no cadastro de vendedores ativos
+# e nas mudanças de loja ativas. Mostra só o nome da loja e a contagem.
+LOJAS_OFICIAIS = ("ABC", "ALPHAVILLE", "ANALIA FRANCO", "BANDEIRANTES", "BARRA FUNDA", "EUROPA", "GASTAO", "NACOES", "REVENDA")
+_ofi = ", ".join("'" + x + "'" for x in LOJAS_OFICIAIS)
+lj = q(f"""with lb as (
+  select distinct on (b.source_type) b.id, b.source_type from public.portal_import_batches b
+  where b.status = 'VALIDATED' and b.source_type in ('SALES_CURRENT','SALES_HISTORY','FINANCE_CURRENT','FINANCE_HISTORY')
+  order by b.source_type, b.completed_at desc nulls last, b.created_at desc, b.id desc)
+select 'vendas' fonte, upper(trim(s.store)) loja, count(*) n from public.portal_sales s join lb on lb.id = s.batch_id
+  where coalesce(s.seller_user_id, s.seller_id) is not null and nullif(trim(s.store), '') is not null and upper(trim(s.store)) not in ({_ofi}) group by 2
+union all
+select 'financiamentos', upper(trim(f.store)), count(*) from public.portal_finance_operations f join lb on lb.id = f.batch_id
+  where coalesce(f.seller_user_id, f.seller_id) is not null and nullif(trim(f.store), '') is not null and upper(trim(f.store)) not in ({_ofi}) group by 2
+union all
+select 'cadastro de vendedores ativos', coalesce(upper(trim(u.loja)), '(sem loja)'), count(*) from public.usuarios u
+  where u.ativo and upper(trim(coalesce(u.perfil, ''))) = 'VENDEDOR' and (nullif(trim(u.loja), '') is null or upper(trim(u.loja)) not in ({_ofi})) group by 2
+union all
+select 'mudanças de loja ativas', upper(trim(x.loja)), count(*) from public.mudancas_loja_vendedores m
+  cross join lateral (values (m.loja_destino), (m.loja_origem)) x(loja)
+  where m.ativo and nullif(trim(x.loja), '') is not null and upper(trim(x.loja)) not in ({_ofi}) group by 2
+order by 1, 2""")
+nome = "lojas: nenhum nome fora das 8 oficiais (+ REVENDA) em vendas, financiamentos, cadastro e mudanças de loja"
+if lj["tipo"] == "linhas":
+    fora = "; ".join(f"{r['fonte']}: {r['loja']} ({r['n']})" for r in lj["rows"])
+    registra("OK" if not lj["rows"] else "FALHA", nome, "0 linhas" if not lj["rows"] else fora, fora)
+elif lj["tipo"] == "conexao": registra("NC", nome, "o banco não respondeu", det_conexao(lj))
+else: registra("FALHA", nome, "erro do banco", f"{lj['codigo']}: {lj['msg']}")
+
 n_ok = sum(1 for r in resultados if r[0] == "OK"); n_f = sum(1 for r in resultados if r[0] == "FALHA"); n_nc = sum(1 for r in resultados if r[0] == "NC")
 resumo = f"{n_ok}/{len(resultados)} verificações OK" + (f" | {n_f} FALHA(S)" if n_f else "") + (f" | {n_nc} NÃO FOI POSSÍVEL CONFERIR" if n_nc else "") \
     + (f" (tentativas com erro de conexão: {sum(1 for x in repeticoes_log if 'erro de conexão' in x)})" if repeticoes_log else "")

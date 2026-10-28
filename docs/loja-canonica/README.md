@@ -22,3 +22,11 @@ identificado, a loja do cadastro; 3º o texto como veio (a guarda acusa).
 Impacto no período aberto 21/10–20/11 (comissão parcial): vendedor R$ 0,00 → R$ 674,91; gerente NACOES Seminovos
 R$ 546,21 → R$ 726,19; analista NACOES R$ 1.644,69 → R$ 1.847,16; gestor F&I R$ 369,41 → R$ 382,91.
 Pendente (depois): tela de importação buscar também em `usuarios` e avisar loja desconhecida.
+
+## Aplicado em produção — 28/10/2026 17:18 (OK final do Luis, ordem segura)
+- Conferido depois: 4 linhas em NACOES; importação nova com `portal_canoniza_loja(store)`; mapa sem execução para visitante/logado.
+- Análise Geral 21/10–20/11 (Master): lojas = as 8 oficiais (sem NACOES UNIDAS); NACOES Seminovos 3 vendas / 3 financiamentos.
+- Comissão parcial confere com a simulação: analista NACOES R$ 1.847,16; gerente NACOES Seminovos R$ 726,19;
+  vendedor R$ 674,91 (faixa 15%); gestor F&I R$ 382,91 (19 financiadas).
+- Guarda com a 17ª checagem (lojas fora das 8 + REVENDA): 17/17 (registro guarda_20261028_172220.txt).
+- Desfazer: `supabase db query --linked -f docs/rollback/loja_canonica_20261028_rollback.sql` e depois rodar a guarda.
