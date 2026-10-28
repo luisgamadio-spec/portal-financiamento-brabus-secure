@@ -79,7 +79,6 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
 <script type="module">
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
@@ -107,14 +106,15 @@ const C = {
     pc: [.52, .54], far: [.62, .73], lan: [.76, .9], lanW: .36, grade: .44,
     cortes: [1.02, -.06, -1.06],
     janelas: [[-.02, 1.12, 'da porta dianteira', 1], [-1.0, -.1, 'da porta traseira', 1], [-1.4, -1.06, 'lateral traseiro', 0]] },
-  SUV: { nome: 'SUV', L: 4.5, W: 1.86, R: .37, eixos: [-1.35, 1.37], tumble: .3, coroa: .04, trilhos: true,
-    baixo: [[-2.25,.52],[-2.02,.4],[-1.75,.35],[1.75,.35],[2.0,.42],[2.25,.52]],
-    cinta: [[-2.25,1.04],[-2.0,1.14],[-1.0,1.13],[0.8,1.1],[1.2,1.06],[1.8,1.0],[2.25,.95]],
-    teto: [[-2.21,null],[-2.12,1.6],[-1.95,1.7],[-1.4,1.75],[0.2,1.78],[0.55,1.73],[0.95,1.42],[1.28,null]],
-    planta: { pF: 3.8, pR: 6, rakeF: .26, chinF: .1, rakeR: .06, chinR: .08, yRake: .6, yChin: .45 },
-    pc: [.66, .7], far: [.78, .89], lan: [.9, 1.04], lanW: .34, grade: .5,
-    cortes: [1.0, -.1, -1.08], densas: [[-2.25, -2.05, .004]],
-    janelas: [[-.06, 1.18, 'da porta dianteira', 1], [-1.02, -.14, 'da porta traseira', 1], [-1.98, -1.1, 'lateral traseiro', 0]] },
+  // SUV moderno: mais alto do chão, cintura subindo para trás, teto caindo no fim (coluna traseira inclinada), molduras escuras nas rodas
+  SUV: { nome: 'SUV', L: 4.5, W: 1.86, R: .38, eixos: [-1.35, 1.37], tumble: .31, coroa: .04, trilhos: true, molduras: true,
+    baixo: [[-2.25,.6],[-2.02,.5],[-1.75,.46],[1.75,.46],[2.0,.52],[2.25,.6]],
+    cinta: [[-2.25,1.16],[-2.0,1.27],[-1.5,1.26],[-0.4,1.18],[0.8,1.11],[1.2,1.07],[1.8,1.02],[2.25,.98]],
+    teto: [[-2.2,null],[-2.06,1.5],[-1.8,1.62],[-1.3,1.69],[-0.2,1.75],[0.45,1.74],[0.95,1.44],[1.28,null]],
+    planta: { pF: 3.8, pR: 6, rakeF: .26, chinF: .1, rakeR: .1, chinR: .08, yRake: .65, yChin: .55 },
+    pc: [.72, .76], far: [.84, .94], lan: [.96, 1.08], lanW: .34, grade: .5,
+    cortes: [1.0, -.1, -1.08], densas: [[-2.25, -1.95, .004]],
+    janelas: [[-.06, 1.18, 'da porta dianteira', 1], [-1.02, -.14, 'da porta traseira', 1], [-1.62, -1.1, 'lateral traseiro', 0]] },
   PICKUP: { nome: 'Pickup', L: 5.32, W: 1.88, R: .39, eixos: [-1.66, 1.6], tumble: .3, coroa: .03, cacamba: [-.86, .76],
     baixo: [[-2.66,.62],[-2.42,.47],[-2.1,.44],[2.0,.44],[2.36,.5],[2.66,.6]],
     cinta: [[-2.66,1.1],[-0.9,1.12],[0.8,1.14],[1.3,1.12],[2.0,1.09],[2.66,1.06]],
@@ -133,16 +133,18 @@ const TIPOS = {
   grade: ['Risco', 'Trinca/quebra', 'Faltando'],
   roda: ['Risco', 'Empeno', 'Faltando'],
   pneu: ['Desgaste', 'Corte/bolha', 'Remendo', 'Faltando'],
-  retrovisor: ['Risco', 'Trinca/quebra', 'Faltando']
+  retrovisor: ['Risco', 'Trinca/quebra', 'Faltando'],
+  estrutura: ['Amassado', 'Trinca/solda', 'Repintura']
 };
 const GRAV = ['Leve', 'Média', 'Grave'];
 const COR_GRAV = { Leve: 0xf5c518, 'Média': 0xff8c1a, Grave: 0xe3262f };
-// carro escuro, vidro azul-grafite, linhas das peças em destaque
-const COR = { lataria: 0x575a63, 'para-choque': 0x51545d, retrovisor: 0x575a63, vidro: 0x2a3747, farol: 0xe3e8ef, lanterna: 0xb8242d,
-  grade: 0x141518, roda: 0xc3c8cf, pneu: 0x1c1d20, coluna: 0x17191d, baixo: 0x0c0d0f, trilho: 0x2a2c31 };
-const MAT = { lataria: [.25, .48], 'para-choque': [.2, .52], retrovisor: [.25, .48], vidro: [.35, .12], farol: [.2, .3], lanterna: [.2, .32],
-  grade: [.3, .55], roda: [.8, .3], pneu: [0, .92], coluna: [.3, .25], baixo: [0, .9], trilho: [.5, .45] };
-const COR_LINHA = 0xff5a66, TOQUE = 0x39b6ff;
+// carro escuro em cor única (pintura lisa, reflexo suave), vidro azul-grafite, linhas das peças em cinza-claro
+const PINTURA = 0x50535b;
+const COR = { lataria: PINTURA, 'para-choque': PINTURA, retrovisor: PINTURA, estrutura: PINTURA, vidro: 0x263241, farol: 0xe3e8ef, lanterna: 0xb8242d,
+  grade: 0x141518, roda: 0xc3c8cf, pneu: 0x1c1d20, baixo: 0x0c0d0f, trilho: 0x2a2c31, moldura: 0x18191c };
+const MAT = { lataria: [.3, .36], 'para-choque': [.3, .36], retrovisor: [.3, .36], estrutura: [.3, .36], vidro: [.3, .28], farol: [.2, .3], lanterna: [.2, .32],
+  grade: [.3, .55], roda: [.8, .3], pneu: [0, .92], baixo: [0, .9], trilho: [.5, .45], moldura: [0, .75] };
+const COR_LINHA = 0xe4e7ec, TOQUE = 0x39b6ff;
 
 for (const c of Object.values(C)) {
   c.W2 = c.W / 2; c.xf = c.L / 2; c.xr = -c.L / 2; c.Ra = c.R + .06;
@@ -226,38 +228,46 @@ function classe(c, x, y, z, n, m, lado, g) {
   const tampa = P(c.cacamba ? 'Tampa da caçamba' : c.sedan ? 'Tampa do porta-malas' : 'Tampa traseira', 'lataria');
   const pcd = P('Para-choque dianteiro', 'para-choque'), pct = P('Para-choque traseiro', 'para-choque');
   const farol = P(nomeL('Farol', lado, 0), 'farol'), lanterna = P(nomeL('Lanterna traseira', lado, 1), 'lanterna');
-  const COLUNA = { corpo: 'coluna' };
+  // colunas A (frente das janelas), B (entre as portas) e C (atrás) — peças de estrutura
+  const jd = c.janelas[0], jt = c.janelas[1];
+  const coluna = letra => P(nomeL('Coluna ' + (letra || (x > jd[1] - .01 ? 'A' : x > jt[1] - .01 ? 'B' : 'C')), lado, 1), 'estrutura');
   if (m <= 2) return { corpo: 'baixo' };
   if (caçamba && m >= 10) return P('Caçamba (assoalho)', 'lataria');
   const gh = g >= .03 && !caçamba, deck = m >= 9 && !gh;
   if (m <= 9 || deck) {
-    // frente e traseira por posição (cortes limpos que contornam o canto): para-choque, faróis/grade, lanternas
+    // frente e traseira só por posição (cortes limpos, sem pedaços soltos): para-choque, faróis/grade, lanternas
     if (x > c.xf - .28 && !deck && m <= 8) {
       const naGrade = az < c.grade;
-      if (m === 4 && az < c.grade * .8 && n.x > .55) return P('Grade', 'grade');   // entrada de ar de baixo
+      if (m === 4 && az < c.grade * .8) return P('Grade', 'grade');   // entrada de ar de baixo
       if (m <= 5) return pcd;
       if (m === 6) return naGrade ? P('Grade', 'grade') : farol;
       if (m === 7 && naGrade) return P('Grade', 'grade');
-      if (n.x > .55 || az < W2 * .6) return P('Capô', 'lataria');
-      return zona();
+      return az < W2 - .16 ? P('Capô', 'lataria') : zona();
     }
-    if (x < c.xr + .26 && (!deck || caçamba) && m <= 8) {
+    if (x < c.xr + .26 && !deck && m <= 8) {
       if (m <= 4) return pct;
       if (m === 6 && az > W2 - c.lanW) return lanterna;
-      return n.x < -.55 ? tampa : zona();
+      return az < W2 - .14 ? tampa : zona();
     }
-    if (deck) return caçamba ? (n.x < -.55 ? tampa : zona()) : x > 0 ? P('Capô', 'lataria') : tampa;
+    if (deck) return caçamba ? (x < c.xr + .05 ? tampa : zona()) : x > 0 ? P('Capô', 'lataria') : tampa;
     if (m <= 4 && x > c.xBF) return pcd;
     if (m <= 4 && x < c.xBR) return pct;
     return zona();
   }
-  if (m <= 13) {   // lateral da cabine: vidros entre as colunas
-    if (m === 11 || m === 12) { const j = c.janelas.find(([a, b]) => x >= a && x <= b); if (j) return P(nomeL('Vidro ' + j[2], lado, j[3]), 'vidro'); }
-    return COLUNA;
+  if (m <= 13) {   // lateral da cabine: vidros entre as colunas; moldura de baixo e de cima da janela é da porta
+    const j = c.janelas.find(([a, b]) => x >= a && x <= b);
+    if (j && (m === 11 || m === 12)) return P(nomeL('Vidro ' + j[2], lado, j[3]), 'vidro');
+    if (m === 10 || (j && m === 13)) return zona();
+    return coluna();
   }
-  if (n.x > .3) return m === 14 ? COLUNA : P('Para-brisa', 'vidro');
+  // para-brisa / vidro traseiro pela inclinação do teto naquele ponto do comprimento (divisa reta de lado a lado, sem dentes)
+  const incl = (alturaTeto(c, x + .004) - alturaTeto(c, x - .004)) / .008;
+  if (x > 0 && incl < -.32) return m === 14 ? coluna('A') : P('Para-brisa', 'vidro');
   const yc = y - c.coroa * (1 - (z / W2) ** 2);   // altura sem o arco do teto (borda de baixo do vidro reta)
-  if (n.x < -.3) return m >= 15 && yc > yb + .03 && yc < c.tetoMax - .05 ? P('Vidro traseiro', 'vidro') : COLUNA;
+  if (x < 0 && incl > .32) {
+    if (m >= 15 && yc > yb + .03 && yc < c.tetoMax - .05) return P('Vidro traseiro', 'vidro');
+    return c.sedan || c.cacamba ? coluna('C') : tampa;   // no hatch e no SUV a moldura do vidro é da tampa
+  }
   return P('Teto', 'lataria');
 }
 
@@ -269,20 +279,33 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
 palco.prepend(renderer.domElement);
 const cena = new THREE.Scene();
-cena.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture;   // reflexo suave, sem baixar imagem
+// reflexo de estúdio: degradê liso (chão escuro → faixa de luz no horizonte → teto suave), sem objetos que virem listras na lataria
+function estudio() {   // panorama gerado (só depende da altura), sem emendas
+  const W = 256, H = 128, d = new Float32Array(W * H * 4), ss = (a, b, v) => { const t = clamp01((v - a) / (b - a)); return t * t * (3 - 2 * t); };
+  for (let j = 0; j < H; j++) {
+    const h = Math.sin(Math.PI * ((j + .5) / H - .5));   // linha 0 = embaixo (h = -1), última = em cima (h = 1)
+    let c = .04 + (.2 - .04) * ss(-.35, .05, h); c += .45 * Math.exp(-(((h - .18) / .1) ** 2)); c = c + (.42 - c) * ss(.35, .95, h);
+    for (let i = 0; i < W; i++) d.set([c, c, c, 1], (j * W + i) * 4);
+  }
+  const t = new THREE.DataTexture(d, W, H, THREE.RGBAFormat, THREE.FloatType);
+  t.mapping = THREE.EquirectangularReflectionMapping; t.needsUpdate = true;
+  return new THREE.PMREMGenerator(renderer).fromEquirectangular(t).texture;
+}
+cena.environment = estudio();
 const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
-cena.add(new THREE.HemisphereLight(0xffffff, 0x1c1d22, .9));
-const sol = new THREE.DirectionalLight(0xffffff, 1.6); sol.position.set(4, 9, 5); cena.add(sol);
-const contra = new THREE.DirectionalLight(0xb9c6ff, .5); contra.position.set(-6, 4, -5); cena.add(contra);
+// luz equilibrada: capô e teto não clareiam mais que a lateral (carro em cor única)
+cena.add(new THREE.HemisphereLight(0xffffff, 0x5a5d66, .55));
+const sol = new THREE.DirectionalLight(0xffffff, .9); sol.position.set(5, 5, 7); cena.add(sol);
+const contra = new THREE.DirectionalLight(0xc9d3ff, .7); contra.position.set(-6, 3, -6); cena.add(contra);
 const carro = new THREE.Group(); cena.add(carro);
 const ALVO = new THREE.Vector3(0, .85, 0);
 let teta = -0.75, fi = 1.15, alvoTeta = teta, alvoFi = fi, raio = 10, sujo = true;
-const linhaMat = new LineMaterial({ color: COR_LINHA, linewidth: 1.7 });
+const linhaMat = new LineMaterial({ color: COR_LINHA, linewidth: .9 });
 let partes = [], bloqueios = [];
 
 function material(grupo) {
   const [metal, rug] = MAT[grupo];
-  return new THREE.MeshStandardMaterial({ color: COR[grupo], metalness: metal, roughness: rug, envMapIntensity: .9,
+  return new THREE.MeshStandardMaterial({ color: COR[grupo], metalness: metal, roughness: rug, envMapIntensity: grupo === 'vidro' ? .25 : .9,
     polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
 }
 function parte(geo, nome, grupo, chave) {
@@ -316,13 +339,41 @@ function carroceria(c) {
       const k = cl.corpo || cl.nome;
       chave[i].push(k);
       if (!porChave.has(k)) porChave.set(k, { cl, tri: [] });
+      // diagonal espelhada entre os lados (o lado direito é o reflexo do esquerdo; sem sombra diferente onde a superfície fecha)
       const ia = i * NR + r, ib = (i + 1) * NR + r, ic = (i + 1) * NR + r1, id = i * NR + r1;
-      porChave.get(k).tri.push(ia, ib, ic, ia, ic, id); idx.push(ia, ib, ic, ia, ic, id);
+      const t = r <= 16 ? [ia, ib, id, ib, ic, id] : [ia, ib, ic, ia, ic, id];
+      porChave.get(k).tri.push(...t); idx.push(...t);
     }
   }
   // normais suaves na superfície inteira (a luz corre pelas curvas), depois cada peça vira uma malha separada
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
   const nor = geo.attributes.normal.array;
+  // nas pontas a superfície fecha e a sombra dobrava em vincos; suaviza as normais só ali (lataria lisa)
+  const ponta = xs.map(x => x > c.xf - .4 || x < c.xr + .4);
+  // pontos que fecharam no meio do carro (z = 0) existem duas vezes (lado esquerdo e direito): mesma normal, sem emenda no centro
+  const centro = () => {
+    for (let i = 0; i < S; i++) for (let r = 1; r < 17; r++) {
+      const a = i * NR + r, b = i * NR + (NR - r);
+      if (Math.abs(pos[a * 3 + 2]) > 1e-5) continue;
+      const nx = (nor[a * 3] + nor[b * 3]) / 2, ny = (nor[a * 3 + 1] + nor[b * 3 + 1]) / 2, l = Math.hypot(nx, ny) || 1;
+      nor[a * 3] = nor[b * 3] = nx / l; nor[a * 3 + 1] = nor[b * 3 + 1] = ny / l; nor[a * 3 + 2] = nor[b * 3 + 2] = 0;
+    }
+  };
+  centro();
+  for (let it = 0; it < 6; it++) {
+    const novo = Float32Array.from(nor);
+    for (let i = 1; i < S - 1; i++) {
+      if (!ponta[i]) continue;
+      for (let r = 0; r < NR; r++) {
+        const v = i * NR + r, viz = [v, v, (i - 1) * NR + r, (i + 1) * NR + r, i * NR + (r + 1) % NR, i * NR + (r + NR - 1) % NR];
+        let sx = 0, sy = 0, sz = 0;
+        for (const q of viz) { sx += nor[q * 3]; sy += nor[q * 3 + 1]; sz += nor[q * 3 + 2]; }
+        const l = Math.hypot(sx, sy, sz); if (l < 1e-6) continue;
+        novo[v * 3] = sx / l; novo[v * 3 + 1] = sy / l; novo[v * 3 + 2] = sz / l;
+      }
+    }
+    nor.set(novo); centro();
+  }
   for (const [k, { cl, tri }] of porChave) {
     const p = new Float32Array(tri.length * 3), n = new Float32Array(tri.length * 3);
     tri.forEach((v, j) => { for (let e = 0; e < 3; e++) { p[j * 3 + e] = pos[v * 3 + e]; n[j * 3 + e] = nor[v * 3 + e]; } });
@@ -337,7 +388,17 @@ function carroceria(c) {
     const k1 = chave[i][r1]; if (k1 && k1 !== k && !(k === 'baixo' && k1 === 'baixo')) traça(i * NR + r1, (i + 1) * NR + r1);
     if (i + 1 < S - 1) { const k2 = chave[i + 1][r]; if (k2 && k2 !== k) traça((i + 1) * NR + r, (i + 1) * NR + r1); }
   }
-  const lg = new LineSegmentsGeometry(); lg.setPositions(seg); carro.add(new LineSegments2(lg, linhaMat));
+  // tira pedaços soltos: trechos de linha ligados entre si que somam menos de 25 cm não são divisa de peça
+  const pai = [], chaveP = (k) => seg.slice(k, k + 3).map(v => Math.round(v * 2000)).join(','), id = new Map();
+  const no = k => { const s = chaveP(k); if (!id.has(s)) { id.set(s, pai.length); pai.push(pai.length); } return id.get(s); };
+  const raiz = a => { while (pai[a] !== a) a = pai[a] = pai[pai[a]]; return a; };
+  const ext = [];
+  for (let k = 0; k < seg.length; k += 6) { const a = no(k), b = no(k + 3); pai[raiz(a)] = raiz(b); ext.push(a); }
+  const comp = new Map();
+  for (let k = 0, s = 0; k < seg.length; k += 6, s++) { const r = raiz(ext[s]); comp.set(r, (comp.get(r) || 0) + Math.hypot(seg[k] - seg[k + 3], seg[k + 1] - seg[k + 4], seg[k + 2] - seg[k + 5])); }
+  const limpo = [];
+  for (let k = 0, s = 0; k < seg.length; k += 6, s++) if (comp.get(raiz(ext[s])) >= .25) limpo.push(...seg.slice(k, k + 6));
+  const lg = new LineSegmentsGeometry(); lg.setPositions(limpo); carro.add(new LineSegments2(lg, linhaMat));
 }
 
 function rodas(c) {
@@ -377,8 +438,21 @@ function extras(c) {
   }
   if (c.trilhos) for (const s of [1, -1]) {   // barras de teto do SUV
     const z = s * (c.W2 - c.tumble - .03), pts = [];
-    for (let x = -1.85; x <= .4; x += .15) pts.push(new THREE.Vector3(x, c.roof(x) + c.coroa * (1 - (z / c.W2) ** 2) + .05, z));
+    for (let x = -1.7; x <= .4; x += .15) pts.push(new THREE.Vector3(x, c.roof(x) + c.coroa * (1 - (z / c.W2) ** 2) + .05, z));
     bloqueio(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, .018, 8), 'trilho');
+  }
+  if (c.molduras) for (const s of [1, -1]) {   // molduras escuras das caixas de roda e da soleira (plástico, não clicável)
+    const prof = .025, z0 = s > 0 ? c.W2 + .004 : -(c.W2 + .004) - prof;
+    for (const e of c.eixos) {
+      const ri = c.Ra, re = c.Ra + .075, a0 = Math.asin(Math.min(1, (c.base(e) - .05 - c.R) / re)), f = new THREE.Shape();
+      f.absarc(0, 0, re, Math.max(0, a0), Math.PI - Math.max(0, a0), false); f.absarc(0, 0, ri, Math.PI - Math.max(0, a0), Math.max(0, a0), true);
+      const g = new THREE.ExtrudeGeometry(f, { depth: prof, bevelEnabled: true, bevelThickness: .006, bevelSize: .006, bevelSegments: 2, curveSegments: 48 });
+      g.translate(e, c.R, z0); bloqueio(g, 'moldura');
+    }
+    const xa = c.eixos[0] + c.Ra + .04, xb = c.eixos[1] - c.Ra - .04, yb0 = c.base(0), sol = new THREE.Shape();
+    sol.moveTo(xa, yb0 - .01); sol.lineTo(xb, yb0 - .01); sol.lineTo(xb, yb0 + .08); sol.lineTo(xa, yb0 + .08); sol.closePath();
+    const g = new THREE.ExtrudeGeometry(sol, { depth: prof, bevelEnabled: true, bevelThickness: .006, bevelSize: .006, bevelSegments: 2 });
+    g.translate(0, 0, z0); bloqueio(g, 'moldura');
   }
 }
 
@@ -436,7 +510,7 @@ function chips(id, lista, chave) {
 function renderFolha() {
   document.getElementById('fPeca').textContent = pendente.nome;
   const ja = avarias.filter(a => a.chave === pendente.chave && a.tipoCarro === tipo).length;
-  document.getElementById('fSub').textContent = { lataria: 'Lataria', 'para-choque': 'Para-choque', vidro: 'Vidro', farol: 'Farol/lanterna', grade: 'Grade', roda: 'Roda', pneu: 'Pneu', retrovisor: 'Retrovisor' }[pendente.grupo] + (ja ? ` · já tem ${ja} avaria(s) marcada(s)` : '');
+  document.getElementById('fSub').textContent = { lataria: 'Lataria', 'para-choque': 'Para-choque', vidro: 'Vidro', farol: 'Farol/lanterna', grade: 'Grade', roda: 'Roda', pneu: 'Pneu', retrovisor: 'Retrovisor', estrutura: 'Estrutura' }[pendente.grupo] + (ja ? ` · já tem ${ja} avaria(s) marcada(s)` : '');
   chips('fTipo', TIPOS[pendente.grupo], 't'); chips('fGrav', GRAV, 'g');
   document.getElementById('fSalvar').disabled = !sel.t; document.getElementById('fSalvar').style.opacity = sel.t ? 1 : .45;
 }
@@ -505,6 +579,9 @@ window.__proto = { abrir: ud => abrirFolha(ud), avarias: () => avarias, partes: 
     const alvo = cs.reduce((a, b) => a.distanceTo(soma) < b.distanceTo(soma) ? a : b).clone().project(cam);
     const r = renderer.domElement.getBoundingClientRect(); return { x: r.left + (alvo.x + 1) / 2 * r.width, y: r.top + (1 - alvo.y) / 2 * r.height };
   },
+  qual: (sx, sy) => { const r = renderer.domElement.getBoundingClientRect(); ptr.set(((sx - r.left) / r.width) * 2 - 1, -((sy - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ptr, cam); return ray.intersectObjects(carro.children, false).slice(0, 3).map(h => [h.object.type, h.object.userData.nome || h.object.material?.color?.getHexString(), h.point.toArray().map(v => +v.toFixed(3)), h.face && h.face.normal.toArray().map(v => +v.toFixed(2))]); },
+  malha: nome => { const m = partes.find(p => p.userData.nome === nome); return { position: [...m.geometry.attributes.position.array], normal: [...m.geometry.attributes.normal.array] }; },
   normalMedia: nome => { const m = partes.find(p => p.userData.nome === nome); const na = m.geometry.attributes.normal, s = new THREE.Vector3();
     for (let i = 0; i < na.count; i++) s.add(new THREE.Vector3().fromBufferAttribute(na, i)); return s.normalize().toArray(); } };
 </script>

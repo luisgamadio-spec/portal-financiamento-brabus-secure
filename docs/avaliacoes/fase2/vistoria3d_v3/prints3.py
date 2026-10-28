@@ -27,7 +27,9 @@ with sync_playwright() as p:
     print(f"peso: bibliotecas {total/1024:.0f} KB ({comp/1024:.0f} KB comprimido, {len(corpos)} arquivos) + página {pagina/1024:.0f} KB; modelos 3D: 0 KB")
     req = {"Capô", "Teto", "Para-brisa", "Vidro traseiro", "Grade", "Para-choque dianteiro", "Para-choque traseiro", "Farol esquerdo", "Farol direito",
            "Lanterna traseira esquerda", "Lanterna traseira direita", "Retrovisor esquerdo", "Retrovisor direito", "Porta dianteira esquerda", "Porta traseira direita",
-           "Para-lama dianteiro esquerdo", "Para-lama dianteiro direito", "Pneu dianteiro esquerdo", "Roda traseira direita", "Vidro da porta dianteira esquerda"}
+           "Para-lama dianteiro esquerdo", "Para-lama dianteiro direito", "Pneu dianteiro esquerdo", "Roda traseira direita", "Vidro da porta dianteira esquerda",
+           "Coluna A esquerda", "Coluna A direita", "Coluna B esquerda", "Coluna B direita", "Coluna C esquerda", "Coluna C direita"}
+    VISTAS5 = [("3D", "3d"), ("Lat. esq.", "lateral"), ("Frente", "frente"), ("Traseira", "traseira"), ("Teto", "cima")]
     for k in NOMES:
         pg.click(f"#carrs [data-k='{k}']"); pg.wait_for_timeout(600)
         pecas = set(pg.evaluate("window.__proto.partes()"))
@@ -35,15 +37,19 @@ with sync_playwright() as p:
                  "SUV": {"Tampa traseira", "Lateral traseira esquerda"}, "PICKUP": {"Tampa da caçamba", "Caçamba (assoalho)", "Caçamba (lateral) esquerda"}}[k]
         falta = (req | extra) - pecas
         confere(not falta, f"{NOMES[k]}: {len(pecas)} peças clicáveis separadas {('— faltam ' + str(falta)) if falta else ''}")
-        for v, arq in [("3D", "3d"), ("Lat. esq.", "lateral")]:
+        for v, arq in VISTAS5:
             vista(pg, v); pg.locator("#palco").screenshot(path=f"{OUT}/v3_{k.lower()}_{arq}.png")
-    # SUV: frente, traseira e teto
+        # coluna B: peça de estrutura com os tipos próprios
+        vista(pg, "Lat. esq.")
+        confere(toca(pg, "Coluna B esquerda") == "Coluna B esquerda" and pg.locator("#fTipo button").all_inner_texts() == ["Amassado", "Trinca/solda", "Repintura"],
+                f"{NOMES[k]}: toque na 'Coluna B esquerda' abre estrutura (amassado, trinca/solda, repintura)")
+        pg.click("#fCancelar"); pg.wait_for_timeout(300)
     pg.click("#carrs [data-k='SUV']"); pg.wait_for_timeout(600)
-    for v, arq in [("Frente", "frente"), ("Traseira", "traseira"), ("Teto", "teto")]:
-        vista(pg, v); pg.locator("#palco").screenshot(path=f"{OUT}/v3_suv_{arq}.png")
     # lado certo: na lateral esquerda, tocar na porta abre a porta ESQUERDA
     vista(pg, "Lat. esq.")
     confere(toca(pg, "Porta dianteira esquerda") == "Porta dianteira esquerda", "lateral esquerda: toque abre 'Porta dianteira esquerda'")
+    pg.click("#fCancelar"); pg.wait_for_timeout(300)
+    confere(toca(pg, "Coluna C esquerda") == "Coluna C esquerda", "lateral esquerda: toque abre 'Coluna C esquerda'")
     pg.click("#fCancelar"); pg.wait_for_timeout(300)
     vista(pg, "Lat. dir.")
     confere(toca(pg, "Porta traseira direita") == "Porta traseira direita", "lateral direita: toque abre 'Porta traseira direita'")
@@ -86,14 +92,19 @@ with sync_playwright() as p:
     pg.screenshot(path=f"{OUT}/v3_tela_pequena_folha.png")
     b.close()
 
-# folha única: 4 carrocerias, 3D e lateral
-ims = [[Image.open(f"{OUT}/v3_{k.lower()}_{v}.png") for v in ("3d", "lateral")] for k in NOMES]
-w, h = ims[0][0].size; cab = 70
-folha = Image.new("RGB", (w * 2, (h + cab) * 4), (11, 11, 12)); d = ImageDraw.Draw(folha)
-try: fonte = ImageFont.truetype("segoeui.ttf", 40)
+# uma folha por carroceria (5 vistas, como no celular) e uma folha com as 4 juntas
+try: fonte = ImageFont.truetype("segoeui.ttf", 36)
 except OSError: fonte = ImageFont.load_default()
-for i, k in enumerate(NOMES):
-    d.text((24, i * (h + cab) + 14), f"{NOMES[k]} — 3D e lateral esquerda", fill=(242, 242, 243), font=fonte)
-    for j in range(2): folha.paste(ims[i][j], (j * w, i * (h + cab) + cab))
-folha.save(f"{OUT}/v3_4_carrocerias.png")
+ROT = ["3D", "Lateral esquerda", "Frente", "Traseira", "Cima"]
+def folha(linhas, arq, esc=1.0):
+    w, h = linhas[0][1][0].size; w, h = int(w * esc), int(h * esc); cab = 60
+    f = Image.new("RGB", (w * 5, (h + cab) * len(linhas)), (11, 11, 12)); d = ImageDraw.Draw(f)
+    for i, (titulo, ims) in enumerate(linhas):
+        for j, im in enumerate(ims):
+            d.text((j * w + 20, i * (h + cab) + 12), f"{titulo} · {ROT[j]}", fill=(242, 242, 243), font=fonte)
+            f.paste(im.resize((w, h)), (j * w, i * (h + cab) + cab))
+    f.save(f"{OUT}/{arq}")
+todas = [(NOMES[k], [Image.open(f"{OUT}/v3_{k.lower()}_{a}.png") for _, a in VISTAS5]) for k in NOMES]
+for (titulo, ims), k in zip(todas, NOMES): folha([(titulo, ims)], f"v3_{k.lower()}_5_vistas.png")
+folha(todas, "v3_4_carrocerias_5_vistas.png", .6)
 print("\n" + ("TUDO OK" if ok else "HÁ FALHAS"))
