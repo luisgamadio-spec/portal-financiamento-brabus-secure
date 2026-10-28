@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Protótipo — Vistoria 2D</title>
+<style>
+  :root { --bg:#0b0b0c; --card:#141416; --line:#2c2c31; --txt:#f2f2f3; --mut:#a3a3ad; --acc:#ee4b57;
+          --leve:#f5c518; --media:#ff8c1a; --grave:#e3262f; --toque:#39b6ff; --painel:#e4e7ec; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--txt); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body.folhaAberta { padding-bottom: 62vh; }
+  button { font-family: inherit; }
+  .topo { padding:14px 16px 4px; } .topo h1 { margin:0; font-size:20px; font-weight:400; } .topo p { margin:4px 0 0; color:var(--mut); font-size:13px; }
+  .seg { display:grid; gap:6px; padding:8px 16px 0; }
+  .seg button { min-height:42px; border-radius:8px; border:1px solid var(--line); background:#1b1b1f; color:var(--mut); font-size:13px; }
+  .seg button.on { border-color:var(--acc); background:rgba(238,75,87,.16); color:var(--txt); }
+  #carrs { grid-template-columns:repeat(4,1fr); } #vistas { grid-template-columns:repeat(6,1fr); } #vistas button { font-size:12px; min-height:40px; padding:0 2px; }
+  .painel { margin:10px 16px 0; background:var(--painel); border-radius:12px; padding:8px; }
+  .legenda { display:flex; gap:12px; font-size:11px; color:#4a4f58; padding:2px 4px 6px; }
+  .legenda i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .grade { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .vista { position:relative; } .vista.larga { grid-column:1 / -1; }
+  .vista .rot { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:#5d636d; padding:0 2px 2px; }
+  .vista svg { display:block; width:100%; height:auto; touch-action:manipulation; }
+  .peca { fill:#2a2e36; stroke:#fff; stroke-width:1.35; stroke-linejoin:round; vector-effect:non-scaling-stroke; cursor:pointer; transition:fill .15s; }
+  .peca.vidro { fill:#46505e; } .peca.pneu { fill:#111215; } .peca.roda { fill:#30353d; } .peca.farol { fill:#d9dde3; } .peca.lanterna { fill:#a5262d; } .peca.grade { fill:#15171b; }
+  .peca.toque { fill:var(--toque) !important; } .peca.g1 { fill:var(--leve) !important; } .peca.g2 { fill:var(--media) !important; } .peca.g3 { fill:var(--grave) !important; }
+  .base { fill:#1c1f25; stroke:#fff; stroke-width:1.6; vector-effect:non-scaling-stroke; }
+  .det { fill:none; stroke:#fff; stroke-width:1; vector-effect:non-scaling-stroke; opacity:.85; pointer-events:none; }
+  .extra { display:flex; gap:6px; padding:10px 16px 0; } .extra button { flex:1; min-height:42px; border-radius:8px; border:1px solid var(--line); background:#1b1b1f; color:var(--mut); font-size:13px; }
+  .offline { margin:8px 16px 0; padding:8px 10px; border-radius:8px; border:1px dashed var(--line); font-size:12px; color:var(--mut); }
+  .lista { padding:8px 16px 24px; } .lista h2 { font-size:15px; margin:12px 0 6px; display:flex; justify-content:space-between; }
+  .av { display:flex; justify-content:space-between; gap:8px; padding:10px 12px; border:1px solid var(--line); border-left-width:4px; border-radius:10px; background:var(--card); margin-bottom:6px; font-size:13px; }
+  .av small { color:var(--mut); display:block; margin-top:2px; } .av b { font-family: ui-monospace, monospace; color:var(--mut); font-weight:500; white-space:nowrap; }
+  .chk { border:1px solid var(--line); border-radius:10px; background:var(--card); padding:10px 12px; margin-bottom:8px; } .chk p { margin:0 0 6px; font-size:13px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chips button { min-height:42px; padding:0 12px; border-radius:8px; border:1px solid var(--line); background:#1b1b1f; color:var(--mut); font-size:13px; }
+  .chips button.on { border-color:var(--acc); background:rgba(238,75,87,.16); color:var(--txt); }
+  .grav button[data-v="Leve"].on { border-color:var(--leve); background:rgba(245,197,24,.18); }
+  .grav button[data-v="Média"].on { border-color:var(--media); background:rgba(255,140,26,.18); }
+  .grav button[data-v="Grave"].on { border-color:var(--grave); background:rgba(227,38,47,.2); }
+  .folha { position:fixed; left:0; right:0; bottom:0; max-height:min(78vh, 560px); overflow-y:auto; overscroll-behavior:contain; background:#151518;
+           border-top:1px solid var(--line); border-radius:16px 16px 0 0; padding:14px 16px calc(16px + env(safe-area-inset-bottom));
+           transform:translateY(105%); transition:transform .22s; box-shadow:0 -12px 40px rgba(0,0,0,.55); }
+  .folha.aberta { transform:none; } .folha h3 { margin:0 0 2px; font-size:17px; } .folha .sub { color:var(--mut); font-size:12px; }
+  .folha label { display:block; margin:10px 0 6px; font-size:12px; color:var(--mut); }
+  .btn { min-height:48px; border-radius:10px; border:1px solid var(--line); background:#1f1f24; color:var(--txt); font-size:14px; padding:0 14px; }
+  .prim { background:var(--acc); border-color:var(--acc); color:#1a0506; font-weight:600; }
+  .acoes { position:sticky; bottom:calc(-16px - env(safe-area-inset-bottom)); background:#151518; display:grid; grid-template-columns:1fr 2fr; gap:8px; margin-top:12px; padding:8px 0 4px; }
+</style>
+</head>
+<body>
+<div class="topo"><h1>Vistoria · AV-12</h1><p>Toque na peça para marcar a avaria</p></div>
+<div class="seg" id="carrs"></div>
+<div class="seg" id="vistas"></div>
+<div class="painel">
+  <div class="legenda"><span><i style="background:var(--leve)"></i>leve</span><span><i style="background:var(--media)"></i>média</span><span><i style="background:var(--grave)"></i>grave</span><span><i style="background:var(--toque)"></i>tocada</span></div>
+  <div class="grade" id="desenho"></div>
+</div>
+<div class="extra"><button type="button" id="btnEstepe">Pneu estepe</button><button type="button" id="btnChecklist">Ir para o checklist ↓</button></div>
+<div class="offline">Rascunho salvo neste celular · fotos sobem quando houver sinal</div>
+<div class="lista">
+  <h2><span>Avarias</span><span id="total"></span></h2><div id="avarias"></div>
+  <h2 id="tituloChecklist"><span>Checklist</span></h2><div id="checklist"></div>
+</div>
+<div class="folha" id="folha" role="dialog">
+  <h3 id="fPeca"></h3><div class="sub" id="fSub"></div>
+  <label>Tipo de avaria</label><div class="chips" id="fTipo"></div>
+  <label>Gravidade</label><div class="chips grav" id="fGrav"></div>
+  <div class="sub" style="margin-top:10px">Desconto pela tabela de reparos: <b>a definir</b></div>
+  <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" type="button">📷 Tirar foto</button><span class="sub">obrigatória em média e grave</span></div>
+  <div class="acoes"><button class="btn" type="button" id="fCancelar">Cancelar</button><button class="btn prim" type="button" id="fSalvar">Marcar avaria</button></div>
+</div>
+<script>
+(function () {
+  'use strict';
+  // =====================================================================================
+  // Carros GENÉRICOS desenhados do zero (nenhum modelo de marca, nenhuma imagem de banco).
+  // Unidades ~ cm. Lateral: x = comprimento (0 = frente), y = altura (para cima).
+  // perfil: contorno [x, y, raio do canto]; vidros: área dos vidros laterais; cintura: altura da linha das janelas;
+  // cortes: onde terminam para-lama / portas / lateral; colunas: [x0, x1] das colunas B e C (entre vidros);
+  // pcD/pcT: [x limite, altura] dos para-choques; farol/lanterna/espelho: polígonos laterais.
+  // Cima: comprimento L, largura W; Frente/Traseira: largura W, alturas.
+  // =====================================================================================
+  var C = {
+    HATCH: { nome: 'Hatch', L: 380, W: 172, H: 148, R: 30, eixos: [74, 304], vao: 16, cintura: 100,
+      perfil: [[4,24,6],[0,48,10],[3,76,14],[56,88,30],[122,99,6],[196,144,22],[290,147,20],[330,138,12],[364,104,8],[378,96,8],[380,40,8],[372,24,6]],
+      vidros: [[130,103,3],[196,138,10],[288,141,8],[322,133,6],[350,106,3]],
+      cortes: { paralama: 122, portaD: 222, portaT: 300, tampa: 346 }, colunas: [[216, 228], [282, 300]],
+      pcD: [40, 62], pcT: [344, 58], farol: [[2,70],[8,79],[46,86],[44,75],[12,67]], lanterna: [[368,99],[378,96],[380,74],[369,77]],
+      espelho: [[128,103],[142,111],[152,107],[146,99],[132,99]], macanetas: [[192,92,206],[276,92,290]],
+      frente: { teto: 146, cintura: 92, pc: 46, vaoVidro: 30, vaoTeto: 40, grade: [.30, 12], farolL: .24, pneu: 22 }, tras: { pc: 44, tampaAte: 92, vidroDe: 98 },
+      cima: { capo: 122, teto0: 196, teto1: 290, vigia1: 346, larg: 172 } },
+    SEDAN: { nome: 'Sedan', L: 452, W: 178, H: 144, R: 31, eixos: [86, 354], vao: 16, cintura: 100,
+      perfil: [[4,24,6],[0,50,10],[3,78,14],[70,90,30],[150,99,6],[230,140,22],[322,142,20],[384,106,12],[442,101,10],[452,92,8],[452,40,8],[444,24,6]],
+      vidros: [[158,103,3],[230,135,10],[320,137,8],[372,107,3]],
+      cortes: { paralama: 150, portaD: 258, portaT: 352, tampa: 404 }, colunas: [[250, 262], [326, 340]],
+      pcD: [40, 64], pcT: [418, 60], farol: [[2,72],[8,81],[54,88],[52,77],[12,69]], lanterna: [[438,100],[450,93],[452,78],[436,80]],
+      espelho: [[156,103],[170,111],[180,107],[174,99],[160,99]], macanetas: [[226,92,240],[322,92,336]],
+      frente: { teto: 142, cintura: 92, pc: 46, vaoVidro: 32, vaoTeto: 44, grade: [.26, 14], farolL: .25, pneu: 24 }, tras: { pc: 46, tampaAte: 96, vidroDe: 102 },
+      cima: { capo: 150, teto0: 230, teto1: 322, vigia1: 384, larg: 178 } },
+    SUV: { nome: 'SUV', L: 446, W: 186, H: 172, R: 36, eixos: [86, 356], vao: 24, cintura: 116,
+      perfil: [[4,32,6],[0,60,10],[3,92,14],[62,106,30],[142,115,6],[210,166,20],[418,170,14],[440,160,8],[446,112,6],[446,48,8],[438,32,6]],
+      vidros: [[148,119,3],[211,160,10],[412,163,8],[434,153,4],[436,121,3]],
+      cortes: { paralama: 142, portaD: 248, portaT: 346, tampa: 432 }, colunas: [[240, 252], [340, 354]],
+      pcD: [42, 74], pcT: [414, 70], farol: [[2,86],[8,96],[52,104],[50,92],[12,83]], lanterna: [[436,152],[446,149],[446,118],[437,120]],
+      espelho: [[150,119],[164,127],[174,123],[168,115],[152,115]], macanetas: [[218,106,232],[316,106,330]], barras: [[222,168],[404,169]],
+      frente: { teto: 170, cintura: 108, pc: 56, vaoVidro: 30, vaoTeto: 40, grade: [.25, 8], farolL: .22, pneu: 28 }, tras: { pc: 52, tampaAte: 112, vidroDe: 118 },
+      cima: { capo: 142, teto0: 210, teto1: 420, vigia1: 440, larg: 186 } },
+    PICKUP: { nome: 'Pickup', L: 530, W: 188, H: 182, R: 38, eixos: [94, 412], vao: 28, cintura: 120, cacamba: 330,
+      perfil: [[4,38,6],[0,64,10],[3,98,14],[70,112,30],[156,119,6],[224,176,18],[318,179,14],[330,172,3],[332,120,2],[526,117,4],[530,110,4],[530,52,8],[520,38,6]],
+      vidros: [[162,123,3],[226,168,10],[314,171,6],[322,126,3]],
+      cortes: { paralama: 156, portaD: 248, portaT: 330, tampa: 522 }, colunas: [[240, 252]],
+      pcD: [44, 80], pcT: [500, 64], farol: [[2,92],[8,102],[60,110],[58,98],[12,88]], lanterna: [[522,110],[530,108],[530,80],[522,82]],
+      espelho: [[166,123],[180,131],[190,127],[184,119],[168,119]], macanetas: [[220,110,234],[306,110,320]],
+      frente: { teto: 180, cintura: 112, pc: 60, vaoVidro: 30, vaoTeto: 40, grade: [.22, 6], farolL: .2, pneu: 30 }, tras: { pc: 56, tampaAte: 116, vidroDe: 132, cabine: true },
+      cima: { capo: 156, teto0: 224, teto1: 318, vigia1: 332, larg: 188 } }
+  };
+  var TIPOS = {
+    lataria: ['Risco', 'Amassado', 'Pintura danificada', 'Repintura', 'Ferrugem'],
+    'para-choque': ['Risco', 'Amassado', 'Trinca/quebra', 'Pintura danificada', 'Repintura'],
+    vidro: ['Risco', 'Trinca/quebra'], farol: ['Trinca/quebra', 'Embaçado/infiltração', 'Opaco/amarelado', 'Faltando'],
+    lanterna: ['Trinca/quebra', 'Embaçado/infiltração', 'Opaco/amarelado', 'Faltando'], grade: ['Risco', 'Trinca/quebra', 'Faltando'],
+    roda: ['Risco', 'Empeno', 'Faltando'], pneu: ['Desgaste', 'Corte/bolha', 'Remendo', 'Faltando'], retrovisor: ['Risco', 'Trinca/quebra', 'Faltando']
+  };
+  var GRUPO_NOME = { lataria: 'Lataria', 'para-choque': 'Para-choque', vidro: 'Vidro', farol: 'Farol', lanterna: 'Lanterna', grade: 'Grade', roda: 'Roda', pneu: 'Pneu', retrovisor: 'Retrovisor' };
+  var GRAV = ['Leve', 'Média', 'Grave'];
+  var tipo = 'HATCH', vista = 'TODAS', avarias = [], pendente = null, sel = { t: null, g: 'Leve' };
+
+  // ---------------------------------------------------------------- geometria 2D
+  function arredonda(pts) {   // polígono com cantos arredondados (curva quadrática amostrada)
+    var out = [], n = pts.length;
+    for (var i = 0; i < n; i++) {
+      var p = pts[i], a = pts[(i + n - 1) % n], b = pts[(i + 1) % n], r = p[2] || 0;
+      var la = Math.hypot(a[0] - p[0], a[1] - p[1]), lb = Math.hypot(b[0] - p[0], b[1] - p[1]);
+      r = Math.min(r, la / 2, lb / 2);
+      if (!r) { out.push([p[0], p[1]]); continue; }
+      var p0 = [p[0] + (a[0] - p[0]) / la * r, p[1] + (a[1] - p[1]) / la * r], p2 = [p[0] + (b[0] - p[0]) / lb * r, p[1] + (b[1] - p[1]) / lb * r];
+      for (var k = 0; k <= 6; k++) { var t = k / 6, u = 1 - t;
+        out.push([u * u * p0[0] + 2 * u * t * p[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p[1] + t * t * p2[1]]); }
+    }
+    return out;
+  }
+  function corta(poli, eixo, v, maior) {
+    var out = [];
+    for (var i = 0; i < poli.length; i++) {
+      var a = poli[i], b = poli[(i + 1) % poli.length], da = maior ? a[eixo] >= v : a[eixo] <= v, db = maior ? b[eixo] >= v : b[eixo] <= v;
+      if (da) out.push(a);
+      if (da !== db) { var t = (v - a[eixo]) / (b[eixo] - a[eixo]); out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]); }
+    }
+    return out;
+  }
+  function caixa(p, x0, x1, y0, y1) { return corta(corta(corta(corta(p, 0, x0, true), 0, x1, false), 1, y0, true), 1, y1, false); }
+  function d(pts, H, espelhoL) {   // path SVG (y para baixo; espelho horizontal opcional)
+    if (!pts || pts.length < 3) return '';
+    return 'M' + pts.map(function (p) { return (espelhoL ? (espelhoL - p[0]) : p[0]).toFixed(1) + ' ' + (H - p[1]).toFixed(1); }).join('L') + 'Z';
+  }
+  function circ(cx, cy, r) { var o = []; for (var k = 0; k < 40; k++) { var a = k / 40 * Math.PI * 2; o.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } return o; }
+
+  // ---------------------------------------------------------------- vistas
+  function parte(chave, grupo, pts, H, esp) {
+    var s = d(pts, H, esp); if (!s) return '';
+    return '<path class="peca ' + grupo + '" data-chave="' + chave + '" data-grupo="' + grupo + '" d="' + s + '"/>';
+  }
+  function lateral(c, lado) {   // lado: 'esquerdo' (frente à esquerda) ou 'direito' (espelhado)
+    var esq = lado === 'esquerdo', H = c.H + 8, esp = esq ? 0 : c.L, s = arredonda(c.perfil), v = arredonda(c.vidros);
+    var f = function (m, fem) { return m + ' ' + (fem ? (esq ? 'esquerda' : 'direita') : (esq ? 'esquerdo' : 'direito')); };
+    var k = c.cortes, out = '<path class="base" d="' + d(s, H, esp) + '"/>', top = 999, B = -1;
+    // para-choques (pontas baixas) e partes da lataria
+    out += parte('Para-choque dianteiro', 'para-choque', caixa(s, B, c.pcD[0], B, c.pcD[1]), H, esp);
+    out += parte(f('Para-lama dianteiro'), 'lataria', caixa(s, B, k.paralama, c.pcD[1], c.cintura), H, esp);
+    out += parte(f('Para-lama dianteiro'), 'lataria', caixa(s, c.pcD[0], k.paralama, B, c.pcD[1]), H, esp);
+    out += parte(f('Porta dianteira', true), 'lataria', caixa(s, k.paralama, k.portaD, B, c.cintura), H, esp);
+    if (c.cacamba) {
+      out += parte(f('Porta traseira', true), 'lataria', caixa(s, k.portaD, k.portaT, B, c.cintura), H, esp);
+      out += parte(f('Caçamba lateral', true), 'lataria', caixa(s, k.portaT, c.pcT[0], c.pcT[1], top), H, esp);
+      out += parte(f('Caçamba lateral', true), 'lataria', caixa(s, k.portaT, c.pcT[0], B, c.pcT[1]), H, esp);
+      out += parte('Tampa da caçamba', 'lataria', caixa(s, k.tampa, c.L + 1, c.pcT[1], top), H, esp);
+    } else {
+      out += parte(f('Porta traseira', true), 'lataria', caixa(s, k.portaD, k.portaT, B, c.cintura), H, esp);
+      out += parte(f('Lateral traseira', true), 'lataria', caixa(s, k.portaT, k.tampa, c.pcT[1], top), H, esp);
+      out += parte(f('Lateral traseira', true), 'lataria', caixa(s, k.portaT, c.pcT[0], B, c.pcT[1]), H, esp);
+      out += parte(tampaNome(), 'lataria', caixa(s, k.tampa, c.L + 1, c.pcT[1], top), H, esp);
+    }
+    out += parte('Para-choque traseiro', 'para-choque', caixa(s, c.pcT[0], c.L + 1, B, c.pcT[1]), H, esp);
+    // teto (faixa de cima) e vidros, separados pelas colunas
+    var tetoY = Math.max.apply(null, c.vidros.map(function (p) { return p[1]; })) + 2;
+    out += parte('Teto', 'lataria', caixa(s, k.paralama + 40, (c.cacamba ? k.portaT : k.tampa) - 4, tetoY, top), H, esp);
+    var cols = c.colunas, x0 = 0, nomesV = c.cacamba ? [f('Vidro da porta dianteira', true), f('Vidro da porta traseira', true)]
+      : [f('Vidro da porta dianteira', true), f('Vidro da porta traseira', true), f('Vidro lateral traseiro')];
+    for (var i = 0; i <= cols.length; i++) {
+      var x1 = i < cols.length ? cols[i][0] : 999;
+      out += parte(nomesV[i], 'vidro', caixa(v, x0, x1, B, top), H, esp);
+      x0 = i < cols.length ? cols[i][1] : 0;
+    }
+    out += parte(f('Farol'), 'farol', c.farol, H, esp);
+    out += parte(f('Lanterna traseira', true), 'lanterna', c.lanterna, H, esp);
+    out += parte(f('Retrovisor'), 'retrovisor', c.espelho, H, esp);
+    // detalhes (só desenho): maçanetas, barras de teto, caixas de roda
+    (c.macanetas || []).forEach(function (m) { out += '<path class="det" d="M' + (esq ? m[0] : c.L - m[0]) + ' ' + (H - m[1]) + 'L' + (esq ? m[2] : c.L - m[2]) + ' ' + (H - m[1]) + '"/>'; });
+    if (c.barras) out += '<path class="det" d="M' + (esq ? c.barras[0][0] : c.L - c.barras[0][0]) + ' ' + (H - c.barras[0][1]) + 'L' + (esq ? c.barras[1][0] : c.L - c.barras[1][0]) + ' ' + (H - c.barras[1][1]) + '"/>';
+    c.eixos.forEach(function (x, i) {
+      var pos = i === 0 ? 'dianteir' : 'traseir', cx = x, cy = c.R + 2, lad = esq ? 'esquerd' : 'direit';
+      out += '<path class="base" d="' + d(circ(cx, cy, c.R + 6), H, esp) + '" style="fill:#e4e7ec;stroke:none"/>';
+      out += '<path class="det" d="' + arco(esq ? cx : c.L - cx, H - cy, c.R + 6) + '"/>';
+      out += parte('Pneu ' + pos + 'o ' + lad + 'o', 'pneu', circ(cx, cy, c.R), H, esp);
+      out += parte('Roda ' + pos + 'a ' + lad + 'a', 'roda', circ(cx, cy, c.R * .62), H, esp);
+      for (var r = 0; r < 5; r++) { var a = r / 5 * Math.PI * 2; out += '<path class="det" d="M' + ((esq ? cx : c.L - cx) + Math.cos(a) * c.R * .2) + ' ' + (H - cy + Math.sin(a) * c.R * .2) + 'L' + ((esq ? cx : c.L - cx) + Math.cos(a) * c.R * .58) + ' ' + (H - cy + Math.sin(a) * c.R * .58) + '"/>'; }
+    });
+    return svg(c.L, H, out, 10);
+  }
+  function arco(cx, cy, r) { return 'M' + (cx - r) + ' ' + cy + ' A' + r + ' ' + r + ' 0 0 1 ' + (cx + r) + ' ' + cy; }
+  function tampaNome() { return tipo === 'SEDAN' ? 'Tampa do porta-malas' : tipo === 'PICKUP' ? 'Tampa da caçamba' : 'Tampa traseira'; }
+  function svg(w, h, conteudo, m) { return '<svg viewBox="' + (-m) + ' ' + (-m) + ' ' + (w + 2 * m) + ' ' + (h + 2 * m) + '" xmlns="http://www.w3.org/2000/svg">' + conteudo + '</svg>'; }
+
+  function cima(c) {   // frente à direita; lado direito do carro embaixo
+    var L = c.L, W = c.W, t = c.cima, out = '', H = W;
+    var corpo = arredonda([[2, 12, 34], [L - 2, 8, 26], [L - 2, W - 8, 26], [2, W - 12, 34]]);
+    out += '<path class="base" d="' + d(corpo, H) + '"/>';
+    out += parte('Para-choque dianteiro', 'para-choque', caixa(corpo, -1, 14, -1, W + 1), H);
+    out += parte('Para-choque traseiro', 'para-choque', caixa(corpo, L - 14, L + 1, -1, W + 1), H);
+    out += parte('Capô', 'lataria', caixa(corpo, 14, t.capo, 18, W - 18), H);
+    out += parte('Para-lama dianteiro esquerdo', 'lataria', caixa(corpo, 14, t.capo, -1, 18), H);
+    out += parte('Para-lama dianteiro direito', 'lataria', caixa(corpo, 14, t.capo, W - 18, W + 1), H);
+    out += parte('Para-brisa', 'vidro', arredonda([[t.capo + 4, 22, 4], [t.teto0, 30, 6], [t.teto0, W - 30, 6], [t.capo + 4, W - 22, 4]]), H);
+    out += parte('Teto', 'lataria', arredonda([[t.teto0 + 2, 26, 10], [t.teto1 - 2, 26, 10], [t.teto1 - 2, W - 26, 10], [t.teto0 + 2, W - 26, 10]]), H);
+    if (c.cacamba) {
+      out += parte('Vidro traseiro', 'vidro', [[t.teto1 + 2, 34], [t.vigia1 - 4, 30], [t.vigia1 - 4, W - 30], [t.teto1 + 2, W - 34]], H);
+      out += parte('Caçamba (assoalho)', 'lataria', caixa(corpo, t.vigia1 + 4, L - 26, 14, W - 14), H);
+      out += parte('Caçamba lateral esquerda', 'lataria', caixa(corpo, t.vigia1 + 4, L - 14, -1, 14), H);
+      out += parte('Caçamba lateral direita', 'lataria', caixa(corpo, t.vigia1 + 4, L - 14, W - 14, W + 1), H);
+      out += parte('Tampa da caçamba', 'lataria', caixa(corpo, L - 26, L - 14, 14, W - 14), H);
+    } else {
+      out += parte('Vidro traseiro', 'vidro', arredonda([[t.teto1, 30, 6], [t.vigia1, 24, 4], [t.vigia1, W - 24, 4], [t.teto1, W - 30, 6]]), H);
+      out += parte(tampaNome(), 'lataria', caixa(corpo, t.vigia1 + 2, L - 14, 16, W - 16), H);
+      out += parte('Lateral traseira esquerda', 'lataria', caixa(corpo, c.cortes.portaT, L - 14, -1, 16), H);
+      out += parte('Lateral traseira direita', 'lataria', caixa(corpo, c.cortes.portaT, L - 14, W - 16, W + 1), H);
+    }
+    out += parte('Porta dianteira esquerda', 'lataria', caixa(corpo, t.capo, c.cortes.portaD, -1, 14), H);
+    out += parte('Porta dianteira direita', 'lataria', caixa(corpo, t.capo, c.cortes.portaD, W - 14, W + 1), H);
+    out += parte('Porta traseira esquerda', 'lataria', caixa(corpo, c.cortes.portaD, c.cortes.portaT, -1, 14), H);
+    out += parte('Porta traseira direita', 'lataria', caixa(corpo, c.cortes.portaD, c.cortes.portaT, W - 14, W + 1), H);
+    out += parte('Retrovisor esquerdo', 'retrovisor', arredonda([[t.capo + 8, 12, 3], [t.capo + 24, 12, 3], [t.capo + 20, -6, 4], [t.capo + 6, -6, 4]]), H);
+    out += parte('Retrovisor direito', 'retrovisor', arredonda([[t.capo + 8, W - 12, 3], [t.capo + 24, W - 12, 3], [t.capo + 20, W + 6, 4], [t.capo + 6, W + 6, 4]]), H);
+    if (c.barras) { out += '<path class="det" d="M' + (t.teto0 + 10) + ' ' + (H - 30) + 'L' + (t.teto1 - 10) + ' ' + (H - 30) + 'M' + (t.teto0 + 10) + ' ' + (H - W + 30) + 'L' + (t.teto1 - 10) + ' ' + (H - W + 30) + '"/>'; }
+    return svg(L, W, out, 16);
+  }
+
+  function frenteTras(c, qual) {   // frente: lado esquerdo do carro à DIREITA do desenho; traseira: à esquerda
+    var W = c.W, f = c.frente, H = f.teto + 4, out = '', fr = qual === 'frente';
+    var tr = c.tras, vao = c.vao, cint = f.cintura, ladoDir = function (x) { return fr ? (x > W / 2 ? 'esquerd' : 'direit') : (x < W / 2 ? 'esquerd' : 'direit'); };
+    var baixo = arredonda([[4, vao, 8], [W - 4, vao, 8], [W, cint - 16, 12], [W - 8, cint, 10], [8, cint, 10], [0, cint - 16, 12]]);
+    var topoCab = tr.cabine && !fr ? f.teto : f.teto;
+    var cab = arredonda([[16, cint - 2, 4], [W - 16, cint - 2, 4], [W - f.vaoTeto, topoCab, 12], [f.vaoTeto, topoCab, 12]]);
+    // pneus primeiro (ficam atrás da carroceria)
+    [[6, 6 + f.pneu], [W - 6 - f.pneu, W - 6]].forEach(function (x) {
+      out += parte('Pneu ' + (fr ? 'dianteiro ' : 'traseiro ') + ladoDir(x[0]) + 'o', 'pneu', arredonda([[x[0], 0, 4], [x[1], 0, 4], [x[1], vao + 30, 4], [x[0], vao + 30, 4]]), H);
+    });
+    out += '<path class="base" d="' + d(cab, H) + '"/><path class="base" d="' + d(baixo, H) + '"/>';
+    if (fr) {
+      out += parte('Para-choque dianteiro', 'para-choque', caixa(baixo, -1, W + 1, -1, f.pc), H);
+      var g0 = f.grade[0], g1 = 1 - g0; out += parte('Grade', 'grade', arredonda([[W * g0, f.pc + 4, 5], [W * g1, f.pc + 4, 5], [W * (g1 - .02), cint - f.grade[1], 5], [W * (g0 + .02), cint - f.grade[1], 5]]), H);
+      out += parte('Farol direito', 'farol', arredonda([[10, cint - 30, 4], [W * f.farolL, cint - 26, 4], [W * f.farolL, cint - 13, 4], [12, cint - 16, 4]]), H);
+      out += parte('Farol esquerdo', 'farol', arredonda([[W - 10, cint - 30, 4], [W * (1 - f.farolL), cint - 26, 4], [W * (1 - f.farolL), cint - 13, 4], [W - 12, cint - 16, 4]]), H);
+      out += parte('Capô', 'lataria', caixa(baixo, -1, W + 1, cint - 10, cint + 1), H);
+      out += parte('Para-brisa', 'vidro', caixa(cab, 20, W - 20, cint + 3, f.teto - 10), H);
+      out += parte('Teto', 'lataria', caixa(cab, -1, W + 1, f.teto - 8, 999), H);
+    } else {
+      out += parte('Para-choque traseiro', 'para-choque', caixa(baixo, -1, W + 1, -1, tr.pc), H);
+      out += parte(tampaNome(), 'lataria', caixa(baixo, W * (tr.cabine ? .2 : .2), W * .8, tr.pc + 2, tr.tampaAte), H);
+      out += parte('Lanterna traseira esquerda', 'lanterna', arredonda([[4, cint - 34, 4], [W * .19, cint - 30, 4], [W * .19, cint - 8, 4], [6, cint - 10, 4]]), H);
+      out += parte('Lanterna traseira direita', 'lanterna', arredonda([[W - 4, cint - 34, 4], [W * .81, cint - 30, 4], [W * .81, cint - 8, 4], [W - 6, cint - 10, 4]]), H);
+      out += parte('Vidro traseiro', 'vidro', caixa(cab, 22, W - 22, tr.vidroDe, f.teto - 10), H);
+      out += parte('Teto', 'lataria', caixa(cab, -1, W + 1, f.teto - 8, 999), H);
+      out += '<path class="det" d="M' + (W * .44) + ' ' + (H - tr.pc - 18) + 'L' + (W * .56) + ' ' + (H - tr.pc - 18) + '"/>';
+    }
+    // retrovisores
+    [[-14, 2], [W - 2, W + 14]].forEach(function (x) {
+      var dir = x[0] < 0 ? !fr : fr;   // à esquerda do desenho: na frente é o lado direito do carro
+      out += parte('Retrovisor ' + (x[0] < 0 ? (fr ? 'direito' : 'esquerdo') : (fr ? 'esquerdo' : 'direito')), 'retrovisor', arredonda([[x[0], cint + 4, 3], [x[1], cint + 6, 3], [x[1], cint + 18, 3], [x[0], cint + 16, 3]]), H);
+    });
+    return svg(W, H, out, 18);
+  }
+
+  // ---------------------------------------------------------------- tela
+  var VISTAS = [['TODAS', 'Todas'], ['LE', 'Lat. esq.'], ['LD', 'Lat. dir.'], ['CIMA', 'Cima'], ['FRENTE', 'Frente'], ['TRAS', 'Traseira']];
+  function desenhar() {
+    var c = C[tipo], html = '';
+    var bloco = function (rot, s, larga) { return '<div class="vista' + (larga ? ' larga' : '') + '"><div class="rot">' + rot + '</div>' + s + '</div>'; };
+    if (vista === 'TODAS') {
+      html = bloco('Lateral esquerda', lateral(c, 'esquerdo'), true) + bloco('Lateral direita', lateral(c, 'direito'), true) +
+        bloco('Frente', frenteTras(c, 'frente')) + bloco('Traseira', frenteTras(c, 'tras')) + bloco('Cima', cima(c), true);
+    } else {
+      var m = { LE: ['Lateral esquerda', lateral(c, 'esquerdo')], LD: ['Lateral direita', lateral(c, 'direito')], CIMA: ['Cima', cima(c)],
+                FRENTE: ['Frente', frenteTras(c, 'frente')], TRAS: ['Traseira', frenteTras(c, 'tras')] }[vista];
+      html = bloco(m[0], m[1], true);
+    }
+    document.getElementById('desenho').innerHTML = html;
+    pintar();
+  }
+  function pintar() {
+    var ordem = { Leve: 1, 'Média': 2, Grave: 3 };
+    document.querySelectorAll('#desenho .peca').forEach(function (el) {
+      var ch = el.getAttribute('data-chave');
+      var pior = avarias.filter(function (a) { return a.tipoCarro === tipo && a.chave === ch; }).sort(function (a, b) { return ordem[b.g] - ordem[a.g]; })[0];
+      el.classList.remove('toque', 'g1', 'g2', 'g3');
+      if (pendente && pendente.chave === ch) el.classList.add('toque');
+      else if (pior) el.classList.add('g' + ordem[pior.g]);
+    });
+  }
+  document.getElementById('desenho').addEventListener('click', function (e) {
+    var el = e.target.closest('.peca'); if (!el) return;
+    abrir(el.getAttribute('data-chave'), el.getAttribute('data-grupo'));
+  });
+  function abrir(chave, grupo) {
+    pendente = { chave: chave, grupo: grupo, tipoCarro: tipo }; sel = { t: null, g: 'Leve' };
+    renderFolha(); pintar(); document.getElementById('folha').classList.add('aberta'); document.body.classList.add('folhaAberta');
+  }
+  function chips(id, lista, k) {
+    var el = document.getElementById(id);
+    el.innerHTML = lista.map(function (v) { return '<button type="button" class="' + (sel[k] === v ? 'on' : '') + '" data-v="' + v + '">' + v + '</button>'; }).join('');
+    el.onclick = function (ev) { var b = ev.target.closest('button'); if (!b) return; sel[k] = b.getAttribute('data-v'); renderFolha(); };
+  }
+  function renderFolha() {
+    var ja = avarias.filter(function (a) { return a.chave === pendente.chave && a.tipoCarro === tipo; }).length;
+    document.getElementById('fPeca').textContent = pendente.chave;
+    document.getElementById('fSub').textContent = GRUPO_NOME[pendente.grupo] + (ja ? ' · já tem ' + ja + ' avaria(s)' : '');
+    chips('fTipo', TIPOS[pendente.grupo], 't'); chips('fGrav', GRAV, 'g');
+    var s = document.getElementById('fSalvar'); s.disabled = !sel.t; s.style.opacity = sel.t ? 1 : .45;
+  }
+  function fechar() { pendente = null; document.getElementById('folha').classList.remove('aberta'); document.body.classList.remove('folhaAberta'); pintar(); }
+  document.getElementById('fCancelar').onclick = fechar;
+  document.getElementById('fSalvar').onclick = function () { if (!sel.t) return; avarias.push({ chave: pendente.chave, grupo: pendente.grupo, tipoCarro: tipo, t: sel.t, g: sel.g }); fechar(); lista(); };
+  document.getElementById('btnEstepe').onclick = function () { abrir('Pneu estepe', 'pneu'); };
+  document.getElementById('btnChecklist').onclick = function () { document.getElementById('tituloChecklist').scrollIntoView({ behavior: 'smooth' }); };
+  function lista() {
+    var cor = { Leve: 'var(--leve)', 'Média': 'var(--media)', Grave: 'var(--grave)' };
+    document.getElementById('avarias').innerHTML = avarias.map(function (a) { return '<div class="av" style="border-left-color:' + cor[a.g] + '"><div>' + a.chave + ' · ' + a.t + '<small>' + a.g + ' · 1 foto</small></div><b>a definir</b></div>'; }).join('') || '<div class="av"><div>Nenhuma avaria marcada</div></div>';
+    document.getElementById('total').textContent = avarias.length ? avarias.length + ' avaria(s) · reparos: a definir' : '';
+  }
+  var CHECK = [['Interior (bancos, forros, carpete)', ['Bom', 'Regular', 'Ruim']], ['Luzes de alerta no painel', ['Nenhuma', 'Acesa(s)']], ['Ar-condicionado', ['Gela', 'Fraco', 'Não funciona']],
+               ['Chave reserva', ['Tem', 'Não tem']], ['Manual do proprietário', ['Tem', 'Não tem']], ['Revisões', ['Em dia na concessionária', 'Parciais', 'Sem comprovação']]];
+  var resp = {};
+  function checklist() {
+    document.getElementById('checklist').innerHTML = CHECK.map(function (c, i) { return '<div class="chk"><p>' + c[0] + '</p><div class="chips" data-i="' + i + '">' + c[1].map(function (o) { return '<button type="button" class="' + (resp[i] === o ? 'on' : '') + '">' + o + '</button>'; }).join('') + '</div></div>'; }).join('');
+    document.querySelectorAll('#checklist .chips').forEach(function (el) { el.onclick = function (ev) { var b = ev.target.closest('button'); if (!b) return; resp[el.getAttribute('data-i')] = b.textContent; checklist(); }; });
+  }
+  document.getElementById('carrs').innerHTML = Object.keys(C).map(function (k) { return '<button type="button" data-k="' + k + '" class="' + (k === tipo ? 'on' : '') + '">' + C[k].nome + '</button>'; }).join('');
+  document.getElementById('carrs').onclick = function (ev) { var b = ev.target.closest('button'); if (!b) return; tipo = b.getAttribute('data-k'); fechar();
+    document.querySelectorAll('#carrs button').forEach(function (x) { x.classList.toggle('on', x === b); }); desenhar(); };
+  document.getElementById('vistas').innerHTML = VISTAS.map(function (v, i) { return '<button type="button" data-v="' + v[0] + '" class="' + (i === 0 ? 'on' : '') + '">' + v[1] + '</button>'; }).join('');
+  document.getElementById('vistas').onclick = function (ev) { var b = ev.target.closest('button'); if (!b) return; vista = b.getAttribute('data-v');
+    document.querySelectorAll('#vistas button').forEach(function (x) { x.classList.toggle('on', x === b); }); desenhar(); };
+  desenhar(); lista(); checklist();
+  window.__v2d = { avarias: function () { return avarias; }, pecas: function () { return Array.prototype.map.call(document.querySelectorAll('#desenho .peca'), function (e) { return e.getAttribute('data-chave'); }); } };
+})();
+</script>
+</body>
+</html>
