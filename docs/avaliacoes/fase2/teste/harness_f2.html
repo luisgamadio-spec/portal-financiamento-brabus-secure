@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teste local — Avaliações + vistoria (banco simulado no navegador)</title>
+<link rel="stylesheet" href="../aval_homolog/assets/css/vendor/fonts.css">
+<link rel="stylesheet" href="../aval_homolog/assets/css/vendor/design-tokens.css">
+<link rel="stylesheet" href="../aval_homolog/assets/css/font-scale.css">
+<link rel="stylesheet" href="../aval_homolog/assets/css/shell.css">
+<link rel="stylesheet" href="../aval_homolog/assets/css/module-system.css">
+<link rel="stylesheet" href="../aval_homolog/assets/css/simuladores.css">
+<link rel="stylesheet" href="../aval_homolog/assets/css/avaliacoes.css">
+<style>body{margin:0;background:var(--color-canvas)} #out{padding:16px}</style>
+</head>
+<body>
+<main id="out"></main>
+<script>
+// Banco SIMULADO só para este teste local: reproduz o contrato das RPCs aval_* e da função de placa.
+(function () {
+  var perfil = new URLSearchParams(location.search).get('perfil') || 'AVALIADOR';
+  var ctx = perfil === 'MASTER'
+    ? { perfil: 'MASTER', loja: null, escopo: 'GRUPO', pode_criar: true, pode_regras: true, lojas: ['ABC','ALPHAVILLE','ANALIA FRANCO','BANDEIRANTES','BARRA FUNDA','EUROPA','GASTAO','NACOES'] }
+    : { perfil: 'AVALIADOR', loja: 'GASTAO', escopo: 'LOJA', pode_criar: true, pode_regras: false, lojas: ['GASTAO'] };
+  var avs = [], consultas = {}, n = 0;
+  var regras = [{ versao: 1, vigente_desde: '2026-10-27T18:00:00Z', criado_por: null, observacao: 'Versão inicial.',
+    parametros: { impostos_pct: 4, margem_loja_pct: 12, margem_loja_min: 10000, preparacao_padrao: null, margem_repasse_pct: null, margem_repasse_min: null, desconto_restricao_pct: null, desconto_reprovado_pct: null } }];
+  function calc(p, venda, prep, rep) {
+    var num = function (x) { return x == null || x === '' ? null : Number(x); };
+    var imp = venda * num(p.impostos_pct) / 100, pr = prep == null ? num(p.preparacao_padrao) : prep;
+    var ml = num(p.margem_loja_pct) == null || num(p.margem_loja_min) == null ? null : Math.max(venda * num(p.margem_loja_pct) / 100, num(p.margem_loja_min));
+    var mr = num(p.margem_repasse_pct) == null || num(p.margem_repasse_min) == null ? null : Math.max(venda * num(p.margem_repasse_pct) / 100, num(p.margem_repasse_min));
+    var nn = function (v) { return v == null || isNaN(v) ? null : Math.round(v * 100) / 100; };
+    var loja = ml == null || pr == null ? null : venda - imp - ml - pr - rep;
+    var repasse = mr == null || pr == null ? null : venda - imp - mr - pr - rep;
+    return { venda_provavel: venda, impostos: nn(imp), preparacao: pr, reparos: rep, margem_loja: nn(ml), margem_repasse: nn(mr), loja: nn(loja), repasse: nn(repasse),
+      repasse_restricao: repasse == null || num(p.desconto_restricao_pct) == null ? null : nn(repasse * (1 - num(p.desconto_restricao_pct) / 100)),
+      repasse_reprovado: repasse == null || num(p.desconto_reprovado_pct) == null ? null : nn(repasse * (1 - num(p.desconto_reprovado_pct) / 100)) };
+  }
+  function erro(status, msg, code) { return new Response(JSON.stringify({ code: code, message: msg, erro: msg }), { status: status }); }
+  function ok(b) { return new Response(JSON.stringify(b), { status: 200 }); }
+  var rpc = {
+    aval_contexto: function () { return ctx; },
+    aval_listar: function (b) { return avs.filter(function (a) { return b.p_status ? a.status === b.p_status : a.status !== 'DESCARTADA'; }); },
+    aval_obter: function (b) { var a = avs.find(function (x) { return x.id === b.p_id; }); return Object.assign({}, a, { versoes_consulta: a.consulta_id ? consultas[a.consulta_id].versoes : null, eventos: [] }); },
+    aval_salvar_identificacao: function (b) {
+      var d = b.p_dados;
+      if (!d.km) throw [400, 'Informe a quilometragem.', '22023'];
+      if (!d.carroceria) throw [400, 'Escolha a carroceria (hatch, sedan, SUV ou pickup).', '22023'];
+      var a = b.p_id ? avs.find(function (x) { return x.id === b.p_id; }) : { id: 'av' + (++n), codigo: n, status: 'RASCUNHO', loja: ctx.escopo === 'LOJA' ? ctx.loja : d.loja, avaliador: 'Teste', criado_em: new Date().toISOString() };
+      if (!a.loja) throw [400, 'Escolha a loja da avaliação.', '22023'];
+      var c = d.consulta_id ? consultas[d.consulta_id] : null, v = c ? c.versoes.find(function (x) { return x.fipe_codigo === d.fipe_codigo; }) : null;
+      Object.assign(a, { placa: d.placa, chassi: d.chassi, consulta_id: d.consulta_id || null, marca: v ? v.marca : d.marca, modelo: v ? v.modelo : d.modelo, versao: v ? v.versao : d.versao,
+        fipe_codigo: v ? v.fipe_codigo : null, fipe_valor: v ? v.fipe_valor : null, fipe_mes_ref: v ? v.fipe_mes_ref : null, fipe_simulado: !!c,
+        ano_fabricacao: +d.ano_fabricacao, ano_modelo: +d.ano_modelo, km: +String(d.km).replace(/\D/g, ''), cor: (d.cor || '').toUpperCase(), carroceria: d.carroceria,
+        combustivel: v ? v.combustivel : d.combustivel, observacao: d.observacao || null,
+        restricao_gravame: c ? c.restricoes.gravame : null, restricao_leilao: c ? c.restricoes.leilao : null, restricao_sinistro: c ? c.restricoes.sinistro : null });
+      if (!b.p_id) avs.unshift(a);
+      return { id: a.id, codigo: a.codigo, status: a.status };
+    },
+    aval_descartar: function (b) { avs.find(function (x) { return x.id === b.p_id; }).status = 'DESCARTADA'; return { status: 'DESCARTADA' }; },
+    aval_referencias: function (b) {
+      var a = avs.find(function (x) { return x.id === b.p_id; }); var termo = (b.p_termo || [a.modelo, a.versao].join(' ')).toUpperCase();
+      return { termo: termo, fipe: { valor: a.fipe_valor, codigo: a.fipe_codigo, mes_ref: a.fipe_mes_ref, simulado: a.fipe_simulado },
+        base: { familia: 'ECLIPSE CROSS', motor: '1.5', versao: 'HPE-S', edicao: [], combustivel: 'GASOLINA', tracao: '4X4', ano_modelo: a.ano_modelo },
+        amostra_pequena_abaixo_de: 5,
+        mesma_versao_ano: { quantidade: 3, mediana: 154467.5, p25: 150000, p75: 158795, minimo: 142900, maximo: 187000, amostra_pequena: true },
+        versao_ou_ano_proximo: { quantidade: 80, mediana: 148505, p25: 136815, p75: 165375, minimo: 98000, maximo: 190935, amostra_pequena: false },
+        ignoradas: 30, ignoradas_milhares: 26, ignoradas_fora_da_faixa: 4,
+        vendas: [{ data: '2026-08-10', loja: 'GASTAO', modelo: 'ECLIPSE CROSS HPE-S 1.5T S-AWC', ano: 2023, valor: 142900, grupo: 'mesma', ignorada: false },
+                 { data: '2026-07-31', loja: 'EUROPA', modelo: 'ECLIPSE CROSS HPE-S 1.5T S-AWC', ano: 2023, valor: 187000, grupo: 'mesma', ignorada: false },
+                 { data: '2026-10-20', loja: 'BANDEIRANTES', modelo: 'ECLIPSE CROSS 1.5 MIVEC TURBO GASOL', ano: 2024, valor: 151000, grupo: 'proxima', ignorada: false },
+                 { data: '2026-03-02', loja: 'NACOES', modelo: 'ECLIPSE CROSS HPE-S 1.5T S-AWC', ano: 2023, valor: 141, grupo: 'mesma', ignorada: true }],
+        observacao: 'Vendas de seminovos do grupo nos últimos 12 meses (Base 01).' };
+    },
+    aval_regras_listar: function () { return regras; },
+    aval_previa_calculo: function (b) { return calc(b.p_parametros || regras[0].parametros, b.p_venda, b.p_preparacao, b.p_reparos); },
+    // ---- vistoria (Fase 2): mesmo contrato das funções aval_vistoria_* do banco
+    aval_vistoria_obter: function (b) { return visJson(b.p_id); },
+    aval_vistoria_salvar: function (b) {
+      var v = vis(b.p_id), est = b.p_estado; window.__salvamentos = (window.__salvamentos || 0) + 1;
+      (est.avarias || []).forEach(function (a) { if (!/^(Porta|Para-lama|Capô|Teto|Tampa|Lateral|Caçamba|Para-choque|Coluna|Para-brisa|Vidro|Farol|Lanterna|Grade|Retrovisor|Roda|Pneu)/.test(a.peca)) throw [400, 'Peça desconhecida: ' + a.peca + '.', '22023']; });
+      var ids = (est.avarias || []).map(function (a) { return a.id; });
+      v.fotos.forEach(function (f) { if (f.avaria_id && ids.indexOf(f.avaria_id) < 0) f.status = 'REMOVIDA'; });
+      v.avarias = (est.avarias || []).map(function (a) { return Object.assign({}, a, { item: item(a.peca) }); });
+      v.checklist = est.checklist || {}; v.concluida_em = null;
+      return visJson(b.p_id);
+    },
+    aval_vistoria_concluir: function (b) {
+      var j = visJson(b.p_id);
+      if (j.checklist_respondidos < 6) throw [400, 'Responda todo o checklist antes de concluir.', '22023'];
+      if (j.avarias_sem_foto > 0) throw [400, 'Falta foto em ' + j.avarias_sem_foto + ' avaria(s) média(s) ou grave(s).', '22023'];
+      vis(b.p_id).concluida_em = new Date().toISOString(); return visJson(b.p_id);
+    },
+    aval_foto_remover: function (b) { var id; Object.keys(V).forEach(function (k) { V[k].fotos.forEach(function (f) { if (f.id === b.p_foto) { f.status = 'REMOVIDA'; id = k; } }); }); return visJson(id); },
+    aval_reparos_listar: function () { return tabela; },
+    aval_master_salvar_reparos: function (b) { var it = {}; Object.keys(b.p_itens).forEach(function (k) { it[k] = {}; ['LEVE','MEDIA','GRAVE'].forEach(function (g) { var x = b.p_itens[k][g]; it[k][g] = x == null || x === '' ? null : Number(x); }); });
+      tabela.unshift({ versao: tabela.length + 1, itens: it, observacao: b.p_observacao, vigente_desde: new Date().toISOString(), criado_por: 'Master' }); return { versao: tabela.length }; },
+    aval_master_salvar_regra: function (b) { regras.unshift({ versao: regras.length + 1, parametros: b.p_parametros, observacao: b.p_observacao, vigente_desde: new Date().toISOString(), criado_por: 'Master' }); return { versao: regras.length }; }
+  };
+  var ITENS = ['Porta','Para-lama','Capô','Teto','Tampa','Lateral traseira / caçamba','Caçamba (assoalho)','Para-choque','Coluna','Para-brisa','Vidro traseiro','Vidro lateral','Farol','Lanterna','Grade','Retrovisor','Roda','Pneu'];
+  var tabela = [{ versao: 1, itens: {}, observacao: 'Versão inicial: todos os custos a definir.', vigente_desde: '2026-10-28T20:15:00Z', criado_por: null }];
+  ITENS.forEach(function (i) { tabela[0].itens[i] = { LEVE: null, MEDIA: null, GRAVE: null }; });
+  function item(p) { var m = [[/^Porta/, 'Porta'], [/^Para-lama/, 'Para-lama'], [/^Capô/, 'Capô'], [/^Teto/, 'Teto'], [/^Tampa/, 'Tampa'], [/^(Lateral|Caçamba \(lateral)/, 'Lateral traseira / caçamba'], [/^Caçamba \(assoalho/, 'Caçamba (assoalho)'], [/^Para-choque/, 'Para-choque'], [/^Coluna/, 'Coluna'], [/^Para-brisa/, 'Para-brisa'], [/^Vidro traseiro/, 'Vidro traseiro'], [/^Vidro/, 'Vidro lateral'], [/^Farol/, 'Farol'], [/^Lanterna/, 'Lanterna'], [/^Grade/, 'Grade'], [/^Retrovisor/, 'Retrovisor'], [/^Roda/, 'Roda'], [/^Pneu/, 'Pneu']];
+    for (var i = 0; i < m.length; i++) if (m[i][0].test(p)) return m[i][1]; return null; }
+  var V = {};
+  function vis(id) { return V[id] || (V[id] = { avarias: [], checklist: {}, fotos: [], concluida_em: null }); }
+  function visJson(id) {
+    var v = vis(id), a = avs.find(function (x) { return x.id === id; }), t = tabela[0].itens, total = 0, adef = 0, semFoto = 0;
+    var avarias = v.avarias.map(function (x) {
+      var c = (t[x.item] || {})[x.gravidade]; if (c == null) adef++; else total += c;
+      var fotos = v.fotos.filter(function (f) { return f.avaria_id === x.id && f.status !== 'REMOVIDA'; }).map(function (f) { return { id: f.id, status: f.status }; });
+      if ((x.gravidade === 'MEDIA' || x.gravidade === 'GRAVE') && !fotos.some(function (f) { return f.status === 'ENVIADA'; })) semFoto++;
+      return Object.assign({}, x, { custo: c == null ? null : c, fotos: fotos });
+    });
+    return { avaliacao_id: id, carroceria: a.carroceria, status: a.status, pode_editar: ctx.pode_criar && a.status === 'RASCUNHO', avarias: avarias,
+      checklist: v.checklist, concluida_em: v.concluida_em, tabela_versao: tabela[0].versao, total_reparos: adef ? null : total, custos_a_definir: adef,
+      avarias_sem_foto: semFoto, checklist_respondidos: Object.keys(v.checklist).length, checklist_total: 6, fotos_gerais: [] };
+  }
+  window.__offline = false;
+  window.NX_INTELLIGENCE_CONFIG = { supabaseUrl: 'https://simulado.local', supabasePublishableKey: 'x' };
+  window.NX_AUTH = { getAccessToken: function () { return Promise.resolve('token'); } };
+  window.fetch = function (url, opt) {
+    if (window.__offline) return Promise.reject(new TypeError('Failed to fetch'));
+    if (/functions\/v1\/avaliacao-fotos/.test(url)) {
+      var q = new URL(url).searchParams, vf = vis(q.get('avaliacao_id'));
+      return new Promise(function (res) { setTimeout(res, 150); }).then(function () {
+        if (q.get('acao') === 'ver') return ok({ fotos: vf.fotos.filter(function (f) { return f.status === 'ENVIADA'; }).map(function (f) { return { id: f.id, avaria_id: f.avaria_id, url: f.url }; }) });
+        var blob = opt.body; window.__fotosEnviadas = (window.__fotosEnviadas || []).concat([{ bytes: blob.size, tipo: opt.headers['Content-Type'] }]);
+        if (q.get('avaria_id') && !vf.avarias.some(function (a) { return a.id === q.get('avaria_id'); })) return erro(400, 'A avaria desta foto ainda não foi salva.', '22023');
+        if (!vf.fotos.some(function (f) { return f.id === q.get('foto_id'); })) vf.fotos.push({ id: q.get('foto_id'), avaria_id: q.get('avaria_id'), status: 'ENVIADA', url: URL.createObjectURL(blob) });
+        return ok({ id: q.get('foto_id'), status: 'ENVIADA' });
+      });
+    }
+    var body = JSON.parse((opt && opt.body) || '{}');
+    return new Promise(function (res) { setTimeout(res, 120); }).then(function () {
+      if (/functions\/v1\/avaliacao-consulta-placa/.test(url)) {
+        if (/0000$/.test(body.placa || '')) return erro(502, 'O serviço de consulta de placa não respondeu. Preencha os dados manualmente.');
+        var id = 'c' + Object.keys(consultas).length;
+        consultas[id] = { consulta_id: id, fornecedor: 'SIMULADO', simulado: true, cache: false, ano_fabricacao: 2022, cor: 'BRANCO',
+          restricoes: { gravame: /7$/.test(body.placa || ''), leilao: false, sinistro: false },
+          versoes: [{ marca: 'MITSUBISHI', modelo: 'ECLIPSE CROSS', versao: 'HPE 1.5 TURBO CVT', fipe_codigo: 'SIM-4821', fipe_valor: 95600, fipe_mes_ref: '2026-10', ano_modelo: 2023, combustivel: 'GASOLINA', chassi: null },
+                    { marca: 'MITSUBISHI', modelo: 'ECLIPSE CROSS', versao: 'HPE-S 1.5 TURBO S-AWC', fipe_codigo: 'SIM-4822', fipe_valor: 104500, fipe_mes_ref: '2026-10', ano_modelo: 2023, combustivel: 'GASOLINA', chassi: null },
+                    { marca: 'MITSUBISHI', modelo: 'ECLIPSE CROSS', versao: 'GLS 1.5 TURBO CVT', fipe_codigo: 'SIM-4823', fipe_valor: 88300, fipe_mes_ref: '2026-10', ano_modelo: 2023, combustivel: 'GASOLINA', chassi: null }] };
+        return ok(consultas[id]);
+      }
+      var nome = String(url).split('/rpc/')[1];
+      try { return ok(rpc[nome](body)); } catch (e) { return Array.isArray(e) ? erro(e[0], e[1], e[2]) : erro(500, String(e)); }
+    });
+  };
+})();
+</script>
+<script src="../aval_homolog/assets/js/adapters/avaliacoes-provider.js"></script>
+<script src="../aval_homolog/assets/js/avaliacoes.js"></script>
+<script type="module" src="../aval_homolog/assets/js/avaliacoes-vistoria.mjs"></script>
+<script>window.NX_AVALIACOES_PAGE.render(document.getElementById('out'));</script>
+</body>
+</html>

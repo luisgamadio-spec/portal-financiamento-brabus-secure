@@ -22,7 +22,9 @@ CWD = sys.argv[1] if len(sys.argv) > 1 else AQUI
 TABELAS = ["configuracoes", "periodos_comissao", "ausencias_analistas", "mudancas_loja_vendedores", "analistas_fi", "chamar_analista_fi_controle",
            "bi_uso_perguntas",  # 26/10/2026: utilização da Brabus IA (só o Master lê, via master_ia_usage_data)
            # 27/10/2026: Avaliações de Seminovos (só pelas funções aval_*; consultas gravadas só pela Edge Function)
-           "aval_avaliacoes", "aval_eventos", "aval_consultas_veiculo", "aval_regras_margem", "fipe_precos"]
+           "aval_avaliacoes", "aval_eventos", "aval_consultas_veiculo", "aval_regras_margem", "fipe_precos",
+           # 28/10/2026: vistoria (Fase 2) — só pelas funções aval_vistoria_*/aval_foto_*; fotos só pela Edge Function avaliacao-fotos
+           "aval_tabela_reparos", "aval_vistorias", "aval_avarias", "aval_fotos"]
 PAPEIS = ("anon", "authenticated")
 REPETICOES = 3                     # repetições depois da 1ª tentativa, só para erro de conexão
 ESPERA = (5, 10, 20)               # segundos antes de cada repetição
